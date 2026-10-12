@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <PackageVersion>1.0.22</PackageVersion>
+        <PackageReleaseNotes>Fully update domain to TKey or long</PackageReleaseNotes>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Nobisoft.Core\Nobisoft.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="MediatR" Version="11.1.0" />
+    </ItemGroup>
+
+</Project>

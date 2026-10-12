@@ -1,0 +1,95 @@
+namespace Nobisoft.Core.Constants;
+
+public class ListDataMeasurementPoint
+{
+    public const string DongDienPhaA = "DONG_DIEN_PHA_A";
+    public const string DongDienPhaB = "DONG_DIEN_PHA_B";
+    public const string DongDienPhaC = "DONG_DIEN_PHA_C";
+    public const string DienApPhaA = "DIEN_AP_PHA_A";
+    public const string DienApPhaB = "DIEN_AP_PHA_B";
+    public const string DienApPhaC = "DIEN_AP_PHA_C";
+    public const string CongSuatTacDungPhaA = "CONG_SUAT_TAC_DUNG_PHA_A";
+    public const string CongSuatTacDungPhaB = "CONG_SUAT_TAC_DUNG_PHA_B";
+    public const string CongSuatTacDungPhaC = "CONG_SUAT_TAC_DUNG_PHA_C";
+    public const string CongSuatTacDungTong3Pha = "CONG_SUAT_TAC_DUNG_TONG_3_PHA";
+    public const string CongSuatPhanKhangPhaA = "CONG_SUAT_PHAN_KHANG_PHA_A";
+    public const string CongSuatPhanKhangPhaB = "CONG_SUAT_PHAN_KHANG_PHA_B";
+    public const string CongSuatPhanKhangPhaC = "CONG_SUAT_PHAN_KHANG_PHA_C";
+    public const string CongSuatPhanKhangTong3Pha = "CONG_SUAT_PHAN_KHANG_TONG_3_PHA";
+    public const string HeSoCongSuatPFPhaA = "HE_SO_CONG_SUAT_PF_PHA_A";
+    public const string HeSoCongSuatPFPhaB = "HE_SO_CONG_SUAT_PF_PHA_B";
+    public const string HeSoCongSuatPFPhaC = "HE_SO_CONG_SUAT_PF_PHA_C";
+    public const string HeSoCongSuatPFTrungBinh3Pha = "HE_SO_CONG_SUAT_PF_TRUNG_BINH_3_PHA";
+    public const string TanSoHeThong = "TAN_SO_HE_THONG";
+    public const string ChiSoTichLuyDienNangTacDungAPBieuGioBT = "CHI_SO_TICH_LUY_DIEN_NANG_TAC_DUNG_AP_BIEU_GIO_BT";
+    public const string ChiSoTichLuyDienNangTacDungAPBieuGioCD = "CHI_SO_TICH_LUY_DIEN_NANG_TAC_DUNG_AP_BIEU_GIO_CD";
+    public const string ChiSoTichLuyDienNangTacDungAPBieuGioTD = "CHI_SO_TICH_LUY_DIEN_NANG_TAC_DUNG_AP_BIEU_GIO_TD";
+    public const string ChiSoTichLuyDienNangTacDungAPTong = "CHI_SO_TICH_LUY_DIEN_NANG_TAC_DUNG_AP_TONG";
+    public const string ChiSoTichLuyDienNangPhanKhangAQTong = "CHI_SO_TICH_LUY_DIEN_NANG_PHAN_KHANG_AQ_TONG";
+    public const string ChiSoChotDienNangAPGioBT = "CHI_SO_CHOT_DIEN_NANG_AP_GIO_BT";
+    public const string ChiSoChotDienNangAPGioCD = "CHI_SO_CHOT_DIEN_NANG_AP_GIO_CD";
+    public const string ChiSoChotDienNangAPGioTD = "CHI_SO_CHOT_DIEN_NANG_AP_GIO_TD";
+    public const string ChiSoChotDienNangAPTong = "CHI_SO_CHOT_DIEN_NANG_AP_TONG";
+    public const string ChiSoChotDienNangAQTong = "CHI_SO_CHOT_DIEN_NANG_AQ_TONG";
+    public const string MatKetNoi = "MAT_KET_NOI";
+    public const string CanhBao01 = "CANH_BAO_01";
+    public const string CanhBao02 = "CANH_BAO_02";
+    public const string CanhBao03 = "CANH_BAO_03";
+    public const string CanhBao04 = "CANH_BAO_04";
+    public const string CanhBao05 = "CANH_BAO_05";
+    public const string CanhBao06 = "CANH_BAO_06";
+    public const string CanhBao07 = "CANH_BAO_07";
+    public const string CanhBao08 = "CANH_BAO_08";
+    public const string CanhBao09 = "CANH_BAO_09";
+    public const string CanhBao10 = "CANH_BAO_10";
+    public const string CanhBao01CustomName = "CANH_BAO_01_CUSTOME_NAME";
+    public const string CanhBao02CustomName = "CANH_BAO_02_CUSTOME_NAME";
+    public const string CanhBao03CustomName = "CANH_BAO_03_CUSTOME_NAME";
+    public const string CanhBao04CustomName = "CANH_BAO_04_CUSTOME_NAME";
+    public const string CanhBao05CustomName = "CANH_BAO_05_CUSTOME_NAME";
+    public const string CanhBao06CustomName = "CANH_BAO_06_CUSTOME_NAME";
+    public const string CanhBao07CustomName = "CANH_BAO_07_CUSTOME_NAME";
+    public const string CanhBao08CustomName = "CANH_BAO_08_CUSTOME_NAME";
+    public const string CanhBao09CustomName = "CANH_BAO_09_CUSTOME_NAME";
+    public const string CanhBao10CustomName = "CANH_BAO_10_CUSTOME_NAME";
+    public const string GioHienTai = "GIO_HIEN_TAI";
+    public const string PhutHienTai = "PHUT_HIEN_TAI";
+    public const string GiayHienTai = "GIAY_HIEN_TAI";
+    public const string NamHienTai = "NAM_HIEN_TAI";
+    public const string ThangHienTai = "THANG_HIEN_TAI";
+    public const string NgayHienTai = "NGAY_HIEN_TAI";
+    public const string GioChotGanNhat = "GIO_CHOT_GAN_NHAT";
+    public const string PhutChotGanNhat = "PHUT_CHOT_GAN_NHAT";
+    public const string GiayChotGanNhat = "GIAY_CHOT_GAN_NHAT";
+    public const string NamChotGanNhat = "NAM_CHOT_GAN_NHAT";
+    public const string ThangChotGanNhat = "THANG_CHOT_GAN_NHAT";
+    public const string NgayChotGanNhat = "NGAY_CHOT_GAN_NHAT";
+    
+    public const string ChiSoTichLuyDienNangTacDungAPBieuGioBTChieuNhan = "CHI_SO_TICH_LUY_DIEN_NANG_TAC_DUNG_AP_BIEU_GIO_BT_CHIEU_NHAN";
+    public const string ChiSoTichLuyDienNangTacDungAPBieuGioCDChieuNhan = "CHI_SO_TICH_LUY_DIEN_NANG_TAC_DUNG_AP_BIEU_GIO_CD_CHIEU_NHAN";
+    public const string ChiSoTichLuyDienNangTacDungAPBieuGioTDChieuNhan = "CHI_SO_TICH_LUY_DIEN_NANG_TAC_DUNG_AP_BIEU_GIO_TD_CHIEU_NHAN";
+    public const string ChiSoTichLuyDienNangTacDungAPTongChieuNhan = "CHI_SO_TICH_LUY_DIEN_NANG_TAC_DUNG_AP_TONG_CHIEU_NHAN";
+    public const string ChiSoTichLuyDienNangPhanKhangAQTongChieuNhan = "CHI_SO_TICH_LUY_DIEN_NANG_PHAN_KHANG_AQ_TONG_CHIEU_NHAN";
+    
+    public const string ChiSoChotDienNangAPGioBTChieuNhan = "CHI_SO_CHOT_DIEN_NANG_AP_GIO_BT_CHIEU_NHAN";
+    public const string ChiSoChotDienNangAPGioCDChieuNhan = "CHI_SO_CHOT_DIEN_NANG_AP_GIO_CD_CHIEU_NHAN";
+    public const string ChiSoChotDienNangAPGioTDChieuNhan = "CHI_SO_CHOT_DIEN_NANG_AP_GIO_TD_CHIEU_NHAN";
+    public const string ChiSoChotDienNangAPTongChieuNhan = "CHI_SO_CHOT_DIEN_NANG_AP_TONG_CHIEU_NHAN";
+    public const string ChiSoChotDienNangAQTongChieuNhan = "CHI_SO_CHOT_DIEN_NANG_AQ_TONG_CHIEU_NHAN";
+    
+    public const string PmaxKyHienTai = "PMAX_KY_HIEN_TAI";
+    public const string NamPmaxKyHienTai = "NAM_PMAX_KY_HIEN_TAI";
+    public const string ThangPmaxKyHienTai = "THANG_PMAX_KY_HIEN_TAI";
+    public const string NgayPmaxKyHienTai = "NGAY_PMAX_KY_HIEN_TAI";
+    public const string GioPmaxKyHienTai = "GIO_PMAX_KY_HIEN_TAI";
+    public const string PhutPmaxKyHienTai = "PHUT_PMAX_KY_HIEN_TAI";
+    public const string GiayPmaxKyHienTai = "GIAY_PMAX_KY_HIEN_TAI";
+    
+    public const string PmaxKyTruoc = "PMAX_KY_TRUOC";
+    public const string NamPmaxKyTruoc = "NAM_PMAX_KY_TRUOC";
+    public const string ThangPmaxKyTruoc = "THANG_PMAX_KY_TRUOC";
+    public const string NgayPmaxKyTruoc = "NGAY_PMAX_KY_TRUOC";
+    public const string GioPmaxKyTruoc = "GIO_PMAX_KY_TRUOC";
+    public const string PhutPmaxKyTruoc = "PHUT_PMAX_KY_TRUOC";
+    public const string GiayPmaxKyTruoc = "GIAY_PMAX_KY_TRUOC";
+}

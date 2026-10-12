@@ -1,0 +1,35 @@
+import { Navigate } from 'react-router-dom';
+
+import { ROUTE_PATH } from '@/core/application/common/appRouters';
+import Constants from '@/core/application/common/constants';
+import LocalStorageService from '@/infrastructure/services/localStorage.service';
+
+interface Props {
+  component: React.ComponentType;
+  path?: string;
+  roles?: Array<any>;
+}
+
+export const PrivateRoute: React.FC<Props> = ({ component: RouteComponent }) => {
+  let localStorageService = new LocalStorageService();
+  let storage: any = localStorageService.readStorage(Constants.API_TOKEN_STORAGE);
+
+  if (storage) {
+    // let roleOfUser = getListRole();
+    // let checkRole = false;
+    // if (roles && roles.length) {
+    //   roles.map((it: any) => {
+    //     if (roleOfUser?.some((itC: any) => itC === it)) {
+    //       checkRole = true;
+    //     }
+    //   });
+    // }
+    // if (checkRole) {
+    //   return <RouteComponent />;
+    // }
+    // return <Navigate to={ROUTE_PATH.FORBIDDEN_ACCESS} />;
+    return <RouteComponent />;
+  }
+
+  return <Navigate to={ROUTE_PATH.LOGIN} />;
+};

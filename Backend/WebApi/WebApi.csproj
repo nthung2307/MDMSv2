@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.7" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="MySqlConnector" Version="2.3.7" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+        <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.0" />
+        <PackageReference Include="SQLitePCLRaw.core" Version="2.1.0" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Infrastructure\Infrastructure.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="SavedRequests\Request_DateTime_20241213_030141.txt" />
+      <None Remove="SavedRequests\Request_DateTime_20241213_030045.txt" />
+      <None Remove="SavedRequests\Request_DateTime_20241213_025848.txt" />
+    </ItemGroup>
+</Project>

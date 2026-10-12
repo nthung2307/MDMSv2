@@ -1,0 +1,25 @@
+.full-page-loading {
+  position: fixed;
+  top: 0px;
+  left: 0px;
+  right: 0px;
+  bottom: 0px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.801);
+  z-index: 99999;
+}
+
+.message-error .message {
+  color: #ff0000 !important;
+  font-feature-settings:
+    'clig' off,
+    'liga' off;
+  /* font-family: 'Inter', sans-serif; */
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 22px;
+  letter-spacing: 0.25px;
+}

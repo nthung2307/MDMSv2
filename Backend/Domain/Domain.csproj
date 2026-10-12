@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Core\Nobisoft.Core.AspNetCore\Nobisoft.Core.AspNetCore.csproj" />
+      <ProjectReference Include="..\Core\Nobisoft.Core.Authorization\Nobisoft.Core.Authorization.csproj" />
+      <ProjectReference Include="..\Core\Nobisoft.Core.Configuration\Nobisoft.Core.Configuration.csproj" />
+      <ProjectReference Include="..\Core\Nobisoft.Core.Database\Nobisoft.Core.Database.csproj" />
+      <ProjectReference Include="..\Core\Nobisoft.Core.DI\Nobisoft.Core.DI.csproj" />
+      <ProjectReference Include="..\Core\Nobisoft.Core.Domain\Nobisoft.Core.Domain.csproj" />
+      <ProjectReference Include="..\Core\Nobisoft.Core.HttpContextAccessor\Nobisoft.Core.HttpContextAccessor.csproj" />
+      <ProjectReference Include="..\Core\Nobisoft.Core.Logger\Nobisoft.Core.Logger.csproj" />
+      <ProjectReference Include="..\Core\Nobisoft.Core\Nobisoft.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="MediatR.Extensions.Autofac.DependencyInjection" Version="8.1.0" />
+      <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="8.0.0" />
+    </ItemGroup>
+
+</Project>

@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <PackageVersion>1.0.9</PackageVersion>
+        <PackageReleaseNotes>Add file path, caller function, logged code line number</PackageReleaseNotes>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Nobisoft.Core\Nobisoft.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+      <PackageReference Include="Serilog.AspNetCore" Version="4.1.1-dev-00250" />
+      <PackageReference Include="Serilog.Enrichers.GlobalLogContext" Version="1.1.0" />
+      <PackageReference Include="Serilog.Settings.Configuration" Version="3.3.1-dev-00296" />
+      <PackageReference Include="Serilog.Sinks.Console" Version="4.0.2-dev-00890" />
+      <PackageReference Include="Serilog.Sinks.File" Version="5.0.1-dev-00947" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Reference Include="Microsoft.AspNetCore.Mvc.Abstractions, Version=6.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60">
+        <HintPath>..\..\..\..\usr\local\share\dotnet\shared\Microsoft.AspNetCore.App\6.0.1\Microsoft.AspNetCore.Mvc.Abstractions.dll</HintPath>
+      </Reference>
+      <Reference Include="Microsoft.AspNetCore.Mvc.Core, Version=6.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60">
+        <HintPath>..\..\..\..\usr\local\share\dotnet\shared\Microsoft.AspNetCore.App\6.0.1\Microsoft.AspNetCore.Mvc.Core.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
+</Project>

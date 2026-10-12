@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <PackageReleaseNotes>Init</PackageReleaseNotes>
+        <PackageVersion>1.0.7</PackageVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Nobisoft.Core.Domain\Nobisoft.Core.Domain.csproj" />
+      <ProjectReference Include="..\Nobisoft.Core\Nobisoft.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Microsoft.AspNetCore.Http" Version="2.2.2" />
+    </ItemGroup>
+
+</Project>

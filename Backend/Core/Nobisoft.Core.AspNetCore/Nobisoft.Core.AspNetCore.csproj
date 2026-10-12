@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <PackageVersion>1.0.21</PackageVersion>
+        <PackageReleaseNotes>Add request response log</PackageReleaseNotes>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Nobisoft.Core.HttpContextAccessor\Nobisoft.Core.HttpContextAccessor.csproj" />
+      <ProjectReference Include="..\Nobisoft.Core.Logger\Nobisoft.Core.Logger.csproj" />
+      <ProjectReference Include="..\Nobisoft.Core\Nobisoft.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Microsoft.AspNetCore.Http" Version="2.2.2" />
+      <PackageReference Include="Microsoft.AspNetCore.Mvc.Core" Version="2.2.5" />
+      <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+      <PackageReference Include="Microsoft.FeatureManagement.AspNetCore" Version="2.4.0" />
+    </ItemGroup>
+
+</Project>

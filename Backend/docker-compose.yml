@@ -1,0 +1,17 @@
+﻿services:
+  webapi:
+    image: amr
+    container_name: amr
+    build:
+      context: .
+      dockerfile: WebApi/Dockerfile
+    restart: always
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "19089:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+    volumes:
+      - ./data:/app/SavedRequests
+      - ./data:/app/SavedRequestsNew

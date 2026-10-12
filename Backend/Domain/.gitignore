@@ -1,0 +1,9 @@
+bin
+obj
+.idea
+.DS_Store
+.vs_code
+.vscode
+.aws-sam
+samconfig.toml
+publish

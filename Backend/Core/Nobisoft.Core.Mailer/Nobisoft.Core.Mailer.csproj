@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <PackageVersion>1.0.7</PackageVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Nobisoft.Core.Configuration\Nobisoft.Core.Configuration.csproj" />
+      <ProjectReference Include="..\Nobisoft.Core.HttpContextAccessor\Nobisoft.Core.HttpContextAccessor.csproj" />
+      <ProjectReference Include="..\Nobisoft.Core.Logger\Nobisoft.Core.Logger.csproj" />
+      <ProjectReference Include="..\Nobisoft.Core\Nobisoft.Core.csproj" />
+    </ItemGroup>
+
+</Project>

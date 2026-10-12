@@ -1,0 +1,1 @@
+Contain some base functions and error classes, middleware for aspnetcore project

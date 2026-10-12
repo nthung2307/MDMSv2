@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <PackageVersion>2.0.0</PackageVersion>
+        <PackageReleaseNotes>Add cache and encryption options</PackageReleaseNotes>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Nobisoft.Core.AspNetCore\Nobisoft.Core.AspNetCore.csproj" />
+      <ProjectReference Include="..\Nobisoft.Core.Configuration\Nobisoft.Core.Configuration.csproj" />
+      <ProjectReference Include="..\Nobisoft.Core.DI\Nobisoft.Core.DI.csproj" />
+      <ProjectReference Include="..\Nobisoft.Core\Nobisoft.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="HotChocolate.AspNetCore.Authorization" Version="12.6.0-rc.2" />
+      <PackageReference Include="HotChocolate.Types" Version="12.6.0-rc.2" />
+      <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
+      <PackageReference Include="Microsoft.AspNetCore.Authorization" Version="8.0.0" />
+      <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.0" />
+    </ItemGroup>
+    <ItemGroup>
+        <Protobuf Include="ProtobufServices\Protos\*.proto" GrpcServices="Client" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Polly" Version="7.2.3" />
+        <PackageReference Include="Google.Protobuf" Version="3.20.0" />
+        <PackageReference Include="Grpc.Net.Client" Version="2.40.0" />
+        <PackageReference Include="Grpc.Tools" Version="2.45.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+    <ItemGroup>
+      <Folder Include="Extensions" />
+    </ItemGroup>
+
+</Project>
