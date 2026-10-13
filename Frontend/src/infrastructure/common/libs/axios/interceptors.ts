@@ -28,10 +28,14 @@ const onRequest = (config: InternalAxiosRequestConfig | any): InternalAxiosReque
   // Set Loading Start Here
 
   if (storage) {
-    config.headers = {
-      ...config.headers,
-      Authorization: `Bearer ${storage.accessToken}`,
-    };
+    if (config.headers && typeof config.headers.set === 'function') {
+      config.headers.set('Authorization', `Bearer ${storage}`);
+    } else {
+      config.headers = {
+        ...config.headers,
+        Authorization: `Bearer ${storage}`,
+      };
+    }
   }
   return config;
 };
@@ -54,7 +58,7 @@ const onResponse = (response: AxiosResponse): AxiosResponse => {
 //     }}
 // }
 
-// let localStorageService = new LocalStorageService();
+let localStorageService = new LocalStorageService();
 // let storage = localStorageService.readStorage(Constants.API_TOKEN_STORAGE);
 
 // axiosRetry(axiosInstance, {
@@ -89,13 +93,14 @@ const onErrorResponse = async (error: AxiosError | Error | any): Promise<unknown
         if (originalRequest.url.includes(Endpoint.Auth.RefreshToken)) {
           // Refresh token failed
           // Redirect to login page
-          // localStorageService.removeStorage(Constants.API_TOKEN_STORAGE);
-          // window.location.href = '/';
+          localStorageService.removeStorage(Constants.API_TOKEN_STORAGE);
+          localStorageService.removeStorage(Constants.API_REFRESH_TOKEN_STORAGE);
+          window.location.href = '/';
           return Promise.reject(error);
         }
         try {
           const localStorageService = new LocalStorageService();
-          const token = localStorageService.readStorage(Constants.API_TOKEN_STORAGE);
+          const token = localStorageService.readStorage(Constants.API_REFRESH_TOKEN_STORAGE);
           if (token && !originalRequest._retry) {
             originalRequest._retry = true;
 
@@ -105,7 +110,7 @@ const onErrorResponse = async (error: AxiosError | Error | any): Promise<unknown
               // refreshTokenRequest = refreshTokenRequest ? refreshTokenRequest :
               const result = await refreshTokenAsync(
                 new RefreshTokenRequest({
-                  refreshToken: token.refreshToken,
+                  refreshToken: token,
                 })
               ).finally(() => {
                 isRefreshing = false;
@@ -113,7 +118,7 @@ const onErrorResponse = async (error: AxiosError | Error | any): Promise<unknown
               // Add type assertion here
               if (result?.success) {
                 if (originalRequest.headers) {
-                  originalRequest.headers.Authorization = `Bearer ${result.result.accessToken}`;
+                  originalRequest.headers.Authorization = `Bearer ${result.data.accessToken}`;
                 }
                 requests.forEach((cb: any) => cb(result.idToken));
                 requests = [];

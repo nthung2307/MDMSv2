@@ -167,8 +167,8 @@ builder.Services.AddAuthentication(config =>
     config.SaveToken = true;
     config.TokenValidationParameters = new TokenValidationParameters()
     {
-        ValidIssuer = "api-amr.nobisoft.vn",
-        ValidAudience = "api-amr.nobisoft.vn",
+        ValidIssuer = builder.Configuration["JwtConfigurations:Issuer"] ?? "api-amr.nobisoft.vn",
+        ValidAudience = builder.Configuration["JwtConfigurations:Audience"] ?? "api-amr.nobisoft.vn",
         IssuerSigningKey =
             new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(builder.Configuration["JwtConfigurations:SymmetricSecurityKey"] ?? string.Empty)),
@@ -272,7 +272,7 @@ builder.Services.Configure<IdentityOptions>(options =>
 
 builder.Services.AddPooledDbContextFactory<AppReadWriteDbContext>(options =>
 {
-    var connectionString = $"Server={appDb.Server};Port={appDb.Port};Database={appDb.Database};User={appDb.UserName};Password={appDb.Password};Default Command Timeout=180;Connection Timeout=180;Allow User Variables=true;";
+    var connectionString = $"Server={appDb.Server};Port={appDb.Port};Database={appDb.Database};User={appDb.UserName};Password={appDb.Password};Default Command Timeout=180;Connection Timeout=180;Allow User Variables=true;AllowPublicKeyRetrieval=true;";
 
     options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 21)), opts =>
     {
@@ -289,7 +289,7 @@ builder.Services.AddPooledDbContextFactory<AppReadWriteDbContext>(options =>
 
 builder.Services.AddPooledDbContextFactory<AppReadOnlyDbContext>(options =>
 {
-    var connectionString = $"Server={appDb.Server};Port={appDb.Port};Database={appDb.Database};User={appDb.UserName};Password={appDb.Password};Default Command Timeout=180;Connection Timeout=180;Allow User Variables=true;";     // Optional, but often needed for long-running operations
+    var connectionString = $"Server={appDb.Server};Port={appDb.Port};Database={appDb.Database};User={appDb.UserName};Password={appDb.Password};Default Command Timeout=180;Connection Timeout=180;Allow User Variables=true;AllowPublicKeyRetrieval=true;";     // Optional, but often needed for long-running operations
 
     options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 21)), opts =>
     {
@@ -309,7 +309,7 @@ builder.Services.AddHangfire(configuration =>
 {
     configuration.UseStorage(
         new MySqlStorage(
-            $"server={appDb.Server};uid={appDb.UserName};pwd={appDb.Password};database={appDb.Database};port={appDb.Port};Allow User Variables=True",
+            $"server={appDb.Server};uid={appDb.UserName};pwd={appDb.Password};database={appDb.Database};port={appDb.Port};Allow User Variables=True;AllowPublicKeyRetrieval=True",
             new MySqlStorageOptions
             {
                 TablesPrefix = "Hangfire",

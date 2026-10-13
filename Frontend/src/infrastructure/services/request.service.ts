@@ -7,6 +7,7 @@ import {
   ParamsUploadListFileEntity,
 } from '@/core/application/common/entities/params.entity';
 import NetworkException from '@/core/application/common/exceptions/networkException';
+import Failure500Response from '@/core/application/dto/common/responses/failure500Response';
 import FailureResponse from '@/core/application/dto/common/responses/failureResponse';
 import InvalidModelStateResponse from '@/core/application/dto/common/responses/invalidModelStateResponse';
 import { RequestResponse } from '@/core/application/dto/common/responses/requestResponse';
@@ -32,7 +33,7 @@ export default class RequestService implements IRequestService {
 
   private getOptions(file: boolean = false) {
     // let token = context?.token || "";
-    let token = this.localStorageService.readStorage(Constants.LocalStorage.ApiToken);
+    let token = this.localStorageService.readStorage(Constants.API_TOKEN_STORAGE);
     let opts: any = {
       headers: {
         'Content-Type': 'application/json',
@@ -53,6 +54,21 @@ export default class RequestService implements IRequestService {
     }
 
     return opts;
+  }
+
+  private extractErrorMessage(e: any): string {
+    if (e.response?.data?.errors?.length && e.response.data.errors[0]?.error) {
+      return e.response.data.errors[0].error;
+    }
+    if (e.response?.data?.message) {
+      return Array.isArray(e.response.data.message)
+        ? e.response.data.message[0]
+        : e.response.data.message;
+    }
+    if (e.response?.data?.title) {
+      return e.response.data.title;
+    }
+    return e.message;
   }
 
   /**
@@ -106,10 +122,15 @@ export default class RequestService implements IRequestService {
       } else {
         this.loggerService.error(`[ERROR] ${e}`);
       }
-
+      if (e.response.status === 500) {
+        return new Failure500Response({
+          ...e,
+          message: this.extractErrorMessage(e),
+        });
+      }
       return new FailureResponse({
         ...e,
-        message: e.response?.data?.message || e.message,
+        message: this.extractErrorMessage(e),
       });
     }
     // finally {
@@ -146,10 +167,15 @@ export default class RequestService implements IRequestService {
       } else {
         this.loggerService.error(`[ERROR] ${e}`);
       }
-
+      if (e.response?.status === 500) {
+        return new Failure500Response({
+          ...e,
+          message: this.extractErrorMessage(e),
+        });
+      }
       return new FailureResponse({
         ...e,
-        message: e.response?.data?.message || e.message,
+        message: this.extractErrorMessage(e),
       });
     }
     // finally {
@@ -181,6 +207,51 @@ export default class RequestService implements IRequestService {
       return new FailureResponse({
         ...e,
         message: e.response?.data?.message || e.message,
+      });
+    }
+    // finally {
+    //   await setRecoilStateAsync(LoadingState, { isLoading: false, uri: '' })
+    // }
+  }
+
+  async makePostExportRequestAsync(
+    endpoint: string,
+    requestBody: any,
+    cancellationToken?: CancelToken,
+    params?: any
+  ): Promise<RequestResponse> {
+    try {
+      const _params = params
+        ? Object.keys(params)
+            .map((key) => `${key}=${encodeURIComponent(params[key])}`)
+            .join('&')
+        : '';
+      const _url = `${this.baseURL}/${endpoint}${_params === '' ? '' : '?' + _params}`;
+      // await setRecoilStateAsync(LoadingState, { isLoading: true, uri: _url })
+      const _requestBody = JSON.stringify(requestBody);
+
+      return this.processRequest(
+        await axiosInstance.post(_url, _requestBody, {
+          ...this.getOptions(true),
+          cancelToken: cancellationToken,
+        })
+      );
+    } catch (e: any) {
+      if (isCancel(e)) {
+        this.loggerService.error(`[ERROR]: ${endpoint} --- canceltoken`);
+        return new FailureResponse(this.errorCancel);
+      } else {
+        this.loggerService.error(`[ERROR] ${e}`);
+      }
+      if (e.response?.status === 500) {
+        return new Failure500Response({
+          ...e,
+          message: this.extractErrorMessage(e),
+        });
+      }
+      return new FailureResponse({
+        ...e,
+        message: this.extractErrorMessage(e),
       });
     }
     // finally {
@@ -237,11 +308,10 @@ export default class RequestService implements IRequestService {
         : '';
       const _url = `${this.baseURL}/${endpoint}${_params === '' ? '' : '?' + _params}`;
       // await setRecoilStateAsync(LoadingState, { isLoading: true, uri: _url })
-
       // const _params = JSON.stringify(params);
       return this.processRequest(
         await axiosInstance.post(_url, _params, {
-          ...this.getOptions(),
+          ...this.getOptions(true),
           cancelToken: cancellationToken,
         })
       );
@@ -252,10 +322,11 @@ export default class RequestService implements IRequestService {
       } else {
         this.loggerService.error(`[ERROR] ${e}`);
       }
+
       // throw e;
       return new FailureResponse({
         ...e,
-        message: e.response?.data?.message || e.message,
+        message: this.extractErrorMessage(e),
       });
     }
     // finally {
@@ -296,12 +367,57 @@ export default class RequestService implements IRequestService {
       }
       return new FailureResponse({
         ...e,
-        message: e.response?.data?.message || e.message,
+        message: this.extractErrorMessage(e),
       });
     }
     // finally {
     //   await setRecoilStateAsync(LoadingState, { isLoading: false, uri: '' })
     // }
+  }
+
+  async makePutParamRequestAsync(
+    endpoint: string,
+    params: any,
+    requestBody: object,
+    cancellationToken?: CancelToken
+  ): Promise<RequestResponse> {
+    try {
+      // Convert params to a query string
+      const _params = params
+        ? Object.keys(params)
+            .map((key) => `${key}=${encodeURIComponent(params[key])}`)
+            .join('&')
+        : '';
+
+      // Construct the URL with query string if params exist
+      const _url = `${this.baseURL}/${endpoint}${_params === '' ? '' : '?' + _params}`;
+
+      // Convert the request body to JSON string
+      const _requestBody = JSON.stringify(requestBody);
+
+      // Make the PUT request with the provided options, including the cancellation token
+      return this.processRequest(
+        await axiosInstance.put(_url, _requestBody, {
+          ...this.getOptions(),
+          cancelToken: cancellationToken,
+        })
+      );
+    } catch (e: any) {
+      if (isCancel(e)) {
+        // Handle request cancellation
+        this.loggerService.error(`[ERROR]: ${endpoint} --- canceltoken`);
+        return new FailureResponse(this.errorCancel);
+      } else {
+        // Log any other errors
+        this.loggerService.error(`[ERROR] ${e}`);
+      }
+
+      // Return a failure response with the error message
+      return new FailureResponse({
+        ...e,
+        message: e.response?.data?.message || e.message,
+      });
+    }
   }
 
   async makePatchRequestAsync(

@@ -15,7 +15,7 @@ export const refreshTokenAsync = async (params: RefreshTokenRequest) => {
   const loggerService = new LoggerService();
   const localStorageService = new LocalStorageService();
   const response = await new AuthManagementService().refreshTokenAsync(
-    Endpoint.Auth.RefreshToken, //enpoint
+    Endpoint.Auth.RefreshToken, //endpoint
     refactorFormDataCommon(params)
   );
   let result: any = {};
@@ -33,16 +33,29 @@ export const refreshTokenAsync = async (params: RefreshTokenRequest) => {
           //   listRoleNewToken.length &&
           //   getListRoleToken.toString() !== listRoleNewToken.toString()
           // ) {
-          let storage = localStorageService.readStorage(Constants.API_TOKEN_STORAGE);
-          if (storage) {
-            storage.accessToken = res.result.access_token;
-            storage.refreshToken = res.result.refresh_token;
+          let storage = null;
+          const accessToken = localStorageService.readStorage(Constants.API_TOKEN_STORAGE);
+          const refreshToken = localStorageService.readStorage(Constants.API_REFRESH_TOKEN_STORAGE);
+          if (accessToken && refreshToken) {
+            storage = {
+              accessToken: accessToken,
+              refreshToken: refreshToken,
+            };
           }
-          localStorageService.setStorage(Constants.API_TOKEN_STORAGE, storage);
+          if (storage) {
+            storage.accessToken = res.data.accessToken;
+            storage.refreshToken = res.data.refreshToken;
+          }
+          localStorageService.setStorage(Constants.API_TOKEN_STORAGE, res.data.accessToken);
+          localStorageService.setStorage(
+            Constants.API_REFRESH_TOKEN_STORAGE,
+            res.data.refreshToken
+          );
           result = res || {};
           // }
         } else {
           localStorageService.removeStorage(Constants.API_TOKEN_STORAGE);
+          localStorageService.removeStorage(Constants.API_REFRESH_TOKEN_STORAGE);
           window.location.href = '/';
           notifyError(
             '',

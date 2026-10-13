@@ -6,13 +6,15 @@ interface IStatusTagCommon {
 }
 
 export const StatusTagCommonStyled = styled.div<IStatusTagCommon>`
-  background-color: ${({ bgColor }) => bgColor};
-  color: ${({ textColor }) => textColor};
+  // background-color: ${({ bgColor }) => bgColor};
+  color: ${({ bgColor }) => bgColor};
+  font-weight: 700;
+  width: fit-content;
   display: flex;
   flex-direction: row;
   justify-content: center;
   border-radius: 4px;
-  padding: 4px 8px;
+  padding: 8px 16px;
 `;
 
 type Props = {

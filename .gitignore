@@ -1,0 +1,105 @@
+# ====================================================================
+# .gitignore cho Dự án MDMSv2 (Meter Data Management System v2)
+# Bao gồm: .NET 8 Clean Architecture Backend, React 18 + Vite Frontend,
+# và các công cụ đóng gói / triển khai tự động.
+# ====================================================================
+
+# --------------------------------------------------------------------
+# 1. .NET 8 / C# Build Artifacts & Tạm thời
+# --------------------------------------------------------------------
+**/bin/
+**/obj/
+[Bb]in/
+[Oo]bj/
+**/.dotnet/
+.dotnet/
+
+# Visual Studio & JetBrains Rider
+**/.vs/
+.vs/
+**/*.user
+**/*.userosscache
+**/*.suo
+**/*.userprefs
+**/*.sln.docstates
+*.DotSettings.user
+.idea/
+
+# --------------------------------------------------------------------
+# 2. Frontend (React 18 + Vite + Node.js)
+# --------------------------------------------------------------------
+Frontend/node_modules/
+**/node_modules/
+Frontend/dist/
+**/dist/
+Frontend/dist-ssr/
+Frontend/.vite/
+Frontend/.million/
+Frontend/coverage/
+Frontend/.cache/
+Frontend/*.local
+Frontend/.env*.local
+
+# Logs của Node/Yarn/NPM
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# --------------------------------------------------------------------
+# 3. Gói Đóng Gói / Xuất Bản (Publish Packages & Archives)
+# --------------------------------------------------------------------
+Publish/
+**/Publish/
+*.zip
+*.7z
+*.rar
+*.tar.gz
+
+# --------------------------------------------------------------------
+# 4. File Cài Đặt Nhị Phân Nặng (Installers Binaries)
+# Giữ lại scripts (.ps1), SQL (.sql), tài liệu (.md), .gitkeep
+# Loại trừ các file installer kích thước lớn (.msi, .exe, .iso, .zip)
+# --------------------------------------------------------------------
+Installers/**/*.msi
+Installers/**/*.exe
+Installers/**/*.iso
+Installers/MySQL/*.msi
+Installers/MySQL/*.exe
+Installers/Kepware/*.exe
+Installers/Kepware/*.msi
+Installers/Prerequisites/*.msi
+
+# Đảm bảo không bỏ sót scripts và tài liệu trong Installers
+!Installers/**/*.ps1
+!Installers/**/*.sql
+!Installers/**/*.md
+!Installers/**/.gitkeep
+
+# --------------------------------------------------------------------
+# 5. Hệ điều hành & Tệp tin rác
+# --------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.tmp
+*.temp
+*.swp
+*.bak
+*.log
+
+# --------------------------------------------------------------------
+# 6. IDEs & Editors
+# --------------------------------------------------------------------
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json

@@ -9,6 +9,14 @@ export const InputPasswordStyled = styled(Input.Password)`
   font-size: 14px;
   line-height: 20px;
   height: 44px;
+  background-color: #ffffff;
+
+  &:focus {
+    background-color: #ffffff;
+  }
+  &:hover {
+    background-color: #ffffff;
+  }
 
   &.ant-input-outlined[disabled] {
     color: black;
@@ -33,6 +41,7 @@ type Props = {
   submittedTime?: any;
   cssRelative?: boolean;
   maxLength?: number;
+  validateOnBlur?: boolean;
 };
 
 const InputPasswordCommon = (props: Props) => {
@@ -54,6 +63,7 @@ const InputPasswordCommon = (props: Props) => {
     submittedTime,
     cssRelative,
     maxLength = 255,
+    validateOnBlur = true,
   } = props;
 
   const [value, setValue] = useState<string>('');
@@ -106,7 +116,7 @@ const InputPasswordCommon = (props: Props) => {
 
   return (
     <div className={`input-common flex flex-col h-full ${cssRelative ? 'relative' : ''}`}>
-      <Row className='mb-1 flex-1'>
+      <Row className='flex-1'>
         <Col className={'font-bold text-14-20 text-[#3B3B3B]'}>
           <label htmlFor={id}>{label}</label>
         </Col>
@@ -122,7 +132,7 @@ const InputPasswordCommon = (props: Props) => {
         size={size ? size : 'large'}
         value={value ? value : ''}
         onChange={onChange}
-        onBlur={() => onBlur(false)}
+        onBlur={validateOnBlur ? () => onBlur(false) : undefined}
         disabled={disabled}
         placeholder={placeholder}
         maxLength={maxLength}

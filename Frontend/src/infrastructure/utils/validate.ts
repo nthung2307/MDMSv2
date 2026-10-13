@@ -40,6 +40,16 @@ export function validateId(val: string) {
   return val && reg.test(val);
 }
 
+export const validateLengthForInput = (maxLength: number, rules?: Array<RulesReg>) => {
+  return [
+    ...(rules ?? []),
+    {
+      pattern: new RegExp(`^[\\s\\S]{0,${maxLength}}$`),
+      message: `Giới hạn nhập ${maxLength} ký tự`,
+    },
+  ];
+};
+
 export function validatePhoneNumber(val: string) {
   // let reg = /^(84|0[3|5|7|8|9])+([0-9]{7,8})\b/;
   const reg =
@@ -100,13 +110,3 @@ export function validateCMND(val: string) {
   const pattern = /^[0-9]{12}$/;
   return val && pattern.test(val);
 }
-
-export const validateLengthForInput = (maxLength: number, rules?: Array<RulesReg>) => {
-  return [
-    ...(rules ?? []),
-    {
-      pattern: new RegExp(`^.{0,${maxLength}}$`),
-      message: `Giới hạn nhập ${maxLength} ký tự`,
-    },
-  ];
-};

@@ -37,7 +37,7 @@ public class SystemConfigController : ControllerBase
     
     [HttpPost]
     [Route(Common.Url.Default.SystemConfig.Create)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin])]
     public async Task<RequestResult<CreateUpdateSystemConfigResponse>> CreateUpdateSystemConfigAsync(CreateUpdateSystemConfigRequest request, CancellationToken cancellationToken)
     {
         try
@@ -55,7 +55,7 @@ public class SystemConfigController : ControllerBase
 
     [HttpGet]
     [Route(Common.Url.Default.SystemConfig.List)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin])]
     public async Task<RequestResult<List<SystemConfigDto>>> GetSystemConfigsAsync(CancellationToken cancellationToken)
     {
         try

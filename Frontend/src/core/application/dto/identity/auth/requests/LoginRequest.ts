@@ -1,8 +1,8 @@
 export class LoginRequest {
-  email: string;
+  userName: string;
   password: string;
-  constructor(arg: { email: string; password: string }) {
-    this.email = arg.email;
+  constructor(arg: { userName: string; password: string }) {
+    this.userName = arg.userName;
     this.password = arg.password;
   }
 }

@@ -14,6 +14,9 @@ export default defineConfig({
   define: {
     'process.env': process.env,
   },
+  server: {
+    allowedHosts: ['amr.nobisoft.vn'],
+  },
   build: {
     chunkSizeWarningLimit: 1024,
     sourcemap: false,

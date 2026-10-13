@@ -3,12 +3,15 @@ import { useEffect, useState } from 'react';
 
 interface RadioCommonProps {
   dataAttribute?: any;
+
   setData(e: any): void;
+
   attribute: string;
   disabled?: boolean;
   listData: Array<{ label: string; value: string | number; disable?: boolean }>;
   onCallBackFunction?: any;
   isCol?: boolean;
+  grouped?: boolean;
 }
 
 const RadioCommon = (props: RadioCommonProps) => {

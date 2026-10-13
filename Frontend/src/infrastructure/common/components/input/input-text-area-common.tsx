@@ -5,12 +5,22 @@ import styled from 'styled-components';
 
 import { MessageError } from '@/infrastructure/common/components/controls/MessageError.tsx';
 import { RulesReg, validateFields } from '@/infrastructure/utils/helpers.ts';
-import { validateLengthForInput } from '@/infrastructure/utils/transferData';
+import { validateLengthForInput } from '@/infrastructure/utils/validate';
 
 export const InputCommonStyled = styled(TextArea)`
   font-size: 14px;
   line-height: 20px;
   height: 44px;
+
+  background-color: #ffffff;
+
+  &:focus {
+    background-color: #ffffff;
+  }
+
+  &:hover {
+    background-color: #ffffff;
+  }
 
   &.ant-input-outlined[disabled] {
     color: black;
@@ -78,7 +88,7 @@ const InputTextAreaCommon = (props: Props) => {
         isRequired: isRequired,
         setError: setValidate,
         error: validate,
-        rules: validateLengthForInput(rules, maxLength),
+        rules: validateLengthForInput(maxLength, rules),
       });
     }
   };
@@ -93,7 +103,7 @@ const InputTextAreaCommon = (props: Props) => {
         isRequired: isRequired,
         setError: setValidate,
         error: validate,
-        rules: validateLengthForInput(rules, maxLength),
+        rules: validateLengthForInput(maxLength, rules),
       });
     }
   };
@@ -129,7 +139,6 @@ const InputTextAreaCommon = (props: Props) => {
         onBlur={() => onBlur(false)}
         disabled={disabled}
         placeholder={placeholder}
-        // maxLength={maxLength}
         rows={rows}
       />
       {validate ? (

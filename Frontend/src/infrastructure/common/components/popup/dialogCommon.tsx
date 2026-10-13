@@ -1,8 +1,8 @@
 import { Col, Modal, Row } from 'antd';
-import React from 'react';
 
 import { ButtonCommon } from '@/infrastructure/common/components/button/button-common.tsx';
 import { _t } from '@/infrastructure/utils/translation.ts';
+
 type Props = {
   title: string;
   visible: boolean;
@@ -15,6 +15,9 @@ type Props = {
   titleBtnOk?: string;
   isButtonSubmit?: boolean;
   showFooter?: boolean;
+  disableSubmitButton?: boolean;
+  afterClose?: () => void;
+  buttonLoading?: boolean;
 };
 
 const DialogCommon = (props: Props) => {
@@ -27,8 +30,11 @@ const DialogCommon = (props: Props) => {
     children,
     handleConfirm,
     className = '',
-    titleBtnOk = 'Lưu',
+    titleBtnOk = 'Xác nhận',
     showFooter = true,
+    disableSubmitButton = false,
+    afterClose = () => {},
+    buttonLoading = false,
   } = props;
 
   return (
@@ -41,27 +47,33 @@ const DialogCommon = (props: Props) => {
         closable={true}
         footer={false}
         width={width}
-        onCancel={() => handleCancel()}
+        onCancel={handleCancel}
+        afterClose={afterClose}
       >
         <div className='modal'>
-          {title ? <div className='mb-4 title text-left'>{title}</div> : null}
+          {title ? (
+            <div className='mb-4 title text-center font-extrabold text-xl'>{title}</div>
+          ) : null}
           {children}
           {showFooter ? (
             <Row gutter={20}>
               <Col md={12} sm={24} xs={24}>
                 <ButtonCommon
                   title={_t('Huỷ')}
-                  colorClass={'cancel'}
+                  colorClass={'firebrick-outline-bg'}
                   onClick={handleCancel}
                   classButton={'w-full'}
+                  ghost={true}
                 />
               </Col>
               <Col md={12} sm={24} xs={24}>
                 <ButtonCommon
                   title={_t(titleBtnOk)}
-                  colorClass={classBtnSubmit ? classBtnSubmit : 'blue-bg'}
+                  colorClass={classBtnSubmit ? classBtnSubmit : 'firebrick-bg'}
                   onClick={() => handleConfirm()}
                   classButton={'w-full'}
+                  disabled={disableSubmitButton}
+                  loading={buttonLoading}
                 />
               </Col>
             </Row>

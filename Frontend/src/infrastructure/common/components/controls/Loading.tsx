@@ -35,7 +35,12 @@ export const LoadingRegion = (props: LoadingRegionProps) => {
 
   return (
     <>
-      <Spin tip={tip} size={size} style={{ color: color }} indicator={<LoadingOutlined spin />} />
+      <Spin
+        tip={tip}
+        size={size}
+        style={{ color: color, zIndex: 1001 }}
+        indicator={<LoadingOutlined spin />}
+      />
       {/* <p style={{ color: color }}>Loading</p> */}
     </>
   );

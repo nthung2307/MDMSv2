@@ -1,4 +1,4 @@
-﻿using System.IdentityModel.Tokens.Jwt;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.Extensions.Options;
@@ -25,12 +25,15 @@ public class JwtService : IJwtService
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.ASCII.GetBytes(_jwtOptions.SymmetricSecurityKey);
 
+            var now = DateTime.UtcNow;
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Audience = _jwtOptions.Audience,
                 Issuer = _jwtOptions.Issuer,
                 Subject = claimsIdentity,
-                Expires = DateTime.Now.AddSeconds(_jwtOptions.Expires),
+                NotBefore = now,
+                IssuedAt = now,
+                Expires = now.AddSeconds(_jwtOptions.Expires),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key),
                     SecurityAlgorithms.HmacSha256Signature)
             };
@@ -59,12 +62,15 @@ public class JwtService : IJwtService
 
             // claims.Add(new Claim(JwtClaimTypes.IdentityProvider, Constants.LoginProviders.Self));
             claims.Add(new Claim(JwtClaimTypes.Id, accountId.ToString()));
+            var now = DateTime.UtcNow;
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Audience = _jwtOptions.Audience,
                 Issuer = _jwtOptions.Issuer,
                 Subject = new ClaimsIdentity(claims),
-                Expires = DateTime.UtcNow.AddHours(_jwtOptions.RefreshTokenExpires),
+                NotBefore = now,
+                IssuedAt = now,
+                Expires = now.AddHours(_jwtOptions.RefreshTokenExpires),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key),
                     SecurityAlgorithms.HmacSha256Signature)
             };

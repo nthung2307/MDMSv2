@@ -1,4 +1,5 @@
 import { Col, Empty, Row, Select, Tooltip } from 'antd';
+import { LabeledValue } from 'antd/es/select';
 import { useEffect, useId, useState } from 'react';
 import styled from 'styled-components';
 
@@ -6,13 +7,22 @@ import { MessageError } from '@/infrastructure/common/components/controls/Messag
 import { RulesReg, validateFields } from '@/infrastructure/utils/helpers.ts';
 
 export const InputSelectCommonStyled = styled(Select)`
-  height: 44px !important;
-  &.ant-select-outlined.ant-select-disabled:not(.ant-select-customize-input) .ant-select-selector {
-    color: black;
-  }
-  &.ant-select-single.ant-select-lg .ant-select-selector {
+  /* Ensure custom styles are applied */
+  height: 40px !important;
+  background-color: white !important;
+  border-radius: 6px !important;
+
+  .ant-select-selector {
+    height: 38px !important; /* Ensure height is applied */
     font-size: 14px !important;
-    line-height: 20px !important;
+    border: 1px solid #a6a6a7db !important;
+    border-radius: 6px !important;
+    background-color: #ffffff !important; /* White background */
+  }
+
+  &.ant-select-multiple .ant-select-selector,
+  &.ant-select-tags .ant-select-selector {
+    background-color: white !important;
   }
 `;
 
@@ -41,6 +51,10 @@ type Props = {
   onCallBackFunction?: (value: string) => void;
   allowClear?: boolean;
   loading?: boolean;
+  mode?: 'multiple' | 'tags';
+  onSearch?: (value: string) => void;
+  showSearch?: boolean;
+  onClear?: () => void;
 };
 
 const InputSelectCommon = (props: Props) => {
@@ -64,10 +78,14 @@ const InputSelectCommon = (props: Props) => {
     onCallBackFunction,
     allowClear = false,
     loading = false,
+    mode = undefined,
+    onSearch,
+    showSearch = false,
+    onClear,
   } = props;
 
   const id = useId();
-  const [value, setValue] = useState<string | null>(null);
+  const [value, setValue] = useState<string | LabeledValue[] | null>(null);
   const [dataTooltip, setDataTooltip] = useState<any>(null);
 
   const onChange = async (e: any, items: any) => {
@@ -122,13 +140,13 @@ const InputSelectCommon = (props: Props) => {
   }, [submittedTime]);
 
   return (
-    <div className={`input-common flex flex-col h-full ${cssRelative ? 'relative' : ''}`}>
+    <div className={`input-common flex flex-col size-full ${cssRelative ? 'relative' : ''}`}>
       <Tooltip
         placement='bottomRight'
         title={dataTooltip?.tooltipLabel ?? dataTooltip?.label ?? null}
       >
-        {isLabel ? (
-          <Row className='mb-1 flex-1'>
+        {isLabel && label ? (
+          <Row className='flex-1 mb-1 h-5'>
             <Col className={'font-bold font-14-20 text-[#3B3B3B]'}>
               <label htmlFor={id}>{label}</label>
             </Col>
@@ -150,10 +168,15 @@ const InputSelectCommon = (props: Props) => {
           placeholder={placeholder}
           options={listDataItem ?? []}
           allowClear={allowClear}
+          filterOption={false}
           loading={loading}
+          onSearch={onSearch}
           notFoundContent={
             loading ? 'Đang tải dữ liệu...' : <Empty description='Không có dữ liệu' />
           }
+          mode={mode}
+          onClear={onClear}
+          showSearch={mode === 'multiple' || showSearch}
         />
       </Tooltip>
       {validate ? (

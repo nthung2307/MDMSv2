@@ -99,8 +99,12 @@ export default {
         'red-ff0000': '#ff0000',
 
         //gray
+        darkgray: '#333333',
         'gray-909090': '#909090',
         'gray-516078': '#516078',
+
+        //firebrick
+        firebrick: '#B22222',
       },
       lineHeight: {
         '180pct': '1.8',
@@ -111,20 +115,15 @@ export default {
         custom: '0px 5px 20px 0px #0000001A',
       },
       screens: {
-        sm: '640px',
-        // => @media (min-width: 640px) { ... }
+        sm: '576px',
 
         md: '768px',
-        // => @media (min-width: 768px) { ... }
 
-        lg: '1024px',
-        // => @media (min-width: 1024px) { ... }
+        lg: '992px',
 
-        xl: '1280px',
-        // => @media (min-width: 1280px) { ... }
+        xl: '1200px',
 
-        xxl: '1536px',
-        // => @media (min-width: 1536px) { ... }
+        xxl: '1600px',
       },
     },
   },

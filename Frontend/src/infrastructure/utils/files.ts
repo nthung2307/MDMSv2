@@ -26,6 +26,7 @@ export const acceptFile = (file: string, _type: string = '') => {
 
     default:
       accpt = 'application/octet-stream';
+      break;
   }
 
   return accpt;

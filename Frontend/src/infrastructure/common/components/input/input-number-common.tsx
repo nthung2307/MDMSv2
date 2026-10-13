@@ -67,8 +67,8 @@ const InputNumberCommon = (props: Props) => {
     maxLength = 255,
     allowLeadingZeros = true,
   } = props;
-
   const [value, setValue] = useState<string>('');
+
   const id = useId();
   const onChange = async (e: any) => {
     setValue(e || '');
@@ -99,7 +99,7 @@ const InputNumberCommon = (props: Props) => {
         isImplicitChange: isImplicitChange,
         label: label,
         key: attribute,
-        value: value?.trim(),
+        value: value != null ? value.toString().trim() : '',
         isRequired: isRequired,
         setError: setValidate,
         error: validate,
@@ -107,10 +107,11 @@ const InputNumberCommon = (props: Props) => {
       });
     }
   };
+
   useEffect(() => {
-    if (dataAttribute) {
-      setValue(dataAttribute || '');
-    }
+    // if (dataAttribute) {
+    setValue(dataAttribute || '');
+    // }
   }, [dataAttribute]);
 
   useEffect(() => {
@@ -120,13 +121,12 @@ const InputNumberCommon = (props: Props) => {
   }, [submittedTime]);
 
   return (
-    <div className={`input-common flex ${isCol ? 'flex-col gap-1' : 'flex-row gap-2'} h-full`}>
+    <div
+      className={`input-common flex ${isCol ? 'flex-col gap-1' : 'flex-row gap-2 items-center'} h-full`}
+    >
       {isLabel && (
         <div className='gap-1 truncate'>
-          <div
-            style={{ color: labelColor }}
-            className={`text-14-20 font-bold ${isCol ? '' : 'mt-2'} whitespace-nowrap`}
-          >
+          <div style={{ color: labelColor }} className={`text-14-20 font-bold  whitespace-nowrap`}>
             {label}
             {isRequired ? <span className='text-error text-14-20 pl-1'>*</span> : null}
           </div>

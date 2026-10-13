@@ -1,3 +1,4 @@
+import jwtDecode from 'jwt-decode';
 import { Navigate } from 'react-router-dom';
 
 import { ROUTE_PATH } from '@/core/application/common/appRouters';
@@ -10,25 +11,26 @@ interface Props {
   roles?: Array<any>;
 }
 
-export const PrivateRoute: React.FC<Props> = ({ component: RouteComponent }) => {
+export const PrivateRoute: React.FC<Props> = ({ component: RouteComponent, roles = [] }) => {
   let localStorageService = new LocalStorageService();
   let storage: any = localStorageService.readStorage(Constants.API_TOKEN_STORAGE);
 
   if (storage) {
-    // let roleOfUser = getListRole();
-    // let checkRole = false;
-    // if (roles && roles.length) {
-    //   roles.map((it: any) => {
-    //     if (roleOfUser?.some((itC: any) => itC === it)) {
-    //       checkRole = true;
-    //     }
-    //   });
-    // }
-    // if (checkRole) {
-    //   return <RouteComponent />;
-    // }
-    // return <Navigate to={ROUTE_PATH.FORBIDDEN_ACCESS} />;
-    return <RouteComponent />;
+    const info: any = jwtDecode(storage);
+    let permissions = info?.role;
+    let checkRole = false;
+    if (roles && roles.length) {
+      roles.some((role) => {
+        if (permissions === role) {
+          checkRole = true;
+          return true;
+        }
+      });
+    }
+    if (checkRole) {
+      return <RouteComponent />;
+    }
+    return <Navigate to={ROUTE_PATH.FORBIDDEN_ACCESS} />;
   }
 
   return <Navigate to={ROUTE_PATH.LOGIN} />;

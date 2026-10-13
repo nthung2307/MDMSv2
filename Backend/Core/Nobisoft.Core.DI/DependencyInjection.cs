@@ -20,8 +20,7 @@ public static class DependencyInjection
     {
         // Scan dll file in the location of type T
         var source1 = Directory.EnumerateFiles(Path.GetDirectoryName(typeof(T).Assembly.Location) ?? throw new SystemException($"No dll found {nameof(AutoRegisterModules)}", null), "*.dll", SearchOption.TopDirectoryOnly)
-            .Select(Assembly.LoadFrom)
-            .SelectMany(x => x.GetExportedTypes());
+            .SelectMany(GetExportedTypesSafely);
 
         // Find all assemblies of type IModule
         var assemblies = source1.Where(type => typeof(IModule).IsAssignableFrom(type) && type.IsClass && !type.IsAbstract && type.IsPublic)
@@ -156,8 +155,7 @@ public static class DependencyInjection
     {
         // Scan dll file in the location of type T
         var source1 = Directory.EnumerateFiles(Path.GetDirectoryName(assembly.Location) ?? throw new SystemException($"No dll found {nameof(AutoRegisterModules)}", null), "*.dll", SearchOption.TopDirectoryOnly)
-            .Select(Assembly.LoadFrom)
-            .SelectMany(x => x.GetExportedTypes());
+            .SelectMany(GetExportedTypesSafely);
 
         // Find all assemblies of type IModule
         var assemblies = source1.Where(type => typeof(IModule).IsAssignableFrom(type) && type.IsClass && !type.IsAbstract && type.IsPublic)
@@ -243,5 +241,35 @@ public static class DependencyInjection
         }
 
         return builder;
+    }
+
+    private static IEnumerable<Type> GetExportedTypesSafely(string file)
+    {
+        try
+        {
+            var asm = Assembly.LoadFrom(file);
+            return asm.GetExportedTypes();
+        }
+        catch (BadImageFormatException)
+        {
+            // Bỏ qua các tệp native/unmanaged C++ DLLs (ví dụ: aspnetcorev2_inprocess.dll, coreclr.dll, msquic.dll, QuestPdfSkia.dll)
+            return Enumerable.Empty<Type>();
+        }
+        catch (FileLoadException)
+        {
+            return Enumerable.Empty<Type>();
+        }
+        catch (TypeLoadException)
+        {
+            return Enumerable.Empty<Type>();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.Where(t => t != null && t.IsPublic)!;
+        }
+        catch (Exception)
+        {
+            return Enumerable.Empty<Type>();
+        }
     }
 }

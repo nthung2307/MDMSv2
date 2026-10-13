@@ -1,6 +1,6 @@
 import { Dispatch, SetStateAction, useEffect, useState } from 'react';
+import { IoSearch } from 'react-icons/io5';
 
-import IconSearch from '@/assets/icons/ic_search.svg';
 import { InputCommonStyled } from '@/infrastructure/common/components/input/input-text-common';
 type Props = {
   data: any;
@@ -10,10 +10,11 @@ type Props = {
   size?: any;
   placeholder?: any;
   suffix?: React.ReactNode;
+  className?: string;
 };
 
 const InputTextSearchCommon = (props: Props) => {
-  const { data, setData, disabled = false, size, placeholder, suffix } = props;
+  const { data, setData, disabled = false, size, placeholder, suffix, className } = props;
   const [value, setValue] = useState<string>('');
 
   const onChange = async (e: any) => {
@@ -33,7 +34,8 @@ const InputTextSearchCommon = (props: Props) => {
       disabled={disabled}
       placeholder={placeholder}
       suffix={suffix}
-      prefix={<img src={IconSearch} />}
+      prefix={<IoSearch />}
+      className={className}
     />
   );
 };

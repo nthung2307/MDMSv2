@@ -1,0 +1,13 @@
+version: '3.9'
+
+services:
+  amr-frontend-dev:
+    image: amr-frontend:${version}
+    container_name: amr-frontend-${version}
+    restart: always
+    command: ${command}
+    build:
+      context: ./
+      dockerfile: Dockerfile.dev
+    ports:
+      - '19086:4173'

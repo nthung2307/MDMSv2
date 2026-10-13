@@ -30,6 +30,12 @@ module.exports = {
         trailingComma: 'es5',
       },
     ],
+    'prettier/prettier': [
+      'error',
+      {
+        endOfLine: 'auto',
+      },
+    ],
     'no-restricted-imports': [
       'error',
       {

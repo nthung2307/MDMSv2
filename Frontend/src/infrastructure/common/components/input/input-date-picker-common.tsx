@@ -3,13 +3,13 @@ import dayjs from 'dayjs';
 import { useEffect, useId, useState } from 'react';
 import styled from 'styled-components';
 
-import Constants from '@/core/application/common/constants';
+import Constants from '@/core/application/common/constants.ts';
 import { MessageError } from '@/infrastructure/common/components/controls/MessageError.tsx';
 import { RulesReg, validateFields } from '@/infrastructure/utils/helpers.ts';
 
 export const DatePickerStyled = styled(DatePicker)`
   height: 44px;
-
+  background-color: white !important;
   .ant-picker-input > input {
     font-size: 14px;
     line-height: 20px;
@@ -39,6 +39,9 @@ type Props = {
   cssRelative?: boolean;
   onCallBackFunction?: (data: any) => void;
   disabledDate?: (current: any) => boolean;
+  format?: string;
+  picker?: any;
+  allowClear?: boolean;
 };
 
 const InputDatePickerCommon = (props: Props) => {
@@ -61,6 +64,9 @@ const InputDatePickerCommon = (props: Props) => {
     cssRelative,
     onCallBackFunction,
     disabledDate,
+    format,
+    picker,
+    allowClear,
   } = props;
 
   const [value, setValue] = useState<any>(null);
@@ -105,9 +111,7 @@ const InputDatePickerCommon = (props: Props) => {
   };
 
   useEffect(() => {
-    if (dataAttribute) {
-      setValue(dayjs(dataAttribute));
-    }
+    setValue(dataAttribute ? dayjs(dataAttribute) : '');
   }, [dataAttribute]);
 
   useEffect(() => {
@@ -117,37 +121,39 @@ const InputDatePickerCommon = (props: Props) => {
   }, [submittedTime]);
 
   return (
-    <div className={`input-common flex flex-col h-full ${cssRelative ? 'relative' : ''}`}>
-      <Tooltip placement='bottomRight' title={dateString}>
-        <Row className='mb-1 flex-1'>
-          <Col className={'font-bold font-14-20 text-[#3B3B3B]'}>
-            <label htmlFor={id}>{label}</label>
-          </Col>
-          <Col className='is-required'>
-            {isRequired ? <span className='ml-1 text-red-ff0000'>*</span> : null}
-          </Col>
-        </Row>
+    <div className={`input-common flex flex-col h-full  ${cssRelative ? 'relative' : ''}`}>
+      <Tooltip className=' flex flex-col' placement='bottomRight' title={dateString}>
+        {label && (
+          <Row className='mb-1 text-14-22'>
+            <Col className={'font-bold  text-[#3B3B3B]'}>
+              <label htmlFor={id}>{label}</label>
+            </Col>
+            <Col className='is-required'>
+              {isRequired ? <span className='ml-1  text-red-ff0000'>*</span> : null}
+            </Col>
+          </Row>
+        )}
         <DatePickerStyled
-          id={id}
-          className='w-full'
-          name={name ?? attribute}
-          disabledDate={disabledDate}
           autoComplete={autoComplete ?? 'off'}
           autoFocus={autoFocus}
-          format={['DD/MM/YYYY']}
+          className='w-full'
+          disabled={disabled}
+          disabledDate={disabledDate}
+          format={[format || 'DD/MM/YYYY']}
+          id={id}
+          name={name ?? attribute}
+          picker={picker}
+          placeholder={placeholder || format}
           size={size ? size : 'large'}
           value={value ?? null}
           onChange={onChange}
-          // onBlur={() => onBlur(false)}
-          disabled={disabled}
-          placeholder={placeholder}
+          allowClear={allowClear}
         />
       </Tooltip>
       {validate ? (
         <MessageError
           isError={validate[`${attribute}`]?.isError || false}
           message={validate[`${attribute}`]?.message || ''}
-          cssRelative={cssRelative}
         />
       ) : null}
     </div>

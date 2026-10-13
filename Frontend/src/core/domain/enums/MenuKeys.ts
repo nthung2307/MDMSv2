@@ -4,35 +4,41 @@ export enum MenuKeys {
   Dashboard = 'dashboard',
 
   //account
-  Account = 'account',
-  Client = 'client',
-  Employee = 'employee',
+  Accounts = 'accounts',
+  Clients = 'clients',
 
   //permission
   Permission = 'permission',
 
-  //category
-  Category = 'category',
-  Product = 'product',
-  Brand = 'brand',
-  Origin = 'origin',
-  Unit = 'unit',
+  // monitoring point
+  MonitoringPoints = 'monitoring-points',
+  MonitoringPointsList = 'monitoring-points-list',
+  MonitoringPointsEvent = 'monitoring-points-event',
+  MonitoringPointsWarning = 'monitoring-points-warning',
 
-  //product.ts
-  Work = 'work',
+  // report
+  Report = 'reports',
+  LoadCurve = 'load-curve',
+  ElectricityConsumption = 'electricity-consumption',
+  TotalOutputMeasurementPoints = 'total-output-measurement-points',
+  OperatingParameter = 'operating-parameter',
+  HalfHourFinalizedEnergyReport = 'half-hour-finalized-energy-report',
+  DailyFinalizedEnergyReport = 'daily-finalized-energy-report',
 
-  //quote data
-  QuoteData = 'quote-data',
-  Attribute = 'attribute',
-  Parameter = 'parameter',
-  Formula = 'formula',
-  //Approval process
-  ApprovalProcess = 'approval-process',
+  // management
+  ManagePoints = 'point-management',
+  ManageGCS = 'gcs-management',
+  ManageReports = 'report-management',
 
-  // Configuration
-  Configuration = 'configuration',
+  noticeManagement = 'notice-management',
 
-  //Product proposal
-  WorkProposal = 'work-proposal',
+  GCSsum = 'GCSsum',
+
+  // config
+  ConfigSysTem = 'config-system',
+  Config = 'configuration',
+  authLock = 'auth-lock',
+  Contact = 'contact',
 }
+
 export const MenuSubKeys = [];

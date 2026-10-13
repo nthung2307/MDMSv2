@@ -9,7 +9,17 @@ import { validateLengthForInput } from '@/infrastructure/utils/validate';
 export const InputCommonStyled = styled(Input)`
   font-size: 14px;
   line-height: 20px;
-  height: 44px;
+  height: 38px;
+  background-color: #ffffff;
+  border: 1px solid #a6a6a7db !important;
+  border-radius: 6px !important;
+  &:focus {
+    background-color: #ffffff;
+  }
+
+  &:hover {
+    background-color: #ffffff;
+  }
 
   &.ant-input-outlined[disabled] {
     color: black;
@@ -18,6 +28,7 @@ export const InputCommonStyled = styled(Input)`
 
 type Props = {
   label: any;
+  isLabel?: boolean;
   attribute: string;
   dataAttribute?: any;
   name?: string;
@@ -34,11 +45,17 @@ type Props = {
   submittedTime?: any;
   cssRelative?: boolean;
   maxLength?: number;
+  className?: string;
+  prefix?: any;
+  onCallbackFunction?: any;
+  suffix?: any;
+  allowClear?: boolean;
 };
 
 const InputTextCommon = (props: Props) => {
   const {
     label,
+    isLabel = true,
     attribute,
     isRequired,
     dataAttribute,
@@ -55,16 +72,25 @@ const InputTextCommon = (props: Props) => {
     submittedTime,
     cssRelative,
     maxLength = 255,
+    className,
+    prefix,
+    onCallbackFunction,
+    suffix,
+    allowClear = false,
   } = props;
 
   const [value, setValue] = useState<string>('');
   const id = useId();
 
-  const onChange = async (e: any) => {
+  const onChange = (e: any) => {
     setValue(e.target.value || '');
-    setData({
-      [attribute]: e.target.value || null,
-    });
+    if (onCallbackFunction) {
+      onCallbackFunction(e.target.value);
+    } else {
+      setData({
+        [attribute]: e.target.value || null,
+      });
+    }
 
     if (setValidate) {
       validateFields({
@@ -80,7 +106,7 @@ const InputTextCommon = (props: Props) => {
     }
   };
 
-  const onBlur = (isImplicitChange = false) => {
+  const validateOnBlur = (isImplicitChange = false) => {
     if (setValidate) {
       validateFields({
         isImplicitChange: isImplicitChange,
@@ -101,20 +127,22 @@ const InputTextCommon = (props: Props) => {
 
   useEffect(() => {
     if (submittedTime != null) {
-      onBlur(true);
+      validateOnBlur(true);
     }
   }, [submittedTime]);
 
   return (
-    <div className={`input-common flex flex-col h-full ${cssRelative ? 'relative' : ''}`}>
-      <Row className='mb-1'>
-        <Col className={'font-bold text-14-20 text-[#3B3B3B]'}>
-          <label htmlFor={id}>{label}</label>
-        </Col>
-        <Col className='is-required'>
-          {isRequired ? <span className='ml-1 text-red-ff0000'>*</span> : null}
-        </Col>
-      </Row>
+    <div className={`input-common size-full flex flex-col h-full ${cssRelative ? 'relative' : ''}`}>
+      {isLabel && label && (
+        <Row className='mb-1 h-5'>
+          <Col className={'font-bold text-14-20 text-[#3B3B3B]'}>
+            <label htmlFor={id}>{label}</label>
+          </Col>
+          <Col className='is-required'>
+            {isRequired ? <span className='ml-1 text-red-ff0000'>*</span> : null}
+          </Col>
+        </Row>
+      )}
       <InputCommonStyled
         id={id}
         name={name ?? attribute}
@@ -123,10 +151,13 @@ const InputTextCommon = (props: Props) => {
         size={size ? size : 'large'}
         value={value ? value : ''}
         onChange={onChange}
-        onBlur={() => onBlur(false)}
+        onBlur={() => validateOnBlur(false)}
         disabled={disabled}
         placeholder={placeholder}
-        // maxLength={maxLength}
+        className={className}
+        prefix={prefix}
+        suffix={suffix}
+        allowClear={allowClear}
       />
       {validate ? (
         <MessageError

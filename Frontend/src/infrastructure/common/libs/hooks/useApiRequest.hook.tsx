@@ -1,6 +1,7 @@
 import { CancelToken } from 'axios';
 import { Dispatch, SetStateAction } from 'react';
 
+import { ErrorDataState } from '@/core/application/common/atoms/global/errorTable';
 import { LoadingState } from '@/core/application/common/atoms/global/loadingState';
 import FailureResponse from '@/core/application/dto/common/responses/failureResponse';
 import InvalidModelStateResponse from '@/core/application/dto/common/responses/invalidModelStateResponse';
@@ -32,6 +33,7 @@ export const useApiRequestHook = () => {
       } else {
         await setRecoilStateAsync(LoadingState, { isLoading: true, uri: endpoint });
       }
+      setRecoilStateAsync(ErrorDataState, false);
       const response = await serviceInstance(
         endpoint,
         refactorFormDataCommon(params),
@@ -53,7 +55,7 @@ export const useApiRequestHook = () => {
                 _t(
                   (res.errors?.length && res.errors[0]?.error) ||
                     res.message ||
-                    'An error occurred. Please contact the administrator'
+                    'Có lỗi xảy ra. Vui lòng liên hệ quản trị viên'
                 )
               );
             }
@@ -64,7 +66,7 @@ export const useApiRequestHook = () => {
               '',
               _t(
                 (response as FailureResponse).message.toString() ||
-                  'An error occurred. Please contact the administrator'
+                  'Có lỗi xảy ra. Vui lòng liên hệ quản trị viên'
               )
             );
             onError();
@@ -75,7 +77,7 @@ export const useApiRequestHook = () => {
               '',
               _t(
                 (response as InvalidModelStateResponse).message[0] ||
-                  'An error occurred. Please contact the administrator'
+                  'Có lỗi xảy ra. Vui lòng liên hệ quản trị viên'
               )
             );
             loggerService.info(response as InvalidModelStateResponse);
@@ -83,13 +85,14 @@ export const useApiRequestHook = () => {
             break;
           }
           default: {
-            notifyError('', _t('An error occurred. Please contact the administrator'));
+            notifyError('', _t('Có lỗi xảy ra. Vui lòng liên hệ quản trị viên'));
             onError();
           }
         }
       }
     } catch (error) {
-      notifyError('', _t('An error occurred. Please contact the administrator'));
+      setRecoilStateAsync(ErrorDataState, true);
+      notifyError('', _t('Có lỗi xảy ra. Vui lòng liên hệ quản trị viên'));
       onError();
     } finally {
       if (setLoading) {

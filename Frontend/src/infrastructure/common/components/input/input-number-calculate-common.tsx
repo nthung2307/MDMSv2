@@ -141,7 +141,7 @@ const InputNumberCalculateCommon = (props: Props) => {
           autoComplete={autoComplete || attribute}
           size={size ? size : 'large'}
           decimalScale={isInteger ? 0 : 2}
-          fixedDecimalScale={!isInteger}
+          // fixedDecimalScale={!isInteger}
           thousandSeparator={'.'}
           decimalSeparator={','}
           value={value != undefined ? value : ''}

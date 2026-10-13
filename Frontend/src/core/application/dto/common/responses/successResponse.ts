@@ -15,12 +15,12 @@ export default class SuccessResponse extends RequestResponse {
 export class DataResponse extends RequestResponse {
   status: number = 200;
   message: string = '';
-  result: any;
+  data: any;
   success: boolean = true;
 
-  constructor(message: string, result: any) {
+  constructor(message: string, data: any) {
     super(200);
     this.message = message;
-    this.result = result;
+    this.data = data;
   }
 }

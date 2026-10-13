@@ -1,19 +1,18 @@
 import { Form } from 'antd';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
-import Logo from '@/assets/react.svg';
+import { LogoLandscape } from '@/assets/icons';
 import { ROUTE_PATH } from '@/core/application/common/appRouters';
 import Constants from '@/core/application/common/constants';
 import { DataResponse } from '@/core/application/dto/common/responses/successResponse';
 import { LoginRequest } from '@/core/application/dto/identity/auth/requests/LoginRequest';
 import { ButtonCommon } from '@/infrastructure/common/components/button/button-common';
-import { FullPageLoading } from '@/infrastructure/common/components/controls/Loading';
 import InputPasswordCommon from '@/infrastructure/common/components/input/input-password-common';
 import InputTextCommon from '@/infrastructure/common/components/input/input-text-common';
+import PageTitle from '@/infrastructure/common/components/title/page-title.tsx';
 import { useLoginHook } from '@/infrastructure/repository/auth/hooks/useLogin.hook';
 import LocalStorageService from '@/infrastructure/services/localStorage.service';
-import { isEmpty } from '@/infrastructure/utils/helpers';
 import { _t } from '@/infrastructure/utils/translation';
 
 const LoginPage = () => {
@@ -52,20 +51,25 @@ const LoginPage = () => {
   const onSubmit = async () => {
     if (isValidData()) {
       const params = new LoginRequest({
-        email: dataUser.email,
+        userName: dataUser.userName,
         password: dataUser.password,
       });
-      if (params.email === 'admin@gmail.com' && params.password === 'Abc@12345') {
-        localStorageService.setStorage(Constants.API_TOKEN_STORAGE, Constants.API_TOKEN_STORAGE);
-        navigate(ROUTE_PATH.DASHBOARD, { replace: true });
-        return;
-      }
+      // if (params.email === 'admin@gmail.com' && params.password === 'Abc@12345') {
+      //   localStorageService.setStorage(Constants.API_TOKEN_STORAGE, Constants.API_TOKEN_STORAGE);
+      //   navigate(ROUTE_PATH.DASHBOARD, { replace: true });
+      //   return;
+      // }
       await requestLogin(
         params,
         (res: DataResponse) => {
-          if (res?.result?.accessToken) {
-            localStorageService.setStorage(Constants.API_TOKEN_STORAGE, res?.result);
-            navigate(ROUTE_PATH.DASHBOARD, { replace: true });
+          if (res?.data?.accessToken) {
+            localStorageService.setStorage(Constants.API_TOKEN_STORAGE, res?.data?.accessToken);
+            localStorageService.setStorage(
+              Constants.API_REFRESH_TOKEN_STORAGE,
+              res?.data?.refreshToken
+            );
+            navigate('/', { replace: true });
+            return;
           }
         },
         () => {},
@@ -78,38 +82,32 @@ const LoginPage = () => {
     checkAuth();
   }, []);
 
-  const isDisable = isEmpty(dataUser?.email) || isEmpty(dataUser?.password);
+  // const isDisable = isEmpty(dataUser?.userName) || isEmpty(dataUser?.password);
 
   return (
     <>
+      <PageTitle title={'Đăng nhập'} />
       <div>
-        <FullPageLoading isLoading={loading} />
-        {/*<img*/}
-        {/*  src={LoginBackground}*/}
-        {/*  alt='Construction background'*/}
-        {/*  className='absolute -z-1 w-screen h-screen'*/}
-        {/*/>*/}
-        <div className='w-screen h-screen flex justify-center items-center px-5'>
+        <div className='w-screen h-screen flex justify-center items-center px-5 bg-[#f5f7fc]'>
           <div className='w-[450px] h-fit bg-white rounded-lg shadow-lg p-10'>
-            <img src={Logo} alt='logo' className='m-auto' />
-            <h1 className='text-32-32 font-bold mt-10'>{_t('Đăng Nhập')}</h1>
+            <LogoLandscape width={100} className='mb-10' />
             <Form onFinish={onSubmit}>
               <div className='flex flex-col gap-3 mt-5'>
                 <div>
                   <InputTextCommon
                     autoFocus
-                    attribute='email'
-                    autoComplete='email'
-                    isRequired
-                    label={_t('Tên đăng nhập')}
+                    attribute='userName'
+                    autoComplete='text'
+                    isRequired={true}
+                    label={_t('Tên đăng nhập hoặc email')}
                     setData={setDataUser}
-                    placeholder={_t('Tên đăng nhập')}
-                    rules={[
-                      {
-                        message: _t('Không đúng định dạng email'),
-                        pattern: Constants.PATTERN_REGEX.Email,
-                      },
-                    ]}
+                    placeholder={_t('Nhập tên đăng nhập hoặc email')}
+                    // rules={[
+                    //   {
+                    //     message: _t('Không đúng định dạng email'),
+                    //     pattern: Constants.PATTERN_REGEX.Email,
+                    //   },
+                    // ]}
                     setValidate={setValidate}
                     validate={validate}
                     maxLength={255}
@@ -118,29 +116,34 @@ const LoginPage = () => {
                 <div>
                   <InputPasswordCommon
                     attribute='password'
-                    isRequired
-                    label={_t('Mật khẩu')}
+                    isRequired={true}
+                    label={_t('Nhập mật khẩu')}
                     setData={setDataUser}
-                    placeholder={_t('Mật khẩu')}
+                    placeholder={_t('Nhập mật khẩu')}
                     setValidate={setValidate}
                     validate={validate}
                     rules={[
                       {
-                        message: _t('Mật khẩu phải có ít nhất 6 ký tự'),
-                        pattern: Constants.PATTERN_REGEX.PasswordLow,
+                        message: _t(
+                          'Mật khẩu không đúng định dạng. Bao gồm tối thiểu 8 kí tự(bao gồm số và chữ cái, chữ in hoa, kí tự đặc biệt).'
+                        ),
+                        pattern: Constants.PATTERN_REGEX.PasswordStrong,
                       },
                     ]}
                     maxLength={25}
                   />
                 </div>
+                <Link to={ROUTE_PATH.FORGOT_PASSWORD} className='text-right text-blue-500'>
+                  {_t('Quên mật khẩu')}
+                </Link>
               </div>
               <ButtonCommon
                 title={_t('Đăng nhập')}
-                colorClass='blue-bg'
+                colorClass='firebrick-bg'
                 classButton='w-full mt-5'
                 htmlType='submit'
                 onClick={() => {}}
-                disabled={isDisable || loading}
+                loading={loading}
               />
             </Form>
           </div>
