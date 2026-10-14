@@ -104,10 +104,13 @@ const GCSManagement = () => {
       searchByFields.push({ searchFieldName: 'status', searchValue: dataForm.status });
     }
 
-    setGetListGCSParamsRequest((prev) => ({
-      ...prev,
-      searchByFields: searchByFields.length > 0 ? searchByFields : [],
-    }));
+    setGetListGCSParamsRequest((prev) => {
+      const updated = {
+        ...prev,
+        searchByFields: searchByFields.length > 0 ? searchByFields : [],
+      };
+      return deleteParams(updated, ['before', 'after']);
+    });
   }, [debounceCode, debounceName, dataForm?.status]);
 
   const columns: TableProps['columns'] = [

@@ -164,7 +164,13 @@ const GCSCheckDetail = () => {
             <PaginationCommon
               pageSize={size}
               hasNext={paginationData?.hasNext}
-              setSize={setSize}
+              setSize={(newSize) => {
+                setSize(newSize);
+                setGCSMonthlyDetailRequest((prev) => {
+                  const updatedParams = { ...prev, pageSize: newSize };
+                  return deleteParams(updatedParams, ['before', 'after']);
+                });
+              }}
               hasPrevious={paginationData?.hasPrevious}
               onClickPrevious={() => {
                 setGCSMonthlyDetailRequest((prev) => {

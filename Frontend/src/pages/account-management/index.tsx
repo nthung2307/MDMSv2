@@ -139,10 +139,13 @@ const AccountManagement = () => {
       searchByFields.push({ searchFieldName: 'status', searchValue: dataForm.status });
     }
 
-    setGetListAccountParamsRequest((prev) => ({
-      ...prev,
-      searchByFields: searchByFields.length > 0 ? searchByFields : [],
-    }));
+    setGetListAccountParamsRequest((prev) => {
+      const updatedParams = {
+        ...prev,
+        searchByFields: searchByFields.length > 0 ? searchByFields : [],
+      };
+      return deleteParams(updatedParams, ['before', 'after']);
+    });
   }, [debounceClientName, dataForm?.roleName, dataForm?.status]);
 
   const getRoleName = (role: string) => {

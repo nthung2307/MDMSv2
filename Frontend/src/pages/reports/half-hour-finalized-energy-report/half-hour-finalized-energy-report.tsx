@@ -225,16 +225,20 @@ const HalfHourFinalizedEnergyReport = () => {
       dataForm.startTime &&
       dataForm.endTime
     ) {
+      setRequestParams((prev) => deleteParams(prev, ['before', 'after']));
+    }
+  }, [dataForm.customerId, dataForm.measurementPointId, dataForm.startTime, dataForm.endTime]);
+
+  useEffect(() => {
+    if (
+      dataForm.customerId &&
+      dataForm.measurementPointId &&
+      dataForm.startTime &&
+      dataForm.endTime
+    ) {
       getReportData({ ...requestParams });
     }
-  }, [
-    dataForm.customerId,
-    dataForm.measurementPointId,
-    dataForm.startTime,
-    dataForm.endTime,
-    size,
-    requestParams,
-  ]);
+  }, [size, requestParams]);
 
   return (
     <div>

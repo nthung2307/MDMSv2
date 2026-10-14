@@ -43,10 +43,13 @@ const PointMonitoringEvent = () => {
   const lastCustomerID = data?.[data.length - 1]?.id;
 
   const updateParamsValueFromListCustomerParams = (paramsToUpdate: any) => {
-    setGetListMeasurementParamsRequest((prev) => ({
-      ...prev,
-      ...paramsToUpdate,
-    }));
+    setGetListMeasurementParamsRequest((prev) => {
+      const updated = {
+        ...prev,
+        ...paramsToUpdate,
+      };
+      return deleteParams(updated, ['before', 'after']);
+    });
   };
 
   const handleClearSearch = () => {

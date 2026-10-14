@@ -157,10 +157,13 @@ const PointManagement = () => {
       });
     }
 
-    setGetListMeasurementParamsRequest((prev) => ({
-      ...prev,
-      searchByFields: searchByFields.length > 0 ? searchByFields : [],
-    }));
+    setGetListMeasurementParamsRequest((prev) => {
+      const updatedParams = {
+        ...prev,
+        searchByFields: searchByFields.length > 0 ? searchByFields : [],
+      };
+      return deleteParams(updatedParams, ['before', 'after']);
+    });
   }, [debounceCustomerName, debounceCode, dataForm?.status]);
   useEffect(() => {
     getListMeasurementPointsAsync({ ...getListMeasurementParamsRequest });

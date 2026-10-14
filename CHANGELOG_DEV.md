@@ -1,3 +1,45 @@
+# [DEV HANDOFF] HOTFIX: KHẮC PHỤC TRIỆT ĐỂ LỖI PHÂN TRANG NEXT/PREVIOUS VÀ GIAO DIỆN TỰ ĐỘNG RESET VỀ TRANG ĐẦU TIÊN
+
+## 1. Nguyên nhân Gốc rễ (Root Causes)
+1. **Lỗi Backend EF Core Translator với Cursor Pagination (Previous Navigation)**:
+   - Trong `QueryableWithAndExtensions.cs`, `QueryableExtensions.cs`, và `QueryableAndFilterExtensions.cs`: Khi người dùng click "Previous", logic cũ gọi `finalQuery.Where(i => i.Id > Before).Reverse()` (đối với DESC) hoặc `finalQuery.Where(i => i.Id < Before).Reverse()` (đối với ASC).
+   - Tuy nhiên, EF Core LINQ to Entities **hoàn toàn bỏ qua phương thức `.Reverse()`** trên `IQueryable` khi dịch sang SQL.
+   - Do đó, câu lệnh SQL thực thi vẫn giữ nguyên chiều `ORDER BY Id DESC` (hoặc ASC) và `LIMIT PageSize + 1`. Kết quả trả về từ database luôn là 10 bản ghi đầu tiên của toàn bảng (Trang 1) thay vì 10 bản ghi ngay trước vị trí con trỏ `Before`! Sau đó ở bộ nhớ RAM, danh sách Trang 1 này bị đảo ngược thứ tự, khiến giao diện nhảy phắt về Trang 1 với danh sách bị đảo ngược, làm hỏng hoàn toàn luồng chuyển trang lùi.
+2. **Lỗi Background Polling gọi đè dữ liệu Trang 1 (Notice Detail)**:
+   - Trong `notice-detail/index.tsx`, tiến trình định kỳ `getStatusSendMailAsync` (30 giây/lần) có câu lệnh `if (!res.data)` gọi lại `getListNoticeAsync` mang theo tham số khởi tạo ban đầu (`getListNoticeRequest` chưa có `before`/`after`). Khi người dùng đang ở Trang 2, 3... thì đúng 30 giây sau, hàm này tự kích hoạt và kéo dữ liệu Trang 1 đè lên, khiến giao diện bất ngờ nhảy về Trang 1.
+3. **Lỗi Ghi đè Telemetry IoT qua WebSocket (Summary Parameter)**:
+   - Trong `summary-parameter/index.tsx`, mỗi khi có dữ liệu Socket IoT cập nhật, `useEffect` thực hiện `setData(dataSocket['data'])` ghi đè toàn bộ danh sách hiện tại bằng danh sách đo đếm mặc định (Trang 1) nhận từ Socket.
+4. **Lỗi Lưu giữ Con trỏ Cũ khi Thay đổi Bộ lọc / Thay đổi PageSize**:
+   - Ở hầu hết các trang danh sách (`client-management`, `account-management`, `point-management`, `point-event`, `point-warning`, `gcs-management`, `notice-detail`, `reports`), khi người dùng gõ tìm kiếm hoặc thay đổi bộ lọc, state request chỉ gộp thêm trường tìm kiếm `{ ...prev, searchByFields }` mà không xóa bỏ `before` / `after` của trang cũ. Dẫn đến việc tìm kiếm bị giới hạn sau ID của trang hiện tại, làm kết quả bộ lọc bị thiếu hoặc trống.
+
+---
+
+## 2. Chi tiết Giải pháp & Hiện thực hóa (Implementation Details)
+### Backend (.NET 8 Clean Architecture)
+- **Đảo chiều sắp xếp SQL khi phân trang lùi (`Before != null`)**:
+  - Tại [QueryableWithAndExtensions.cs](file:///e:/sources/MDMSv2/Backend/Application/Extensions/QueryableWithAndExtensions.cs):
+    * Hàm `PaginateWithAndAsync` (mặc định DESC): Khi `Before != null`, query SQL chuyển sang sắp xếp tăng dần `OrderBy(x => x.Id)` (hoặc đảo ngược chiều `SortByFields`), lấy `PageSize + 1` bản ghi có `Id > Before`. Sau khi lấy dữ liệu từ DB về bộ nhớ, đảo ngược danh sách (`result.Reverse()`) để hiển thị đúng thứ tự DESC tự nhiên.
+    * Đặt lại cờ chuẩn xác: `hasNext = true`, `hasPrevious = result.Count == PageSize + 1`.
+    * Hàm `PaginateWithAscAndAsync` (mặc định ASC): Khi `Before != null`, query SQL sắp xếp giảm dần `OrderByDescending(x => x.Id)`, lấy `PageSize + 1` bản ghi có `Id < Before`, sau đó `result.Reverse()` về thứ tự ASC.
+  - Đồng bộ logic tương tự cho [QueryableExtensions.cs](file:///e:/sources/MDMSv2/Backend/Application/Extensions/QueryableExtensions.cs) (`PaginateAsync`) và [QueryableAndFilterExtensions.cs](file:///e:/sources/MDMSv2/Backend/Application/Extensions/QueryableAndFilterExtensions.cs) (`PaginateWithFilterAsync`).
+
+### Frontend (React 18 + Vite)
+- **Chuẩn hóa reset con trỏ phân trang trên toàn bộ các trang**:
+  - [client-management/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/client-management/index.tsx): `addListCustomerParams` và `updateParamsValueFromListCustomerParams` tự động gọi `deleteParams(updatedParams, ['before', 'after'])`.
+  - [account-management/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/account-management/index.tsx): Khi thay đổi tên/nhóm/trạng thái người dùng, tự động xóa `before` và `after`.
+  - [point-management/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/point-management/index.tsx): Khi thay đổi bộ lọc điểm đo, tự động xóa `before` và `after`.
+  - [notice-detail/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/notice-management/notice-detail/index.tsx):
+    * Bổ sung `isSendingMailRef`: Chỉ kiểm tra và refresh dữ liệu khi tiến trình gửi mail đang chạy thực sự. Loại bỏ việc tự động reload Trang 1 mỗi 30 giây khi không gửi mail.
+    * Khi thay đổi bộ lọc tìm kiếm hoặc kích thước trang (`setSize`), tự động xóa `before` và `after`.
+  - [summary-parameter/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/point-monitoring/summary-parameter/index.tsx):
+    * Cơ chế **In-place Telemetry Merge**: Khi nhận Socket dữ liệu IoT, chỉ cập nhật các chỉ số đo đếm (`dienAp`, `dongDien`, `congSuat`...) của các điểm đo đang hiển thị trên trang hiện tại theo `measurementPointsId`, tuyệt đối không ghi đè toàn bộ danh sách hoặc kéo về Trang 1.
+    * Tách biệt bộ lọc tìm kiếm và tự động xóa `before`/`after` khi gõ tìm kiếm.
+  - [point-event/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/point-monitoring/point-event/index.tsx) & [point-warning/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/point-monitoring/point-warning/index.tsx): `updateParamsValueFromListCustomerParams` tự động xóa `before` và `after`.
+  - [gcs-management/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/gcs-management/index.tsx), [check/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/gcs-management/check/index.tsx), [check-detail/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/gcs-management/check-detail/index.tsx), [gcs-sum/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/gcs-sum/index.tsx): Cập nhật `setSize` và bộ lọc xóa sạch con trỏ cũ.
+  - [daily-finalized-energy-report.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/reports/daily-finalized-energy-report/daily-finalized-energy-report.tsx) & [half-hour-finalized-energy-report.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/reports/half-hour-finalized-energy-report/half-hour-finalized-energy-report.tsx): Tách riêng `useEffect` reset con trỏ phân trang khi đổi khách hàng/điểm đo/thời gian.
+
+---
+
 # [DEV HANDOFF] QUẢN LÝ KHÁCH HÀNG: IMPORT CSV (SAFE UPSERT), PHÂN QUYỀN ADMIN (RBAC) & TỐI ƯU HÓA UI/UX
 
 ## 1. Tóm tắt Thay đổi (Summary of Changes)

@@ -2,10 +2,7 @@ import { Card } from 'antd';
 import { useEffect, useState, useMemo } from 'react';
 import { FiShare } from 'react-icons/fi';
 import { IoBackspaceOutline, IoSearch } from 'react-icons/io5';
-import { useRecoilValue } from 'recoil';
 
-import { AlertState } from '@/core/application/common/atoms/global/alertState';
-import { CountState } from '@/core/application/common/atoms/global/countState';
 import Constants from '@/core/application/common/constants';
 import { DataResponse } from '@/core/application/dto/common/responses/successResponse';
 import { GetListMeasurementPointMonitoringRequest } from '@/core/application/dto/measurement-point-monitoring/requests/GetListMeasurementPointMonitoringRequest';
@@ -34,8 +31,6 @@ const PointMonitoring = () => {
   const [isShowExport, setIsShowExport] = useState<boolean>(false);
   const debounceSearch = useDebounce(dataForm.name, 300);
   const debounceSearchCode = useDebounce(dataForm.measurementPointCode, 300);
-  const alertState = useRecoilValue(AlertState);
-  const countState = useRecoilValue(CountState);
 
   const [getListMeasurementParamsRequest, setGetListMeasurementParamsRequest] =
     useState<GetListMeasurementPointMonitoringRequest>();
@@ -48,19 +43,13 @@ const PointMonitoring = () => {
   const firstCustomerID = data?.[0]?.measurementPointsId;
   const lastCustomerID = data?.[data.length - 1]?.measurementPointsId;
 
-  const updateParamsValueFromListCustomerParams = (paramsToUpdate: any) => {
-    setGetListMeasurementParamsRequest((prev: any) => {
-      return { ...prev, ...paramsToUpdate };
-    });
-  };
-
   const handleClearSearch = () => {
     setDataForm({
       name: '',
       measurementPointCode: '',
       connectionStatus: null,
     });
-    updateParamsValueFromListCustomerParams({ customerName: '' });
+    setGetListMeasurementParamsRequest({});
   };
 
   const getListMeasurementPointMonitoringAsync = async ({
@@ -134,23 +123,37 @@ const PointMonitoring = () => {
   });
 
   useEffect(() => {
-    getListMeasurementPointMonitoringAsync({
-      ...getListMeasurementParamsRequest,
-      ...(debounceSearch && { customerName: debounceSearch }),
-      ...(debounceSearchCode && { measurementPointCode: debounceSearchCode }),
+    setGetListMeasurementParamsRequest((prev) => {
+      const updated: any = {
+        ...prev,
+        ...(debounceSearch && { customerName: debounceSearch }),
+        ...(debounceSearchCode && { measurementPointCode: debounceSearchCode }),
+      };
+      if (!debounceSearch) delete updated.customerName;
+      if (!debounceSearchCode) delete updated.measurementPointCode;
+      return deleteParams(updated, ['before', 'after']);
     });
-  }, [
-    size,
-    alertState,
-    getListMeasurementParamsRequest,
-    dataForm.connectionStatus,
-    debounceSearch,
-    debounceSearchCode,
-  ]);
+  }, [debounceSearch, debounceSearchCode, dataForm.connectionStatus]);
 
   useEffect(() => {
-    setData(dataSocket ? dataSocket['data'] : []);
-  }, [dataSocket, countState]);
+    getListMeasurementPointMonitoringAsync({
+      ...getListMeasurementParamsRequest,
+    });
+  }, [size, getListMeasurementParamsRequest]);
+
+  useEffect(() => {
+    if (!dataSocket?.data || !Array.isArray(dataSocket.data)) return;
+    setData((prevData) => {
+      if (!prevData || prevData.length === 0) return prevData;
+      const updatedMap = new Map(
+        dataSocket.data.map((item: any) => [item.measurementPointsId || item.id, item])
+      );
+      return prevData.map((item: any) => {
+        const update = updatedMap.get(item.measurementPointsId || item.id);
+        return update ? { ...item, ...update } : item;
+      });
+    });
+  }, [dataSocket]);
 
   return (
     <>

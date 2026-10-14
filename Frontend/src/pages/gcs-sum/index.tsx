@@ -405,7 +405,13 @@ const GCSSum = () => {
               <PaginationCommon
                 pageSize={size}
                 hasNext={paginationData?.hasNext}
-                setSize={setSize}
+                setSize={(newSize) => {
+                  setSize(newSize);
+                  setGetListDataGCSRequest((prev) => {
+                    const updatedParams = { ...prev, pageSize: newSize };
+                    return deleteParams(updatedParams, ['before', 'after']);
+                  });
+                }}
                 hasPrevious={paginationData?.hasPrevious}
                 onClickPrevious={() => {
                   setGetListDataGCSRequest((prev) => {

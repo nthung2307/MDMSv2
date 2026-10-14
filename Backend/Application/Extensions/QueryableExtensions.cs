@@ -27,9 +27,6 @@ public static class QueryableExtensions
     /// <exception cref="InvalidPaginationParameterException"></exception>
     public static async Task<CursorPaginationResponse<TTargetEntity>> PaginateAsync<TSourceEntity, TTargetEntity>(this IQueryable<TSourceEntity> queryable, CursorPaginationRequest cursorPaginationRequest, IMapper mapper, CancellationToken cancellationToken) where TSourceEntity : IEntity<long>
     {
-        //Force to sort by id asc 
-        IQueryable<TSourceEntity> finalQuery = queryable.OrderBy(x => x.Id);
-        IQueryable<TSourceEntity> hasPreviousQuery = queryable.OrderBy(x => x.Id);
         // Only after or before should be used at the same time if they are not null both
         if (cursorPaginationRequest.After != null && cursorPaginationRequest.Before != null)
             throw new InvalidPaginationParameterException(nameof(QueryableExtensions), nameof(PaginateAsync), $"Only one of before or after should be used at the same time");
@@ -68,80 +65,85 @@ public static class QueryableExtensions
             }
         }
 
-        // Handle search and order
-        if (cursorPaginationRequest.SortByFields is {Count: > 0})
+        // Handle search
+        if (cursorPaginationRequest.SearchByFields is { Count: > 0 })
         {
-            finalQuery = finalQuery.OrderByFields(fieldsToSort: cursorPaginationRequest.SortByFields);
-            hasPreviousQuery = hasPreviousQuery.OrderByFields(fieldsToSort: cursorPaginationRequest.SortByFields);
+            queryable = queryable.SearchByContain(cursorPaginationRequest.SearchByFields);
         }
 
-        if (cursorPaginationRequest.SearchByFields is {Count: > 0})
-        {
-            finalQuery = finalQuery.SearchByContain(cursorPaginationRequest.SearchByFields);
-            hasPreviousQuery = hasPreviousQuery.SearchByContain(cursorPaginationRequest.SearchByFields);
-        }
-
+        IQueryable<TSourceEntity> finalQuery;
         var hasNext = false;
         var hasPrevious = false;
-        // Handle after
-        if (cursorPaginationRequest.After != null)
-        {
-            // Get all items whose ids > after
-            finalQuery = finalQuery.Where(i => i.Id > cursorPaginationRequest.After);
-            // hasPreviousQuery = hasPreviousQuery.Where(i => i.Id < paginationRequest.After);
-            // hasPrevious = await hasPreviousQuery.AnyAsync(cancellationToken);
-        }
 
-        // Handler before
+        // Handle before: going to previous page in default ASC order
         if (cursorPaginationRequest.Before != null)
         {
-            // Get all items whose ids > after
-            finalQuery = finalQuery.Where(i => i.Id < cursorPaginationRequest.Before).Reverse();
-            // hasPreviousQuery = hasPreviousQuery.Where(i => i.Id < paginationRequest.Before);
-            // hasPrevious = await hasPreviousQuery.AnyAsync(cancellationToken);
+            // Records before 'Before' in ASC order have Id < Before.
+            // In SQL, we MUST order by Id DESC to fetch the records immediately preceding Before.
+            finalQuery = queryable.Where(i => i.Id < cursorPaginationRequest.Before);
+            if (cursorPaginationRequest.SortByFields is { Count: > 0 })
+            {
+                var invertedSorts = cursorPaginationRequest.SortByFields.Select(s => new SortModel
+                {
+                    ColName = s.ColName,
+                    SortDirection = string.Equals(s.SortDirection, "desc", StringComparison.OrdinalIgnoreCase) ? "asc" : "desc"
+                }).ToList();
+                finalQuery = finalQuery.OrderByFields(invertedSorts);
+            }
+            else
+            {
+                finalQuery = finalQuery.OrderByDescending(x => x.Id);
+            }
         }
+        else
+        {
+            finalQuery = queryable.OrderBy(x => x.Id);
+            if (cursorPaginationRequest.SortByFields is { Count: > 0 })
+            {
+                finalQuery = finalQuery.OrderByFields(fieldsToSort: cursorPaginationRequest.SortByFields);
+            }
 
+            if (cursorPaginationRequest.After != null)
+            {
+                finalQuery = finalQuery.Where(i => i.Id > cursorPaginationRequest.After);
+            }
+        }
 
         // Hit to the db to get data back to client side
         var result = await finalQuery
             .ProjectTo<TTargetEntity>(mapper.ConfigurationProvider)
             .Take(cursorPaginationRequest.PageSize + 1)
             .ToListAsync(cancellationToken);
-        // Handle first request with all null
 
+        // Handle first request with all null
         if (cursorPaginationRequest.After == null && cursorPaginationRequest.Before == null)
         {
             hasPrevious = false;
             hasNext = result.Count == cursorPaginationRequest.PageSize + 1;
+            result = result.Take(cursorPaginationRequest.PageSize).ToList();
         }
 
         // Recalculate next, previous
-        /*
-         * Trong case after,
-         *      Nếu result.Count > 0 --> có previous else ko có previous
-         *      Nếu result.Count == paginationRequest.PageSize + 1 --> có next  else ko có next
-         * Trong case before
-         *      Nếu result.Count > 0 --> có next  else ko có next
-         *      Nếu result.Count == paginationRequest.PageSize + 1 --> có previous  else ko có previous
-         */
         if (cursorPaginationRequest.After != null)
         {
-            hasPrevious = result.Count > 0;
+            hasPrevious = true;
             hasNext = result.Count == cursorPaginationRequest.PageSize + 1;
+            result = result.Take(cursorPaginationRequest.PageSize).ToList();
         }
 
         if (cursorPaginationRequest.Before != null)
         {
-            result.Reverse();
-            hasNext = result.Count > 0;
+            hasNext = true;
             hasPrevious = result.Count == cursorPaginationRequest.PageSize + 1;
+            result = result.Take(cursorPaginationRequest.PageSize).ToList();
+            result.Reverse();
         }
 
         return new CursorPaginationResponse<TTargetEntity>()
         {
             HasNext = hasNext,
             HasPrevious = hasPrevious,
-            Data = result.Take(cursorPaginationRequest.PageSize).ToList()
+            Data = result
         };
     }
 

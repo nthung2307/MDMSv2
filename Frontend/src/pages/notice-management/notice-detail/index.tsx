@@ -2,7 +2,7 @@ import { Card } from 'antd';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-expect-error
 import html2pdf from 'html2pdf.js';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { IoMailOutline } from 'react-icons/io5';
 import { IoPrintOutline } from 'react-icons/io5';
@@ -75,6 +75,7 @@ const NoticeDetail = () => {
   const [sendAllMailNotice] = useSendAllMailNoticeHook();
   const [isShowDialog, setIsShowDialog] = useState<any>(false);
   const [mailStatus, setMailStatus] = useState<'confirm' | 'sending' | 'success' | null>(null);
+  const isSendingMailRef = useRef<boolean>(false);
   const [getListNoticeRequest, setGetListNoticeRequest] = useState<GetListNoticeRequest>();
   const [paginationData, setPaginationData] = useState<{
     hasNext: boolean;
@@ -117,11 +118,12 @@ const NoticeDetail = () => {
     }
 
     setGetListNoticeRequest((prev) => {
-      return {
+      const updatedParams = {
         ...prev,
         searchByFields,
         gcsId: prev?.gcsId ?? gcsId,
       };
+      return deleteParams(updatedParams, ['before', 'after']);
     });
   }, [debounceCustomerCode, debounceMeasurementPoint, dataForm?.status]);
 
@@ -210,6 +212,7 @@ const NoticeDetail = () => {
 
   const sendMailNoticeAsync = async () => {
     setMailStatus('sending');
+    isSendingMailRef.current = true;
     const params = new SendAllMailNoticeRequest({
       gcsId: Number(gcsId),
       month: record.month,
@@ -286,8 +289,10 @@ const NoticeDetail = () => {
       params,
       (res: DataResponse) => {
         if (res.data) {
+          isSendingMailRef.current = true;
           notifySuccess('', 'Đang gửi mail, vui lòng chờ vài phút');
         } else {
+          isSendingMailRef.current = false;
           setMailStatus(null);
         }
       },
@@ -298,6 +303,7 @@ const NoticeDetail = () => {
 
   const getStatusSendMailAsync = async () => {
     if (!record || !gcsId) return;
+    if (!isSendingMailRef.current) return;
     const params: any = {
       GcsId: Number(gcsId) ?? 0,
       month: record.month,
@@ -308,6 +314,8 @@ const NoticeDetail = () => {
       params,
       (res: DataResponse) => {
         if (!res.data) {
+          isSendingMailRef.current = false;
+          setMailStatus(null);
           getListNoticeAsync({
             ...getListNoticeRequest,
             gcsId: Number(gcsId),
@@ -431,7 +439,13 @@ const NoticeDetail = () => {
             <PaginationCommon
               pageSize={size}
               hasNext={paginationData?.hasNext}
-              setSize={setSize}
+              setSize={(newSize) => {
+                setSize(newSize);
+                setGetListNoticeRequest((prev) => {
+                  const updatedParams = { ...prev, pageSize: newSize };
+                  return deleteParams(updatedParams, ['before', 'after']);
+                });
+              }}
               hasPrevious={paginationData?.hasPrevious}
               onClickPrevious={() => {
                 setGetListNoticeRequest((prev) => {

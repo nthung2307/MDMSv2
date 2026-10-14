@@ -69,13 +69,15 @@ const ClientManagement = () => {
 
   const addListCustomerParams = (params: GetListCustomerRequest) => {
     setGetListCustomerParamsRequest((prev) => {
-      return { ...prev, ...params };
+      const updatedParams = { ...prev, ...params };
+      return deleteParams(updatedParams, ['before', 'after']);
     });
   };
 
   const updateParamsValueFromListCustomerParams = (paramsToUpdate: any) => {
     setGetListCustomerParamsRequest((prev: any) => {
-      return { ...prev, ...paramsToUpdate };
+      const updatedParams = { ...prev, ...paramsToUpdate };
+      return deleteParams(updatedParams, ['before', 'after']);
     });
   };
 

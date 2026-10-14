@@ -216,15 +216,15 @@ const DailyFinalizedEnergyReport = () => {
 
   useEffect(() => {
     if (dataForm.customerId && dataForm.measurementPointId) {
+      setRequestParams((prev) => deleteParams(prev, ['before', 'after']));
+    }
+  }, [dataForm.customerId, dataForm.measurementPointId, dataForm.selectedDate]);
+
+  useEffect(() => {
+    if (dataForm.customerId && dataForm.measurementPointId) {
       getReportData({ ...requestParams });
     }
-  }, [
-    dataForm.customerId,
-    dataForm.measurementPointId,
-    dataForm.selectedDate,
-    size,
-    requestParams,
-  ]);
+  }, [size, requestParams]);
 
   return (
     <div>
