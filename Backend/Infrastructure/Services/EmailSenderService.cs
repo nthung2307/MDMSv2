@@ -347,11 +347,15 @@ public class EmailSenderService
             return;
         }
 
-        // Validate email address
-        if (item.MeasurementPoint == null || !IsValidEmail(item.MeasurementPoint.Email))
+        // Validate email address: Check MeasurementPoint.Email first, then fallback to Customer.Email
+        var targetEmail = !string.IsNullOrWhiteSpace(item.MeasurementPoint?.Email)
+            ? item.MeasurementPoint.Email.Trim()
+            : item.MeasurementPoint?.Customer?.Email?.Trim();
+
+        if (string.IsNullOrEmpty(targetEmail) || !IsValidEmail(targetEmail))
         {
             _loggerService.LogInformation("Điểm đo {PointCode} (StatementId = {StatementId}) chưa cấu hình email hoặc email không hợp lệ: '{Email}'.",
-                item.MeasurementPoint?.Code, statementId, item.MeasurementPoint?.Email);
+                item.MeasurementPoint?.Code, statementId, targetEmail);
             item.Status = "NO_EMAIL_CONFIGURED";
             item.SentTime = _dateTimeService.UtcNow();
             await _periodicEnergyStatementReadWriteRepository.UpdateAsync(item, cancellationToken);
@@ -363,9 +367,9 @@ public class EmailSenderService
             .GetListSystemConfigAsync(cancellationToken);
 
         var mail = new List<MailAddress>();
-        if (!string.IsNullOrEmpty(item.MeasurementPoint.Email2) && IsValidEmail(item.MeasurementPoint.Email2))
+        if (!string.IsNullOrEmpty(item.MeasurementPoint?.Email2) && IsValidEmail(item.MeasurementPoint.Email2))
             mail.Add(new MailAddress(item.MeasurementPoint.Email2.Trim()));
-        if (!string.IsNullOrEmpty(item.MeasurementPoint.Email3) && IsValidEmail(item.MeasurementPoint.Email3))
+        if (!string.IsNullOrEmpty(item.MeasurementPoint?.Email3) && IsValidEmail(item.MeasurementPoint.Email3))
             mail.Add(new MailAddress(item.MeasurementPoint.Email3.Trim()));
 
         var day = item.Day == 1
@@ -392,18 +396,18 @@ public class EmailSenderService
 
             await _mailingService.SendEmailAsync(new Email()
             {
-                To = new List<MailAddress> { new MailAddress(item.MeasurementPoint.Email.Trim()) },
+                To = new List<MailAddress> { new MailAddress(targetEmail) },
                 Cc = mail.Any() ? mail : null,
-                Subject = $"Phiếu Báo Số {item.SerialNumber} - {item.MeasurementPoint.Customer?.FullName}",
+                Subject = $"Phiếu Báo Số {item.SerialNumber} - {item.MeasurementPoint?.Customer?.FullName}",
                 Body = $@"<html>
                     <body>
-                        <p>Kính gửi {item.MeasurementPoint.Customer?.FullName},</p>
+                        <p>Kính gửi {item.MeasurementPoint?.Customer?.FullName},</p>
                         <p>Chúng tôi xin gửi đến Quý khách hàng phiếu báo số {item.SerialNumber} kèm theo email này.</p>
                         <p></p>
                         <p>Thông tin phiếu báo:</p>
                         <ul>
-                            <li>Tên khách hàng: {item.MeasurementPoint.Customer?.FullName}</li>
-                            <li>Mã điểm đo: {item.MeasurementPoint.Code}</li>
+                            <li>Tên khách hàng: {item.MeasurementPoint?.Customer?.FullName}</li>
+                            <li>Mã điểm đo: {item.MeasurementPoint?.Code}</li>
                             <li>Thời gian: (Từ ngày {item.PreviousDay?.ToString() ?? "..."}/{item.PreviousMonth?.ToString() ?? "..."}/{item.PreviousYear?.ToString() ?? "....."} đến ngày {day}/{month}/{year})</li>
                             <li>
                                 Chỉ số cũ <br>
@@ -441,12 +445,12 @@ public class EmailSenderService
             await _periodicEnergyStatementReadWriteRepository.UpdateAsync(item, cancellationToken);
             await _periodicEnergyStatementReadWriteRepository.SaveChangesAsync(cancellationToken);
             _loggerService.LogInformation("Gửi email thành công cho điểm đo {PointCode} (StatementId = {StatementId}) tới {Email}",
-                item.MeasurementPoint.Code, statementId, item.MeasurementPoint.Email);
+                item.MeasurementPoint?.Code, statementId, targetEmail);
         }
         catch (Exception ex)
         {
             _loggerService.LogError(ex, "Lỗi khi gửi email cho điểm đo {PointCode} (StatementId = {StatementId}) tới {Email}: {Message}",
-                item.MeasurementPoint?.Code, statementId, item.MeasurementPoint?.Email, ex.Message);
+                item.MeasurementPoint?.Code, statementId, targetEmail, ex.Message);
             item.Status = "SEND_FAILED";
             item.SentTime = _dateTimeService.UtcNow();
             await _periodicEnergyStatementReadWriteRepository.UpdateAsync(item, cancellationToken);

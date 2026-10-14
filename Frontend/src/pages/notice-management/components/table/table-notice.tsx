@@ -78,32 +78,67 @@ const TableDetailNotice = (props: Props) => {
       title: 'Mã điểm đo',
       dataIndex: 'measurementPoint',
       render: (record) => {
-        return <div>{record.code}</div>;
+        const email = record?.email?.trim() || record?.customer?.email?.trim();
+        return (
+          <div>
+            <div className="font-medium">{record?.code}</div>
+            {email ? (
+              <div style={{ fontSize: '11px', color: '#1677ff' }}>{email}</div>
+            ) : (
+              <div style={{ fontSize: '11px', color: '#faad14' }}>Chưa có email</div>
+            )}
+          </div>
+        );
       },
     },
     {
       title: 'Trạng thái gửi Email',
       dataIndex: 'status',
-      render: (status) => {
+      render: (status, record: any) => {
+        const pointEmail =
+          record?.measurementPoint?.email?.trim() ||
+          record?.measurementPoint?.customer?.email?.trim();
+        const hasValidEmail = Boolean(pointEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pointEmail));
+
+        // 1. Neu diem do chua co email hoac email khong hop le -> luon hien thi Chua cau hinh Email
+        if (!hasValidEmail) {
+          return <Tag color="warning">Chưa cấu hình Email</Tag>;
+        }
+
+        // 2. Neu diem do da co email hop le -> hien thi theo tien trinh gui
         switch (status) {
           case 'SEND_SUCCESS':
             return <Tag color="success">Thành công</Tag>;
           case 'SEND_FAILED':
             return <Tag color="error">Thất bại</Tag>;
-          case 'NO_EMAIL_CONFIGURED':
-            return <Tag color="warning">Chưa cấu hình Email</Tag>;
           case 'PENDING':
+          case 'PROCESSING':
             return <Tag color="processing">Chờ gửi</Tag>;
+          case 'NO_EMAIL_CONFIGURED':
           default:
-            return status ? <Tag>{status}</Tag> : <Tag color="default">Chưa gửi</Tag>;
+            return <Tag color="default">Chưa gửi</Tag>;
         }
       },
     },
     {
       title: 'Thời gian gửi gần nhất',
       dataIndex: 'sentTime',
-      render: (record) => {
-        return <div>{record ? convertDateTime(record, 'dd/mm/yyyy hh:mi:ss') : ''}</div>;
+      render: (sentTime, record: any) => {
+        const pointEmail =
+          record?.measurementPoint?.email?.trim() ||
+          record?.measurementPoint?.customer?.email?.trim();
+        const hasValidEmail = Boolean(pointEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pointEmail));
+
+        // Chi hien thi thoi gian gui khi da thuc su gui thanh cong hoac that bai
+        if (
+          hasValidEmail &&
+          (record?.status === 'SEND_SUCCESS' || record?.status === 'SEND_FAILED') &&
+          sentTime
+        ) {
+          return <div>{convertDateTime(sentTime, 'dd/mm/yyyy hh:mi:ss')}</div>;
+        }
+
+        return <span style={{ color: '#bfbfbf' }}>-</span>;
       },
     },
   ];

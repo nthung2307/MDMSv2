@@ -143,7 +143,7 @@ Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "   HOAN TAT NANG CAP HOTFIX! CAC BUOC KIEM THU TIEP THEO: " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "1. Mo Hangfire Dashboard: http://localhost:19089/hangfire" -ForegroundColor White
+Write-Host "1. Mo Hangfire Dashboard: http://localhost:19089/dashboard" -ForegroundColor White
 Write-Host "   -> Vao 'Recurring Jobs' -> Tim 'GenerateEnergyReportDaily' -> Bam 'Trigger now'" -ForegroundColor Gray
 Write-Host "2. Kiem tra MySQL Database (0 NULL):" -ForegroundColor White
 Write-Host "   SELECT COUNT(*) FROM amr.measurementpointdailyenergyreports WHERE ChiSoTichLuyDienNangTacDungAPTongKenhGiao IS NULL;" -ForegroundColor Gray
