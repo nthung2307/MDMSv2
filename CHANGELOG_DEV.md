@@ -40,3 +40,17 @@
    - Thử sửa email của khách hàng đã có trong DB và thêm 1 khách hàng mới vào file CSV -> Upload -> Thông báo thành công và danh sách hiển thị dữ liệu mới cập nhật.
    - Kiểm tra DB: `measurementpoints` của khách hàng được cập nhật không hề bị gián đoạn hay mất liên kết.
 6. Đăng nhập tài khoản không phải Admin (Staff/Customer) -> Nút "Nhập từ CSV" và "Thêm khách hàng" hoàn toàn bị ẩn trên giao diện; gọi API `POST /api/v1/Customers/Import-Csv` trả về HTTP 403 Forbidden.
+
+---
+
+## 4. Hotfix Refinement: Sắp xếp Xuất CSV (Cũ đến Mới) & Khắc phục Lỗi Import từ Excel
+- **Yêu cầu 1: Sắp xếp File CSV xuất ra từ cũ tới mới (Khách hàng cũ xuất hiện đầu danh sách)**:
+  * Thay đổi truy vấn trong [CustomerReadWriteRepository.cs](file:///e:/sources/MDMSv2/Backend/Infrastructure/Repositories/ReadWrite/CustomerReadWriteRepository.cs): `OrderBy(x => x.Id)` (thay vì `OrderByDescending(x => x.Id)`). Do ID Snowflake có thứ tự thời gian tăng dần, danh sách xuất ra sẽ luôn có khách hàng cũ nhất ở đầu.
+  * Thêm UTF-8 BOM (`new UTF8Encoding(true)`) khi ghi file CSV để Microsoft Excel tự động nhận diện bảng mã UTF-8 chuẩn Tiếng Việt có dấu khi mở file.
+  * Bổ sung đuôi mở rộng `.csv` trong tên file tải về tại [dialog-export.tsx](file:///e:/sources/MDMSv2/Frontend/src/infrastructure/common/components/dialog-export/dialog-export.tsx).
+- **Yêu cầu 2: Khắc phục triệt để lỗi Import CSV sau khi chỉnh sửa bằng Microsoft Excel**:
+  * **Nguyên nhân cốt lõi 1 (Thiếu Multipart Boundary trong Axios)**: Tại [request.service.ts](file:///e:/sources/MDMSv2/Frontend/src/infrastructure/services/request.service.ts), `makeUploadRequestAsync` gán thủ công `headers['Content-Type'] = 'multipart/form-data'` khiến Axios bỏ qua việc sinh tham số `boundary`. Kestrel phía Backend không phân tích được body multipart và trả về HTTP 400 Bad Request. Đã sửa: Xóa `headers['Content-Type']` để trình duyệt tự động đính kèm `boundary=----WebKitFormBoundary...`.
+  * **Nguyên nhân cốt lõi 2 (Đa bảng mã từ Excel)**: Khi người dùng mở và lưu lại file bằng Excel trên Windows, file có thể được lưu ở dạng UTF-8 BOM, UTF-16, ANSI hoặc Windows-1258 khiến dấu Tiếng Việt ở tiêu đề bị biến dạng. Đã bổ sung hàm `DecodeCsvBytes` tự động phát hiện BOM và fallback bảng mã, kết hợp `NormalizeHeaderText` chuẩn hóa bỏ dấu Tiếng Việt (`Mã KH` -> `ma kh`) và cơ chế Positional Fallback cho vị trí các cột chuẩn.
+  * **Nguyên nhân cốt lõi 3 (Binding an toàn phía Backend)**: Tại [CustomerController.cs](file:///e:/sources/MDMSv2/Backend/WebApi/Controllers/CustomerController.cs), thêm `[FromForm(Name = "file")]` và cơ chế fallback `Request.Form.Files["file"]`.
+  * **Nguyên nhân cốt lõi 4 (Chống xung đột trùng khóa)**: Thay thế `ToDictionaryAsync` bằng Dictionary khởi tạo an toàn, loại trừ khả năng crash 500 nếu database có khách hàng trùng mã.
+  * Đã publish gói cài đặt mới vào `Publish/MDMSv2_InstallPackage` (Backend Release + Frontend Dist).

@@ -275,7 +275,7 @@ export default class RequestService implements IRequestService {
         _form.append(params.key, params.file);
       }
       const _options = this.getOptions();
-      _options.headers['Content-Type'] = 'multipart/form-data';
+      delete _options.headers['Content-Type'];
       return this.processRequest(await axiosInstance.post(_url, _form, _options));
     } catch (e: any) {
       this.loggerService.error(`[ERROR] ${e}`);
@@ -283,7 +283,7 @@ export default class RequestService implements IRequestService {
       // let result = (e as Error).message;
       return new FailureResponse({
         ...e,
-        message: e.response?.data?.message || e.message,
+        message: this.extractErrorMessage(e),
       });
 
       // TODO: Need to check this

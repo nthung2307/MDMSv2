@@ -62,7 +62,8 @@ const DialogImportCustomer = ({ open, handleCancel, onSuccess }: Props) => {
       return;
     }
 
-    const file = fileList[0].originFileObj as File;
+    const selected = fileList[0];
+    const file = ((selected as any)?.originFileObj || selected) as File;
     if (!file) {
       notifyError('Tệp không hợp lệ, vui lòng chọn lại!');
       return;
@@ -158,7 +159,11 @@ const DialogImportCustomer = ({ open, handleCancel, onSuccess }: Props) => {
             maxCount={1}
             fileList={fileList}
             beforeUpload={(file) => {
-              const isCsv = file.name.endsWith('.csv') || file.type === 'text/csv';
+              const fileName = file.name.toLowerCase();
+              const isCsv =
+                fileName.endsWith('.csv') ||
+                file.type === 'text/csv' ||
+                file.type === 'application/vnd.ms-excel';
               if (!isCsv) {
                 notifyError('Chỉ chấp nhận tệp định dạng .csv!');
                 return Upload.LIST_IGNORE;

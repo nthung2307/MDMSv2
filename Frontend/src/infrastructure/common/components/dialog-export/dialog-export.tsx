@@ -85,9 +85,10 @@ const DialogExportForm = (props: Props) => {
       (res: any) => {
         const blob = new Blob([res], { type: 'text/csv;charset=utf-8;' });
         const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `${fileNameCsv}_All`);
+        const downloadName = fileNameCsv.toLowerCase().endsWith('.csv')
+          ? `${fileNameCsv.replace(/\.csv$/i, '')}_All.csv`
+          : `${fileNameCsv}_All.csv`;
+        link.setAttribute('download', downloadName);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);

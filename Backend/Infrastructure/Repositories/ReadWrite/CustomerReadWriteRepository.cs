@@ -150,8 +150,11 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
     public async Task<byte[]> GenerateCustomerCsv(CancellationToken cancellationToken)
     {
         using var memoryStream = new MemoryStream();
-        await using var streamWriter = new StreamWriter(memoryStream, Encoding.UTF8);
-        var query = await _customerEntities.AsNoTracking().Where(x => !x.Deleted).OrderByDescending(x => x.Id).ToListAsync(cancellationToken);
+        await using var streamWriter = new StreamWriter(memoryStream, new UTF8Encoding(true));
+        var query = await _customerEntities.AsNoTracking()
+            .Where(x => !x.Deleted)
+            .OrderBy(x => x.Id)
+            .ToListAsync(cancellationToken);
 
         await using var csvWriter = new CsvWriter(streamWriter, CultureInfo.InvariantCulture);
         // Write headers
@@ -183,6 +186,63 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
         return csvBytes;
     }
 
+    private static string DecodeCsvBytes(byte[] bytes)
+    {
+        if (bytes == null || bytes.Length == 0) return string.Empty;
+
+        // Detect UTF-8 BOM (EF BB BF)
+        if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
+        {
+            return Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3);
+        }
+
+        // Detect UTF-16 LE BOM (FF FE)
+        if (bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE)
+        {
+            return Encoding.Unicode.GetString(bytes, 2, bytes.Length - 2);
+        }
+
+        // Detect UTF-16 BE BOM (FE FF)
+        if (bytes.Length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF)
+        {
+            return Encoding.BigEndianUnicode.GetString(bytes, 2, bytes.Length - 2);
+        }
+
+        // Try strict UTF-8
+        try
+        {
+            var strictUtf8 = new UTF8Encoding(false, true);
+            return strictUtf8.GetString(bytes);
+        }
+        catch
+        {
+            try
+            {
+                return Encoding.GetEncoding(1258).GetString(bytes);
+            }
+            catch
+            {
+                return Encoding.Default.GetString(bytes);
+            }
+        }
+    }
+
+    private static string NormalizeHeaderText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+        var trimmed = text.Trim('\uFEFF', ' ', '\t', '"', '\'');
+        var normalizedString = trimmed.Normalize(NormalizationForm.FormD);
+        var sb = new StringBuilder();
+        foreach (var c in normalizedString)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
+            {
+                sb.Append(c);
+            }
+        }
+        return sb.ToString().Normalize(NormalizationForm.FormC).ToLowerInvariant();
+    }
+
     public async Task<ImportCustomerResponse> ImportCustomersFromCsvAsync(Stream fileStream, long currentUserId, string currentUserName, CancellationToken cancellationToken)
     {
         var response = new ImportCustomerResponse();
@@ -197,21 +257,31 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
             return response;
         }
 
-        var textContent = Encoding.UTF8.GetString(fileBytes);
-        using var stringReader = new StringReader(textContent);
-
-        var firstLine = await stringReader.ReadLineAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(firstLine))
+        var textContent = DecodeCsvBytes(fileBytes);
+        using var lineReader = new StringReader(textContent);
+        string? firstNonEmptyLine = null;
+        while (true)
         {
-            response.Errors.Add(new ImportRowError { RowNumber = 0, ErrorMessage = "Tệp CSV không có dữ liệu tiêu đề!" });
+            var line = await lineReader.ReadLineAsync(cancellationToken);
+            if (line == null) break;
+            if (!string.IsNullOrWhiteSpace(line))
+            {
+                firstNonEmptyLine = line;
+                break;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(firstNonEmptyLine))
+        {
+            response.Errors.Add(new ImportRowError { RowNumber = 0, ErrorMessage = "Tệp CSV không có dữ liệu!" });
             response.ErrorCount = 1;
             return response;
         }
 
         var delimiter = ",";
-        var countSemicolon = firstLine.Count(c => c == ';');
-        var countComma = firstLine.Count(c => c == ',');
-        var countTab = firstLine.Count(c => c == '\t');
+        var countSemicolon = firstNonEmptyLine.Count(c => c == ';');
+        var countComma = firstNonEmptyLine.Count(c => c == ',');
+        var countTab = firstNonEmptyLine.Count(c => c == '\t');
         if (countSemicolon > countComma && countSemicolon > countTab)
         {
             delimiter = ";";
@@ -246,16 +316,16 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
         int colCode = -1, colName = -1, colPhone = -1, colEmail = -1, colAddress = -1, colStatus = -1;
         for (int i = 0; i < csv.HeaderRecord.Length; i++)
         {
-            var header = csv.HeaderRecord[i].Trim().ToLowerInvariant();
-            if (header.Contains("mã kh") || header.Contains("ma kh") || header.Contains("mã khách") || header.Contains("customercode") || header.Equals("code"))
+            var header = NormalizeHeaderText(csv.HeaderRecord[i]);
+            if (header.Contains("ma kh") || header.Contains("customercode") || header.Contains("customer_code") || header.Equals("code") || header.Equals("makh") || header.Contains("ma khach"))
             {
                 colCode = i;
             }
-            else if (header.Contains("tên kh") || header.Contains("ten kh") || header.Contains("tên khách") || header.Contains("fullname") || header.Equals("name"))
+            else if (header.Contains("ten kh") || header.Contains("fullname") || header.Contains("customer_name") || header.Equals("name") || header.Equals("tenkh") || header.Contains("ten khach"))
             {
                 colName = i;
             }
-            else if (header.Contains("thoại") || header.Contains("thoai") || header.Contains("sđt") || header.Contains("sdt") || header.Contains("phone"))
+            else if (header.Contains("thoai") || header.Contains("sdt") || header.Contains("phone") || header.Contains("dien thoai") || header.Contains("so dien"))
             {
                 colPhone = i;
             }
@@ -263,14 +333,25 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
             {
                 colEmail = i;
             }
-            else if (header.Contains("chỉ") || header.Contains("chi") || header.Contains("address"))
+            else if (header.Contains("dia chi") || header.Contains("address") || header.Equals("diachi") || header.Contains("chi"))
             {
                 colAddress = i;
             }
-            else if (header.Contains("thái") || header.Contains("thai") || header.Contains("status"))
+            else if (header.Contains("trang thai") || header.Contains("status") || header.Equals("trangthai") || header.Contains("thai"))
             {
                 colStatus = i;
             }
+        }
+
+        // Positional fallback matching standard export format (STT, Tên KH, Mã KH, SĐT, Email, Địa chỉ, Trạng thái)
+        if (colCode == -1 && csv.HeaderRecord.Length >= 3)
+        {
+            colCode = 2;
+            if (colName == -1 && csv.HeaderRecord.Length > 1) colName = 1;
+            if (colPhone == -1 && csv.HeaderRecord.Length > 3) colPhone = 3;
+            if (colEmail == -1 && csv.HeaderRecord.Length > 4) colEmail = 4;
+            if (colAddress == -1 && csv.HeaderRecord.Length > 5) colAddress = 5;
+            if (colStatus == -1 && csv.HeaderRecord.Length > 6) colStatus = 6;
         }
 
         if (colCode == -1)
@@ -284,9 +365,19 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
             return response;
         }
 
-        var existingCustomers = await _customerEntities
-            .Where(x => !x.Deleted && x.CustomerCode != null)
-            .ToDictionaryAsync(x => x.CustomerCode!.Trim().ToUpperInvariant(), x => x, cancellationToken);
+        var customerList = await _customerEntities
+            .Where(x => !x.Deleted && x.CustomerCode != null && x.CustomerCode != "")
+            .ToListAsync(cancellationToken);
+
+        var existingCustomers = new Dictionary<string, CustomerEntity>(StringComparer.OrdinalIgnoreCase);
+        foreach (var c in customerList)
+        {
+            var key = c.CustomerCode!.Trim().ToUpperInvariant();
+            if (!string.IsNullOrEmpty(key) && !existingCustomers.ContainsKey(key))
+            {
+                existingCustomers[key] = c;
+            }
+        }
 
         int rowNumber = 1;
         var now = DateTimeOffset.UtcNow;
@@ -321,9 +412,9 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
             var status = EntityStatus.Active;
             if (!string.IsNullOrWhiteSpace(rawStatus))
             {
-                var lowerStatus = rawStatus.ToLowerInvariant();
-                if (lowerStatus.Contains("ngừng") || lowerStatus.Contains("ngung") || lowerStatus.Contains("dừng") ||
-                    lowerStatus.Contains("dung") || lowerStatus.Contains("deactivate") || lowerStatus.Contains("inactive") ||
+                var lowerStatus = NormalizeHeaderText(rawStatus);
+                if (lowerStatus.Contains("ngung") || lowerStatus.Contains("dung") ||
+                    lowerStatus.Contains("deactivate") || lowerStatus.Contains("inactive") ||
                     lowerStatus == "0")
                 {
                     status = EntityStatus.Deactivate;
@@ -333,10 +424,10 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
             var upperCode = code.ToUpperInvariant();
             if (existingCustomers.TryGetValue(upperCode, out var existingCustomer))
             {
-                if (!string.IsNullOrWhiteSpace(name)) existingCustomer.FullName = name;
-                if (phone != null) existingCustomer.PhoneNumber = phone;
-                if (email != null) existingCustomer.Email = email;
-                if (address != null) existingCustomer.Address = address;
+                if (!string.IsNullOrWhiteSpace(name)) existingCustomer.FullName = name.Trim();
+                if (phone != null && !string.IsNullOrWhiteSpace(phone)) existingCustomer.PhoneNumber = phone.Trim();
+                if (email != null) existingCustomer.Email = string.IsNullOrWhiteSpace(email) ? null : email.Trim();
+                if (address != null && !string.IsNullOrWhiteSpace(address)) existingCustomer.Address = address.Trim();
                 existingCustomer.Status = status;
                 existingCustomer.ModifiedTime = now;
                 existingCustomer.ModifiedBy = currentUserId;
@@ -351,10 +442,10 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
                 {
                     Id = newId,
                     CustomerCode = code,
-                    FullName = name ?? code,
-                    PhoneNumber = phone,
-                    Email = email,
-                    Address = address,
+                    FullName = !string.IsNullOrWhiteSpace(name) ? name.Trim() : code,
+                    PhoneNumber = !string.IsNullOrWhiteSpace(phone) ? phone.Trim() : null,
+                    Email = !string.IsNullOrWhiteSpace(email) ? email.Trim() : null,
+                    Address = !string.IsNullOrWhiteSpace(address) ? address.Trim() : null,
                     Status = status,
                     CreatedBy = currentUserId,
                     CreatedName = currentUserName,

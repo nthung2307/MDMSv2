@@ -224,11 +224,12 @@ public class CustomerController : ControllerBase
     [HttpPost]
     [Route(Common.Url.Default.Customer.ImportCsv)]
     [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin])]
-    public async Task<RequestResult<ImportCustomerResponse>> ImportCsvCustomersAsync(IFormFile file, CancellationToken cancellationToken)
+    public async Task<RequestResult<ImportCustomerResponse>> ImportCsvCustomersAsync([FromForm(Name = "file")] IFormFile? file, CancellationToken cancellationToken)
     {
         try
         {
-            if (file == null || file.Length == 0)
+            var uploadFile = file ?? (Request.HasFormContentType ? Request.Form?.Files?["file"] ?? Request.Form?.Files?.FirstOrDefault() : null);
+            if (uploadFile == null || uploadFile.Length == 0)
             {
                 return RequestResult<ImportCustomerResponse>.Fail(new[]
                 {
@@ -236,7 +237,8 @@ public class CustomerController : ControllerBase
                 });
             }
 
-            if (!file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            var fileName = uploadFile.FileName ?? string.Empty;
+            if (!fileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
             {
                 return RequestResult<ImportCustomerResponse>.Fail(new[]
                 {
@@ -244,7 +246,7 @@ public class CustomerController : ControllerBase
                 });
             }
 
-            using var stream = file.OpenReadStream();
+            using var stream = uploadFile.OpenReadStream();
             var command = new ImportCustomersCommand
             {
                 FileStream = stream,
