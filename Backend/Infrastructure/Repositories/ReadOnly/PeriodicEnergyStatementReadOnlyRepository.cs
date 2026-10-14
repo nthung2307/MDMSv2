@@ -1,4 +1,5 @@
 using Application.Common.ValueObjects.CursorBased;
+using Application.Common.ValueObjects.Sorting;
 using Application.DataTransferObjects.Requests.PeriodicEnergyStatement;
 using Application.DataTransferObjects.Responses.PeriodicEnergyStatement;
 using Application.Extensions;
@@ -25,11 +26,70 @@ public class PeriodicEnergyStatementReadOnlyRepository : RestfulRepository<Perio
 
     public async Task<CursorPaginationResponse<PeriodicEnergyStatementDto>> GetListPeriodicEnergyStatementAsync(GetListPeriodicEnergyStatementRequest request, CancellationToken cancellationToken)
     {
-        var result = await _periodicEnergyStatementEntities.AsNoTracking()
+        var query = _periodicEnergyStatementEntities.AsNoTracking()
             .Where(x => x.GcsId == request.GcsId && x.Month == request.Month && x.Year == request.Year && x.PeriodNumber == request.PeriodNumber)
             .Include(x => x.MeasurementPoint)
             .ThenInclude(x => x.Customer)
-            .PaginateWithAndAsync<PeriodicEnergyStatementEntity, PeriodicEnergyStatementDto>(request, _mapper, cancellationToken);
+            .AsQueryable();
+
+        if (request.SearchByFields != null && request.SearchByFields.Count > 0)
+        {
+            var remainingSearchFields = new List<SearchModel>();
+            foreach (var search in request.SearchByFields)
+            {
+                var field = search.SearchFieldName?.Trim().ToLowerInvariant();
+                var val = search.SearchValue?.Trim();
+
+                if (string.IsNullOrEmpty(val)) continue;
+
+                if (field == "customercode" || field == "measurementpoint.customer.customercode")
+                {
+                    query = query.Where(x => x.MeasurementPoint.Customer != null &&
+                                             x.MeasurementPoint.Customer.CustomerCode != null &&
+                                             x.MeasurementPoint.Customer.CustomerCode.Contains(val));
+                }
+                else if (field == "measurementpoint" || field == "measurementpoint.code" || field == "code")
+                {
+                    query = query.Where(x => x.MeasurementPoint.Code != null &&
+                                             x.MeasurementPoint.Code.Contains(val));
+                }
+                else if (field == "status" || field == "emailstatus")
+                {
+                    if (val == "SEND_SUCCESS")
+                    {
+                        query = query.Where(x => x.Status == "SEND_SUCCESS");
+                    }
+                    else if (val == "SEND_FAILED")
+                    {
+                        query = query.Where(x => x.Status == "SEND_FAILED");
+                    }
+                    else if (val == "NO_EMAIL" || val == "NO_EMAIL_CONFIGURED")
+                    {
+                        query = query.Where(x =>
+                            (string.IsNullOrEmpty(x.MeasurementPoint.Email) || !x.MeasurementPoint.Email.Contains("@")) &&
+                            (x.MeasurementPoint.Customer == null || string.IsNullOrEmpty(x.MeasurementPoint.Customer.Email) || !x.MeasurementPoint.Customer.Email.Contains("@")));
+                    }
+                    else if (val == "UNSENT")
+                    {
+                        query = query.Where(x =>
+                            ((x.MeasurementPoint.Email != null && x.MeasurementPoint.Email.Contains("@")) ||
+                             (x.MeasurementPoint.Customer != null && x.MeasurementPoint.Customer.Email != null && x.MeasurementPoint.Customer.Email.Contains("@"))) &&
+                            x.Status != "SEND_SUCCESS" && x.Status != "SEND_FAILED");
+                    }
+                    else
+                    {
+                        query = query.Where(x => x.Status != null && x.Status.Contains(val));
+                    }
+                }
+                else
+                {
+                    remainingSearchFields.Add(search);
+                }
+            }
+            request.SearchByFields = remainingSearchFields;
+        }
+
+        var result = await query.PaginateWithAndAsync<PeriodicEnergyStatementEntity, PeriodicEnergyStatementDto>(request, _mapper, cancellationToken);
         // var measurementPointIds = result.Data!.Select(x => x.MeasurementPointId).ToList();
         // var previousPMax = await GetPreviousPeriodPMax(
         //     request.GcsId,

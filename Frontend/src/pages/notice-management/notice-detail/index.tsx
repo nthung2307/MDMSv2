@@ -58,29 +58,36 @@ const NoticeDetail = () => {
   const firstPointID = data?.[0]?.id;
   const lastPointID = data?.[data.length - 1]?.id;
 
-  const debounceFullName = useDebounce(dataForm?.fullName, 300);
+  const debounceCustomerCode = useDebounce(dataForm?.customerCode, 300);
   const debounceMeasurementPoint = useDebounce(dataForm?.measurementPoint, 300);
 
   const handleClearSearch = () => {
     setDataForm({
-      fullName: '',
+      customerCode: '',
       measurementPoint: '',
+      status: undefined,
     });
     setGetListNoticeRequest({ gcsId: gcsId });
   };
 
   useEffect(() => {
     const searchByFields: any = [];
-    if (debounceFullName) {
+    if (debounceCustomerCode) {
       searchByFields.push({
-        searchFieldName: 'measurementPoint.customer.fullName',
-        searchValue: debounceFullName,
+        searchFieldName: 'measurementPoint.customer.customerCode',
+        searchValue: debounceCustomerCode,
       });
     }
     if (debounceMeasurementPoint) {
       searchByFields.push({
         searchFieldName: 'measurementPoint.code',
         searchValue: debounceMeasurementPoint,
+      });
+    }
+    if (dataForm?.status) {
+      searchByFields.push({
+        searchFieldName: 'status',
+        searchValue: dataForm.status,
       });
     }
 
@@ -91,7 +98,7 @@ const NoticeDetail = () => {
         gcsId: prev?.gcsId ?? gcsId,
       };
     });
-  }, [debounceFullName, debounceMeasurementPoint]);
+  }, [debounceCustomerCode, debounceMeasurementPoint, dataForm?.status]);
 
   // Print Notice
   const printListTemplate = () => {

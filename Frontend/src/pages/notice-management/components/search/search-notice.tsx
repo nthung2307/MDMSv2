@@ -2,6 +2,7 @@ import { IoSearch } from 'react-icons/io5';
 import { IoBackspaceOutline } from 'react-icons/io5';
 
 import { ButtonCommonCustomizable } from '@/infrastructure/common/components/button/button-common-customizable.tsx';
+import InputSelectCommon from '@/infrastructure/common/components/input/input-select-common';
 import InputTextCommon from '@/infrastructure/common/components/input/input-text-common';
 import { _t } from '@/infrastructure/utils/translation';
 
@@ -15,21 +16,21 @@ const SearchNotice = (props: Props) => {
   const { dataForm, setDataForm, handleClearSearch } = props;
 
   return (
-    <div className='flex items-center gap-1 basis-1/2'>
-      <div className='flex items-center gap-3 basis-4/5'>
-        <div className='basis-1/2'>
+    <div className='flex items-center gap-2 basis-2/3'>
+      <div className='flex items-center gap-3 basis-11/12'>
+        <div className='basis-1/3'>
           <InputTextCommon
             label={null}
-            attribute={'fullName'}
-            dataAttribute={dataForm?.fullName}
-            placeholder={_t('Nhập tên khách hàng')}
+            attribute={'customerCode'}
+            dataAttribute={dataForm?.customerCode}
+            placeholder={_t('Nhập mã khách hàng')}
             setData={setDataForm}
             isRequired={false}
             prefix={<IoSearch />}
             allowClear={true}
           />
         </div>
-        <div className='basis-1/2'>
+        <div className='basis-1/3'>
           <InputTextCommon
             label={null}
             attribute={'measurementPoint'}
@@ -41,9 +42,26 @@ const SearchNotice = (props: Props) => {
             allowClear={true}
           />
         </div>
+        <div className='basis-1/3'>
+          <InputSelectCommon
+            label={null}
+            attribute={'status'}
+            dataAttribute={dataForm?.status}
+            placeholder={_t('Trạng thái gửi Email')}
+            allowClear={true}
+            setData={setDataForm}
+            isRequired={false}
+            listDataItem={[
+              { label: 'Chưa gửi', value: 'UNSENT' },
+              { label: 'Thành công', value: 'SEND_SUCCESS' },
+              { label: 'Thất bại', value: 'SEND_FAILED' },
+              { label: 'Chưa cấu hình Email', value: 'NO_EMAIL' },
+            ]}
+          />
+        </div>
       </div>
-      <div className='basis-1/5'>
-        {dataForm?.fullName || dataForm?.measurementPoint ? (
+      <div className='basis-1/12'>
+        {dataForm?.customerCode || dataForm?.measurementPoint || dataForm?.status ? (
           <ButtonCommonCustomizable
             title={_t('')}
             classButton='text-button-variant'
