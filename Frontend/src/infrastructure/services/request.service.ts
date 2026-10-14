@@ -265,7 +265,6 @@ export default class RequestService implements IRequestService {
   ): Promise<RequestResponse> {
     try {
       const _url = `${this.baseURL}/${endpoint}`;
-      await setRecoilStateAsync(LoadingState, { isLoading: true, uri: _url });
       const _form = new FormData();
       if (Array.isArray(params.file)) {
         params.file.forEach((file: File) => {
@@ -288,10 +287,9 @@ export default class RequestService implements IRequestService {
 
       // TODO: Need to check this
       //return new FailureResponse(result || e.errors);
+    } finally {
+      await setRecoilStateAsync(LoadingState, { isLoading: false, uri: '' });
     }
-    // finally {
-    //   await setRecoilStateAsync(LoadingState, { isLoading: false, uri: '' })
-    // }
   }
 
   async makePostParamRequestAsync(

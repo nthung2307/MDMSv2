@@ -2,7 +2,8 @@ import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import { Card, Dropdown, MenuProps, TableProps } from 'antd';
 import { useEffect, useState } from 'react';
 import { BsThreeDots } from 'react-icons/bs';
-import { FiShare, FiUpload } from 'react-icons/fi';
+import { FaFileImport } from 'react-icons/fa6';
+import { FiShare } from 'react-icons/fi';
 import { IoBackspaceOutline, IoSearch } from 'react-icons/io5';
 import { useNavigate } from 'react-router-dom';
 
@@ -257,7 +258,7 @@ const ClientManagement = () => {
               onClick={() => {
                 setIsShowImport(true);
               }}
-              icon={<FiUpload size={20} />}
+              icon={<FaFileImport size={19} />}
               classButton='text-button-variant'
             />
           </PrivateComponent>
