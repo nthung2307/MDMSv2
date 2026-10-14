@@ -34,7 +34,32 @@ import TableDetailNotice from '@/pages/notice-management/components/table/table-
 
 const NoticeDetail = () => {
   const location = useLocation();
-  const { record, GCSName, gcsId, breadcumbDate } = location.state;
+  const searchParams = new URLSearchParams(location.search);
+  const queryGcsId = searchParams.get('gcsId');
+  const cycleId = searchParams.get('cycleId');
+
+  const getInitialState = () => {
+    if (location.state && location.state.record) {
+      return location.state;
+    }
+    const storageKey =
+      queryGcsId && cycleId ? `notice_detail_${queryGcsId}_${cycleId}` : 'notice_detail_state';
+    try {
+      const raw =
+        sessionStorage.getItem(storageKey) ||
+        localStorage.getItem(storageKey) ||
+        sessionStorage.getItem('notice_detail_state') ||
+        localStorage.getItem('notice_detail_state');
+      if (raw) {
+        return JSON.parse(raw);
+      }
+    } catch {
+      // Ignore parse error
+    }
+    return {};
+  };
+
+  const { record, GCSName, gcsId, breadcumbDate } = getInitialState();
   const [dataForm, setDataForm] = useStateDataForm({});
   const [isShowDialogPDF, setIsShowDialogPDF] = useState<any>({ status: false, record: null });
   const [loading, setLoading] = useState<boolean>(false);
@@ -250,6 +275,7 @@ const NoticeDetail = () => {
   };
 
   const getStatusSendMailFirstAsync = async () => {
+    if (!record || !gcsId) return;
     const params: any = {
       GcsId: Number(gcsId) ?? 0,
       month: record.month,
@@ -271,6 +297,7 @@ const NoticeDetail = () => {
   };
 
   const getStatusSendMailAsync = async () => {
+    if (!record || !gcsId) return;
     const params: any = {
       GcsId: Number(gcsId) ?? 0,
       month: record.month,
@@ -296,21 +323,23 @@ const NoticeDetail = () => {
   };
 
   useEffect(() => {
-    getListNoticeAsync({
+    if (!record || !gcsId) return;
+    void getListNoticeAsync({
       ...getListNoticeRequest,
       gcsId: Number(gcsId),
       month: record.month,
       year: record.year,
       periodNumber: record.periodNumber,
     });
-  }, [size, getListNoticeRequest]);
+  }, [size, getListNoticeRequest, record, gcsId]);
 
   useEffect(() => {
+    if (!record || !gcsId) return;
     getStatusSendMailFirstAsync();
     const intervalId = setInterval(getStatusSendMailAsync, 30000);
 
     return () => clearInterval(intervalId);
-  }, []);
+  }, [record, gcsId]);
   const isValidateData = !(sendData.listSend.length > 0) && !sendData.isAll;
 
   const renderMailDialogContent = () => {
@@ -357,7 +386,7 @@ const NoticeDetail = () => {
           items={[
             { name: 'Quản lý phiếu báo' },
             {
-              name: `${GCSName}`,
+              name: `${GCSName || ''}`,
               link: ROUTE_PATH.NOTICE_MANAGEMENT,
               state: {
                 idGcs: gcsId,
@@ -365,7 +394,7 @@ const NoticeDetail = () => {
               },
             },
             {
-              name: `${breadcumbDate}`,
+              name: `${breadcumbDate || ''}`,
             },
           ]}
         />

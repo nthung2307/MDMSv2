@@ -2,8 +2,7 @@ import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import { Card, Dropdown, MenuProps, TableProps } from 'antd';
 import { useEffect, useState } from 'react';
 import { BsThreeDots } from 'react-icons/bs';
-import { FaFileImport } from 'react-icons/fa6';
-import { FiShare } from 'react-icons/fi';
+import { FiDownload, FiShare } from 'react-icons/fi';
 import { IoBackspaceOutline, IoSearch } from 'react-icons/io5';
 import { useNavigate } from 'react-router-dom';
 
@@ -111,21 +110,21 @@ const ClientManagement = () => {
 
   const columns: TableProps['columns'] = [
     {
-      title: 'Tên KH',
+      title: 'Mã khách hàng',
+      dataIndex: 'code',
+      align: 'left',
+      width: '12%',
+    },
+    {
+      title: 'Tên khách hàng',
       dataIndex: 'name',
       align: 'left',
     },
     {
-      title: 'Mã KH',
-      dataIndex: 'code',
-      align: 'left',
-      width: '10%',
-    },
-    {
-      title: 'Số điện thoại',
+      title: 'Điện thoại',
       dataIndex: 'phoneNumber',
       align: 'left',
-      width: '10%',
+      width: '12%',
     },
     {
       title: 'Địa chỉ',
@@ -258,7 +257,7 @@ const ClientManagement = () => {
               onClick={() => {
                 setIsShowImport(true);
               }}
-              icon={<FaFileImport size={19} />}
+              icon={<FiDownload size={20} />}
               classButton='text-button-variant'
             />
           </PrivateComponent>

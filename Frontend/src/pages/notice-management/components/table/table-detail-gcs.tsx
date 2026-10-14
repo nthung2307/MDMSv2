@@ -1,6 +1,5 @@
 import { Dropdown, MenuProps, TableProps } from 'antd';
 import { BsThreeDots } from 'react-icons/bs';
-import { useNavigate } from 'react-router-dom';
 
 // import Constants from '@/core/application/common/constants.ts';
 import { ROUTE_PATH } from '@/core/application/common/appRouters';
@@ -17,7 +16,6 @@ interface Props {
 
 const TableDetailGcs = (props: Props) => {
   const { dataSource, GCSName, gcsId, loading } = props;
-  const navigate = useNavigate();
   const getPreviousDate = (day: number, month: number, year: number) => {
     let date = new Date(year, month - 1, day);
     date.setDate(date.getDate() - 1);
@@ -78,9 +76,18 @@ const TableDetailGcs = (props: Props) => {
             key: '1',
             label: 'Chi tiết',
             onClick: () => {
-              navigate(ROUTE_PATH.NOTICE_DETAIl, {
-                state: { record, GCSName, gcsId, breadcumbDate: date },
-              });
+              const stateData = { record, GCSName, gcsId, breadcumbDate: date };
+              const storageKey = `notice_detail_${gcsId}_${record.id}`;
+              try {
+                sessionStorage.setItem(storageKey, JSON.stringify(stateData));
+                localStorage.setItem(storageKey, JSON.stringify(stateData));
+                sessionStorage.setItem('notice_detail_state', JSON.stringify(stateData));
+                localStorage.setItem('notice_detail_state', JSON.stringify(stateData));
+              } catch {
+                // Ignore storage error
+              }
+              const url = `${ROUTE_PATH.NOTICE_DETAIl}?gcsId=${gcsId}&cycleId=${record.id}`;
+              window.open(url, '_blank');
             },
           },
         ];
