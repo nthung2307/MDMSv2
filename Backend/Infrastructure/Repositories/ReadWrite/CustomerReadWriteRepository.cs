@@ -180,6 +180,7 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
             csvWriter.WriteField(customer.Status == EntityStatus.Active ? "Đang hoạt động" : "Ngừng hoạt động");
             await csvWriter.NextRecordAsync();
         }
+        await csvWriter.FlushAsync();
         await streamWriter.FlushAsync(cancellationToken);
         var csvBytes = memoryStream.ToArray();
 
@@ -344,15 +345,12 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
         }
 
         // Positional fallback matching standard export format (STT, Tên KH, Mã KH, SĐT, Email, Địa chỉ, Trạng thái)
-        if (colCode == -1 && csv.HeaderRecord.Length >= 3)
-        {
-            colCode = 2;
-            if (colName == -1 && csv.HeaderRecord.Length > 1) colName = 1;
-            if (colPhone == -1 && csv.HeaderRecord.Length > 3) colPhone = 3;
-            if (colEmail == -1 && csv.HeaderRecord.Length > 4) colEmail = 4;
-            if (colAddress == -1 && csv.HeaderRecord.Length > 5) colAddress = 5;
-            if (colStatus == -1 && csv.HeaderRecord.Length > 6) colStatus = 6;
-        }
+        if (colCode == -1 && csv.HeaderRecord.Length > 2) colCode = 2;
+        if (colName == -1 && csv.HeaderRecord.Length > 1) colName = 1;
+        if (colPhone == -1 && csv.HeaderRecord.Length > 3) colPhone = 3;
+        if (colEmail == -1 && csv.HeaderRecord.Length > 4) colEmail = 4;
+        if (colAddress == -1 && csv.HeaderRecord.Length > 5) colAddress = 5;
+        if (colStatus == -1 && csv.HeaderRecord.Length > 6) colStatus = 6;
 
         if (colCode == -1)
         {

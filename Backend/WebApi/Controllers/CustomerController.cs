@@ -211,7 +211,7 @@ public class CustomerController : ControllerBase
             var csvData = await _customerReadWriteRepository.GenerateCustomerCsv(cancellationToken);
             return File(
                 fileContents: csvData,
-                contentType: "application/octet-stream; charset=utf-8",
+                contentType: "text/csv; charset=utf-8",
                 fileDownloadName: $"Export-Customer-{DateTime.Now:s}.csv");
         }
         catch (Exception e)

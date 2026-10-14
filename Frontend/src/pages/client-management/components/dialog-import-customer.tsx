@@ -171,6 +171,9 @@ const DialogImportCustomer = ({ open, handleCancel, onSuccess }: Props) => {
               setFileList([file]);
               return false;
             }}
+            onChange={(info) => {
+              setFileList(info.fileList.slice(-1));
+            }}
             onRemove={() => {
               setFileList([]);
             }}

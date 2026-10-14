@@ -16,10 +16,16 @@ const useImportCustomerCsvHook = () => {
         Endpoint.Customer.ImportCustomerCsv,
         file
       );
-      if (response && (response as any).success) {
-        onSuccess((response as any).data);
+      const payload = (response as any)?.data;
+      if (response?.status === 200 && payload?.success) {
+        onSuccess(payload.data);
       } else {
-        onError(response);
+        const errorMsg =
+          payload?.message ||
+          (payload?.errors?.length && payload?.errors[0]?.error) ||
+          (response as any)?.message ||
+          'Có lỗi xảy ra khi nhập dữ liệu từ CSV!';
+        onError({ message: errorMsg });
       }
     } catch (e) {
       onError(e);
