@@ -1,4 +1,4 @@
-import { TableProps } from 'antd';
+import { TableProps, Tag } from 'antd';
 
 import { CheckboxCommon } from '@/infrastructure/common/components/Checkbox/checkbox-common';
 import TableCommon from '@/infrastructure/common/components/table/table-common';
@@ -84,8 +84,19 @@ const TableDetailNotice = (props: Props) => {
     {
       title: 'Trạng thái gửi Email',
       dataIndex: 'status',
-      render: (record) => {
-        return <div>{record == 'SEND_SUCCESS' ? 'Thành công' : ''}</div>;
+      render: (status) => {
+        switch (status) {
+          case 'SEND_SUCCESS':
+            return <Tag color="success">Thành công</Tag>;
+          case 'SEND_FAILED':
+            return <Tag color="error">Thất bại</Tag>;
+          case 'NO_EMAIL_CONFIGURED':
+            return <Tag color="warning">Chưa cấu hình Email</Tag>;
+          case 'PENDING':
+            return <Tag color="processing">Chờ gửi</Tag>;
+          default:
+            return status ? <Tag>{status}</Tag> : <Tag color="default">Chưa gửi</Tag>;
+        }
       },
     },
     {

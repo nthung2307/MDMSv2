@@ -5,6 +5,7 @@ using Application.DataTransferObjects.Responses.SystemConfig;
 using Application.Repositories.ReadOnly;
 using Application.Repositories.ReadWrite;
 using Domain.Entities;
+using Hangfire;
 using Microsoft.Extensions.Logging;
 using Nobisoft.Core.Infrastructure.Interfaces;
 using Nobisoft.Core.Mailer.Interfaces;
@@ -320,109 +321,163 @@ public class EmailSenderService
         return container.Border(0.5f).BorderColor(Colors.Black).Padding(5);
     }
     
+    private static bool IsValidEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return false;
+        try
+        {
+            var addr = new MailAddress(email.Trim());
+            return addr.Address == email.Trim();
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    [AutomaticRetry(Attempts = 3, OnAttemptsExceeded = AttemptsExceededAction.Fail)]
+    public async Task ProcessSingleStatementEmailAsync(long statementId, CancellationToken cancellationToken)
+    {
+        var statements = await _periodicEnergyStatementReadWriteRepository
+            .GetPeriodicEnergyStatementByIdsAsync(new List<long> { statementId }, cancellationToken);
+        var item = statements.FirstOrDefault();
+        if (item == null)
+        {
+            _loggerService.LogWarning("Không tìm thấy PeriodicEnergyStatement với Id = {StatementId}", statementId);
+            return;
+        }
+
+        // Validate email address
+        if (item.MeasurementPoint == null || !IsValidEmail(item.MeasurementPoint.Email))
+        {
+            _loggerService.LogInformation("Điểm đo {PointCode} (StatementId = {StatementId}) chưa cấu hình email hoặc email không hợp lệ: '{Email}'.",
+                item.MeasurementPoint?.Code, statementId, item.MeasurementPoint?.Email);
+            item.Status = "NO_EMAIL_CONFIGURED";
+            item.SentTime = _dateTimeService.UtcNow();
+            await _periodicEnergyStatementReadWriteRepository.UpdateAsync(item, cancellationToken);
+            await _periodicEnergyStatementReadWriteRepository.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
+        var systemConfig = await _systemConfigReadOnlyRepository
+            .GetListSystemConfigAsync(cancellationToken);
+
+        var mail = new List<MailAddress>();
+        if (!string.IsNullOrEmpty(item.MeasurementPoint.Email2) && IsValidEmail(item.MeasurementPoint.Email2))
+            mail.Add(new MailAddress(item.MeasurementPoint.Email2.Trim()));
+        if (!string.IsNullOrEmpty(item.MeasurementPoint.Email3) && IsValidEmail(item.MeasurementPoint.Email3))
+            mail.Add(new MailAddress(item.MeasurementPoint.Email3.Trim()));
+
+        var day = item.Day == 1
+            ? DateTime.DaysInMonth(
+                item.Year,
+                item.Month == 1 ? 12 : item.Month - 1
+            )
+            : item.Day - 1;
+        var month = item.Day == 1
+            ? (item.Month == 1 ? 12 : item.Month - 1)
+            : item.Month;
+        var year = item.Day == 1 && item.Month == 1
+            ? item.Year - 1
+            : item.Year;
+
+        try
+        {
+            using var pdfStream = GenerateMonthlyPowerMeterReadingPdf(item);
+            var attachment = new Attachment(pdfStream, $"PhieuBaoSo_{item.SerialNumber}.pdf", "application/pdf");
+
+            var careFullname = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCareFullname)?.Value ?? "CSKH MDMS";
+            var careEmail = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCareEmail)?.Value ?? "cskh@mdms.vn";
+            var carePhone = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCarePhone)?.Value ?? "19001006";
+
+            await _mailingService.SendEmailAsync(new Email()
+            {
+                To = new List<MailAddress> { new MailAddress(item.MeasurementPoint.Email.Trim()) },
+                Cc = mail.Any() ? mail : null,
+                Subject = $"Phiếu Báo Số {item.SerialNumber} - {item.MeasurementPoint.Customer?.FullName}",
+                Body = $@"<html>
+                    <body>
+                        <p>Kính gửi {item.MeasurementPoint.Customer?.FullName},</p>
+                        <p>Chúng tôi xin gửi đến Quý khách hàng phiếu báo số {item.SerialNumber} kèm theo email này.</p>
+                        <p></p>
+                        <p>Thông tin phiếu báo:</p>
+                        <ul>
+                            <li>Tên khách hàng: {item.MeasurementPoint.Customer?.FullName}</li>
+                            <li>Mã điểm đo: {item.MeasurementPoint.Code}</li>
+                            <li>Thời gian: (Từ ngày {item.PreviousDay?.ToString() ?? "..."}/{item.PreviousMonth?.ToString() ?? "..."}/{item.PreviousYear?.ToString() ?? "....."} đến ngày {day}/{month}/{year})</li>
+                            <li>
+                                Chỉ số cũ <br>
+                                BT: {item.PreviousBt} <br> 
+                                CD: {item.PreviousCd} <br> 
+                                TD: {item.PreviousTd} <br>
+                                SG: {item.PreviousSg} <br>
+                            </li>
+                            <li>
+                                Chỉ số mới <br> 
+                                BT: {item.Bt} <br>
+                                CD: {item.Cd} <br>
+                                TD: {item.Td} <br>
+                                SG: {item.Sg} <br>
+                            </li>
+                            <li>
+                                Sản lượng tiêu thụ <br> 
+                                BT: {item.ConsumtionBt} <br> 
+                                CD: {item.ConsumtionCd} <br> 
+                                TD: {item.ConsumtionTd} <br> 
+                                SG: {item.ConsumtionSg}
+                            </li>
+                        </ul>
+                        <p></p>
+                        <p>Quý khách vui lòng kiểm tra thông tin trên phiếu báo đính kèm. Nếu có bất kỳ thắc mắc hoặc cần hỗ trợ thêm thông tin, xin vui lòng liên hệ với {careFullname} qua email {careEmail} hoặc số điện thoại {carePhone} để được giải đáp kịp thời.</p>
+                        <p>Xin chân thành cảm ơn và rất mong được hợp tác với Quý khách.</p>
+                        <p>Trân trọng,</p>
+                    </body>
+                </html>",
+                Attachments = new List<Attachment> { attachment }
+            }, cancellationToken);
+
+            item.Status = "SEND_SUCCESS";
+            item.SentTime = _dateTimeService.UtcNow();
+            await _periodicEnergyStatementReadWriteRepository.UpdateAsync(item, cancellationToken);
+            await _periodicEnergyStatementReadWriteRepository.SaveChangesAsync(cancellationToken);
+            _loggerService.LogInformation("Gửi email thành công cho điểm đo {PointCode} (StatementId = {StatementId}) tới {Email}",
+                item.MeasurementPoint.Code, statementId, item.MeasurementPoint.Email);
+        }
+        catch (Exception ex)
+        {
+            _loggerService.LogError(ex, "Lỗi khi gửi email cho điểm đo {PointCode} (StatementId = {StatementId}) tới {Email}: {Message}",
+                item.MeasurementPoint?.Code, statementId, item.MeasurementPoint?.Email, ex.Message);
+            item.Status = "SEND_FAILED";
+            item.SentTime = _dateTimeService.UtcNow();
+            await _periodicEnergyStatementReadWriteRepository.UpdateAsync(item, cancellationToken);
+            await _periodicEnergyStatementReadWriteRepository.SaveChangesAsync(cancellationToken);
+            throw; // Re-throw để kích hoạt cơ chế retry của Hangfire
+        }
+    }
+
     public async Task SendEmailsInBackground(List<long> statementIds, int monthGcs, int yearGcs, int periodNumber, long gcsId)
     {
         try
         {
-            var statements = await _periodicEnergyStatementReadWriteRepository
-                .GetPeriodicEnergyStatementByIdsAsync(statementIds, CancellationToken.None);
-            var systemConfig = await _systemConfigReadOnlyRepository
-                .GetListSystemConfigAsync(CancellationToken.None);
-
-            foreach (var item in statements)
+            foreach (var id in statementIds)
             {
-                var mail = new List<MailAddress>();
-                if (!string.IsNullOrEmpty(item.MeasurementPoint.Email2))
-                    mail.Add(new MailAddress(item.MeasurementPoint.Email2));
-                if (!string.IsNullOrEmpty(item.MeasurementPoint.Email3))
-                    mail.Add(new MailAddress(item.MeasurementPoint.Email3));
-
-                var day = item.Day == 1
-                    ? DateTime.DaysInMonth(
-                        item.Year,
-                        item.Month == 1 ? 12 : item.Month - 1
-                    )
-                    : item.Day - 1;
-                var month = item.Day == 1
-                    ? (item.Month == 1 ? 12 : item.Month - 1)
-                    : item.Month;
-                var year = item.Day == 1 && item.Month == 1
-                    ? item.Year - 1
-                    
-                    : item.Year;
-
                 try
                 {
-                    using var pdfStream = GenerateMonthlyPowerMeterReadingPdf(item);
-                    var attachment = new Attachment(pdfStream, "InvoiceReport.pdf", "application/pdf");
-                    
-                    await _mailingService.SendEmailAsync(new Email()
-                    {
-                        To = new List<MailAddress> { new MailAddress(item.MeasurementPoint.Email) },
-                        Cc = item.MeasurementPoint.Email2 != null ? mail : null,
-                        Subject = $"Phiếu Báo Số {item.SerialNumber} - {item.MeasurementPoint.Customer.FullName}",
-                        Body = $@"<html>
-                            <body>
-                                <p>Kính gửi {item.MeasurementPoint.Customer.FullName},</p>
-                                <p>Chúng tôi xin gửi đến Quý khách hàng phiếu báo số {item.SerialNumber} kèm theo email này</p>
-                                <p></p>
-                                <p>Thông tin phiếu báo:</p>
-                                <ul>
-                                    <li>Tên khách hàng: {item.MeasurementPoint.Customer.FullName}</li>
-                                    <li>Mã điểm đo: {item.MeasurementPoint.Code}</li>
-                                    <li>Thời gian: (Từ ngày {item.PreviousDay?.ToString() ?? "..."}/{item.PreviousMonth?.ToString() ?? "..."}/{item.PreviousYear?.ToString() ?? "....."} đến ngày {day}/{month}/{year})</li>
-                                    <li>
-                                        Chỉ số cũ <br>
-                                        BT: {item.PreviousBt} <br> 
-                                        CD: {item.PreviousCd} <br> 
-                                        TD: {item.PreviousTd} <br>
-                                        SG: {item.PreviousSg} <br>
-                                    </li>
-                                    <li>
-                                        Chỉ số mới <br> 
-                                        BT: {item.Bt} <br>
-                                        CD: {item.Cd} <br>
-                                        TD: {item.Td} <br>
-                                        SG: {item.Sg} <br>
-                                    </li>
-                                    <li>
-                                        Sản lượng tiêu thụ <br> 
-                                        BT: {item.ConsumtionBt} <br> 
-                                        CD: {item.ConsumtionCd} <br> 
-                                        TD: {item.ConsumtionTd} <br> 
-                                        SG: {item.ConsumtionSg}
-                                    </li>
-                                </ul>
-                                <p></p>
-                                <p>Quý khách vui lòng kiểm tra thông tin trên phiếu báo đính kèm. Nếu có bất kỳ thắc mắc hoặc cần hỗ trợ thêm thông tin, xin vui lòng liên hệ với {systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCareFullname)?.Value} qua email {systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCareEmail)?.Value} hoặc số điện thoại {systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCarePhone)?.Value} để được giải đáp kịp thời</p>
-                                <p>Xin chân thành cảm ơn và rất mong được hợp tác với Quý khách.</p>
-                                <p>Trân trọng,</p>
-                            </body>
-                        </html>",
-                        Attachments = new List<Attachment> { attachment }
-                    }, CancellationToken.None);
-                    item.Status = "SEND_SUCCESS";
-                    item.SentTime = _dateTimeService.UtcNow();
-                    await _periodicEnergyStatementReadWriteRepository.UpdateAsync(item, CancellationToken.None);
+                    await ProcessSingleStatementEmailAsync(id, CancellationToken.None);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    item.Status = "SEND_FAILED";
-                    item.SentTime = _dateTimeService.UtcNow();
-                    await _periodicEnergyStatementReadWriteRepository.UpdateAsync(item, CancellationToken.None);
+                    _loggerService.LogError(ex, "Lỗi khi xử lý email cho StatementId {Id}", id);
                 }
             }
 
-            await _periodicEnergyStatementReadWriteRepository.SaveChangesAsync(CancellationToken.None);
-            
             var newGcs = await _gcsCutOffCycleReadWriteRepository.GetGcsCutOffCycleEntityAsync(gcsId, monthGcs, yearGcs, periodNumber, CancellationToken.None);
             if (newGcs != null)
             {
                 newGcs.IsSendingMail = false;
                 await _gcsCutOffCycleReadWriteRepository.UpdateAsync(newGcs, CancellationToken.None);
+                await _gcsCutOffCycleReadWriteRepository.SaveChangesAsync(CancellationToken.None);
             }
-
-            await _gcsCutOffCycleReadWriteRepository.SaveChangesAsync(CancellationToken.None);
         }
         catch (Exception ex)
         {

@@ -63,21 +63,23 @@ public class SendAllMailPeriodicEnergyStatementCommandHandler : ISendAllMailComm
 
             var statementIds = periodicEnergyStatement.Select(x => x.Id).ToList();
 
-            // Resolve EmailSenderService and enqueue the method
+            // Resolve EmailSenderService and enqueue discrete jobs
             if (statementIds.Count > 0)
             {
                 var gcs = await _gcsCutOffCycleReadWriteRepository.GetGcsCutOffCycleEntityAsync(request.Request.GcsId, request.Request.Month, request.Request.Year, request.Request.PeriodNumber, cancellationToken);
                 if (gcs != null)
                 {
-                    gcs.IsSendingMail = true;
+                    gcs.IsSendingMail = false;
                     await _gcsCutOffCycleReadWriteRepository.UpdateAsync(gcs, cancellationToken);
+                    await _gcsCutOffCycleReadWriteRepository.SaveChangesAsync(cancellationToken);
                 }
 
-                await _gcsCutOffCycleReadWriteRepository.SaveChangesAsync(cancellationToken);
-                _backgroundJobClient.Enqueue<EmailSenderService>(x => x.SendEmailsInBackground(statementIds, request.Request.Month, request.Request.Year, request.Request.PeriodNumber, request.Request.GcsId));
+                foreach (var id in statementIds)
+                {
+                    _backgroundJobClient.Enqueue<EmailSenderService>(x => x.ProcessSingleStatementEmailAsync(id, CancellationToken.None));
+                }
             }
 
-            Thread.Sleep(5000);
             return RequestResult<PeriodicEnergyStatementResponse>.Succeed(new PeriodicEnergyStatementResponse()
             {
             });

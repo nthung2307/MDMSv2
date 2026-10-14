@@ -76,6 +76,8 @@ Installers/Prerequisites/*.msi
 !Installers/**/*.sql
 !Installers/**/*.md
 !Installers/**/.gitkeep
+# Bỏ qua file dump dữ liệu đo đếm thực tế dung lượng lớn (>1GB)
+Installers/Database/amr_data.sql
 
 # --------------------------------------------------------------------
 # 5. Hệ điều hành & Tệp tin rác

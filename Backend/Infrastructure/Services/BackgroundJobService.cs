@@ -4,6 +4,7 @@ using Application.Repositories.ReadOnly;
 using Application.Repositories.ReadWrite;
 using AutoMapper;
 using Domain.Entities;
+using Microsoft.Extensions.Logging;
 using Nobisoft.Core.Infrastructure.Interfaces;
 using Nobisoft.Core.Interfaces;
 
@@ -19,6 +20,7 @@ public class BackgroundJobService
     private readonly IMeasurementPointDailyEnergyReportReadWriteRepository _measurementPointDailyEnergyReportReadWriteRepository;
     private readonly IMeasurementPointHalfHourEnergyReportReadWriteRepository _measurementPointHalfHourEnergyReportReadWriteRepository;
     private readonly IMapper _mapper;
+    private readonly ILogger<BackgroundJobService>? _logger;
 
     public BackgroundJobService(
         IMeasurementPointMonitoringReadOnlyRepository measurementPointMonitoringReadOnlyRepository,
@@ -28,7 +30,8 @@ public class BackgroundJobService
         IMeasurementPointMonitoringReadWriteByDateTimeRepository measurementPointMonitoringReadWriteByDateTimeRepository,
         IMeasurementPointDailyEnergyReportReadWriteRepository measurementPointDailyEnergyReportReadWriteRepository,
         IMeasurementPointHalfHourEnergyReportReadWriteRepository measurementPointHalfHourEnergyReportReadWriteRepository,
-        IMapper mapper)
+        IMapper mapper,
+        ILogger<BackgroundJobService>? logger = null)
     {
         _measurementPointMonitoringReadOnlyRepository = measurementPointMonitoringReadOnlyRepository;
         _measurementPointMonitoringHourlyReadWriteRepository = measurementPointMonitoringHourlyReadWriteRepository;
@@ -38,6 +41,7 @@ public class BackgroundJobService
         _measurementPointDailyEnergyReportReadWriteRepository = measurementPointDailyEnergyReportReadWriteRepository;
         _measurementPointHalfHourEnergyReportReadWriteRepository = measurementPointHalfHourEnergyReportReadWriteRepository;
         _mapper = mapper;
+        _logger = logger;
     }
 
     public async Task<DateTime> GroupDataPerMeter(CancellationToken cancellationToken)
@@ -92,7 +96,8 @@ public class BackgroundJobService
 
     public async Task<DateTime> GenerateEnergyReportDaily(CancellationToken cancellationToken)
     {
-        var reportDtos = await _measurementPointMonitoringReadOnlyRepository.GetListMeasurementEnergyReportAsync(cancellationToken);
+        _logger?.LogInformation("Bắt đầu sinh báo cáo đo đếm ngày với Smart Lookback (60 phút)...");
+        var reportDtos = await _measurementPointMonitoringReadOnlyRepository.GetListMeasurementEnergyReportWithLookbackAsync(60, cancellationToken);
         var createdTime = DateTimeOffset.UtcNow.AddMinutes(-5);
         foreach (var dto in reportDtos)
         {
@@ -103,12 +108,14 @@ public class BackgroundJobService
         }
 
         await _measurementPointDailyEnergyReportReadWriteRepository.SaveChangesAsync(cancellationToken);
+        _logger?.LogInformation("Đã hoàn tất lưu báo cáo đo đếm ngày cho {Count} điểm đo.", reportDtos.Count);
         return new DateTime();
     }
     
     public async Task<DateTime> GenerateEnergyReportHalfHour(CancellationToken cancellationToken)
     {
-        var reportDtos = await _measurementPointMonitoringReadOnlyRepository.GetListMeasurementEnergyReportAsync(cancellationToken);
+        _logger?.LogInformation("Bắt đầu sinh báo cáo đo đếm nửa giờ với Smart Lookback (60 phút)...");
+        var reportDtos = await _measurementPointMonitoringReadOnlyRepository.GetListMeasurementEnergyReportWithLookbackAsync(60, cancellationToken);
         var createdTime = DateTimeOffset.UtcNow.AddMinutes(-5);
         foreach (var dto in reportDtos)
         {
@@ -119,6 +126,7 @@ public class BackgroundJobService
         }
 
         await _measurementPointHalfHourEnergyReportReadWriteRepository.SaveChangesAsync(cancellationToken);
+        _logger?.LogInformation("Đã hoàn tất lưu báo cáo đo đếm nửa giờ cho {Count} điểm đo.", reportDtos.Count);
         return new DateTime();
     }
 }

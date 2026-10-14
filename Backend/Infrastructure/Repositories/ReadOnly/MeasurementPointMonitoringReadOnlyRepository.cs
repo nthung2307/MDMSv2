@@ -25,6 +25,7 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
     private readonly DbSet<MeasurementPointMonitoringByDateTimeEntity> _measurementPointMonitoringByDateTimeEntities;
     private readonly DbSet<MeasurementPointMonitoringByStatusEntity> _measurementPointMonitoringByStatusEntities;
     private readonly DbSet<TagNameEntity> _tagNameEntities;
+    private readonly DbSet<MeasurementPointsEntity> _measurementPointsEntities;
     private readonly IMapper _mapper;
 
     public MeasurementPointMonitoringReadOnlyRepository(AppReadOnlyDbContext applicationDbContext, ISnowflakeIdService snowflakeIdService, IMapper mapper) : base(applicationDbContext, snowflakeIdService)
@@ -34,6 +35,7 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
         _measurementPointMonitoringByDateTimeEntities = applicationDbContext.Set<MeasurementPointMonitoringByDateTimeEntity>();
         _measurementPointMonitoringByStatusEntities = applicationDbContext.Set<MeasurementPointMonitoringByStatusEntity>();
         _tagNameEntities = applicationDbContext.Set<TagNameEntity>();
+        _measurementPointsEntities = applicationDbContext.Set<MeasurementPointsEntity>();
         QuestPDF.Settings.License = LicenseType.Community;
     }
 
@@ -1595,90 +1597,144 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
         return measurementPointDtos;
     }
 
-    public async Task<List<MeasurementPointEnergyReportDto>> GetListMeasurementEnergyReportAsync(CancellationToken cancellationToken) {
-        var now = DateTimeOffset.UtcNow;
-        var startRange = now.AddMinutes(-5);
+    public Task<List<MeasurementPointEnergyReportDto>> GetListMeasurementEnergyReportAsync(CancellationToken cancellationToken)
+    {
+        return GetListMeasurementEnergyReportWithLookbackAsync(60, cancellationToken);
+    }
 
-        var monitoringEntities = await _measurementPointMonitoringEntities
+    public async Task<List<MeasurementPointEnergyReportDto>> GetListMeasurementEnergyReportWithLookbackAsync(int lookbackMinutes, CancellationToken cancellationToken)
+    {
+        if (lookbackMinutes <= 0) lookbackMinutes = 60;
+        var now = DateTimeOffset.UtcNow;
+        var primaryStart = now.AddMinutes(-5);
+        var lookbackStart = now.AddMinutes(-lookbackMinutes);
+
+        // 1. Get all active measurement points to ensure all active meters are represented
+        var activePoints = await _measurementPointsEntities
             .AsNoTracking()
-            .Where(x => x.CreatedTime >= startRange && x.CreatedTime <= now)
-            .Include(x => x.TagName)
-            .OrderBy(x => x.MeasurementPointsId)
-            .ThenBy(x => x.CreatedTime)
+            .Where(x => !x.Deleted && x.Status == "ACTIVE")
+            .Select(x => new { x.Id, x.Code })
             .ToListAsync(cancellationToken);
-        if (!monitoringEntities.Any())
+
+        if (!activePoints.Any())
         {
-            startRange = now.AddMinutes(-10);
-            monitoringEntities = await _measurementPointMonitoringEntities
-                .AsNoTracking()
-                .Where(x => x.CreatedTime >= startRange && x.CreatedTime <= now)
-                .Include(x => x.TagName)
-                .OrderBy(x => x.MeasurementPointsId)
-                .ThenBy(x => x.CreatedTime)
-                .ToListAsync(cancellationToken);
+            return new List<MeasurementPointEnergyReportDto>();
         }
-        var result = monitoringEntities
-            .GroupBy(x => x.MeasurementPointsId)
-            .Select(group =>
+
+        var activePointIds = activePoints.Select(x => x.Id).ToList();
+
+        // 2. Query primary 5-minute window telemetry
+        var primaryEntities = await _measurementPointMonitoringEntities
+            .AsNoTracking()
+            .Where(x => activePointIds.Contains(x.MeasurementPointsId) && x.CreatedTime >= primaryStart && x.CreatedTime <= now && x.Value != null && x.Value != "")
+            .Include(x => x.TagName)
+            .OrderByDescending(x => x.CreatedTime)
+            .ToListAsync(cancellationToken);
+
+        // Group primary telemetry by (MeasurementPointsId, TagNameDescription)
+        var primaryGrouped = new Dictionary<(long PointId, string TagDesc), MeasurementPointMonitoringEntity>();
+        foreach (var entity in primaryEntities)
+        {
+            var key = (entity.MeasurementPointsId, entity.TagNameDescription ?? "");
+            if (!primaryGrouped.ContainsKey(key))
             {
-                var firstEntity = group.FirstOrDefault();
-                if (firstEntity == null) return null;
-                var dto = new MeasurementPointEnergyReportDto()
-                {
-                    MeasurementPointId = firstEntity.MeasurementPointsId,
-                };
-                foreach (var entity in group)
-                {
-                    var value = entity.Value;
-                    switch (entity.TagNameDescription)
-                    {
-                        case ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPBieuGioBT:
-                            dto.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao = value;
-                            dto.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiaoUnit = entity.TagName.Unit;
-                            break;
-                        case ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPBieuGioCD:
-                            dto.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao = value;
-                            dto.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiaoUnit = entity.TagName.Unit;
-                            break;
-                        case ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPBieuGioTD:
-                            dto.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao = value;
-                            dto.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiaoUnit = entity.TagName.Unit;
-                            break;
-                        case ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPTong:
-                            dto.ChiSoTichLuyDienNangTacDungAPTongKenhGiao = value;
-                            dto.ChiSoTichLuyDienNangTacDungAPTongKenhGiaoUnit = entity.TagName.Unit;
-                            break;
-                        case ListDataMeasurementPoint.ChiSoTichLuyDienNangPhanKhangAQTong:
-                            dto.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao = value;
-                            dto.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiaoUnit = entity.TagName.Unit;
-                            break;
-                        case ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPBieuGioBTChieuNhan:
-                            dto.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan = value;
-                            dto.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhanUnit = entity.TagName.Unit;
-                            break;
-                        case ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPBieuGioCDChieuNhan:
-                            dto.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan = value;
-                            dto.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhanUnit = entity.TagName.Unit;
-                            break;
-                        case ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPBieuGioTDChieuNhan:
-                            dto.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan = value;
-                            dto.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhanUnit = entity.TagName.Unit;
-                            break;
-                        case ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPTongChieuNhan:
-                            dto.ChiSoTichLuyDienNangTacDungAPTongKenhNhan = value;
-                            dto.ChiSoTichLuyDienNangTacDungAPTongKenhNhanUnit = entity.TagName.Unit;
-                            break;
-                        case ListDataMeasurementPoint.ChiSoTichLuyDienNangPhanKhangAQTongChieuNhan:
-                            dto.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan = value;
-                            dto.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhanUnit = entity.TagName.Unit;
-                            break;
-                    }
-                }
-                return dto;
-            })
-            .Where(dto => dto != null)
+                primaryGrouped[key] = entity;
+            }
+        }
+
+        // Check which points have incomplete essential energy tags
+        var requiredTags = new[]
+        {
+            ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPBieuGioBT,
+            ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPBieuGioCD,
+            ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPBieuGioTD,
+            ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPTong,
+            ListDataMeasurementPoint.ChiSoTichLuyDienNangPhanKhangAQTong
+        };
+
+        var pointsNeedingLookback = activePoints
+            .Where(p => requiredTags.Any(tag => !primaryGrouped.ContainsKey((p.Id, tag))))
+            .Select(p => p.Id)
             .ToList();
-        
+
+        var lookbackGrouped = new Dictionary<(long PointId, string TagDesc), MeasurementPointMonitoringEntity>();
+        if (pointsNeedingLookback.Any())
+        {
+            var lookbackEntities = await _measurementPointMonitoringEntities
+                .AsNoTracking()
+                .Where(x => pointsNeedingLookback.Contains(x.MeasurementPointsId) 
+                         && x.CreatedTime >= lookbackStart && x.CreatedTime <= now 
+                         && x.Value != null && x.Value != "")
+                .Include(x => x.TagName)
+                .OrderByDescending(x => x.CreatedTime)
+                .ToListAsync(cancellationToken);
+
+            foreach (var entity in lookbackEntities)
+            {
+                var key = (entity.MeasurementPointsId, entity.TagNameDescription ?? "");
+                if (!lookbackGrouped.ContainsKey(key))
+                {
+                    lookbackGrouped[key] = entity;
+                }
+            }
+        }
+
+        // Helper to get value & unit with lookback fallback
+        (string Value, string Unit) GetTagValue(long pointId, string tagDesc, string defaultUnit = "kWh")
+        {
+            if (primaryGrouped.TryGetValue((pointId, tagDesc), out var primary) && !string.IsNullOrWhiteSpace(primary.Value))
+            {
+                return (primary.Value, primary.TagName?.Unit ?? defaultUnit);
+            }
+            if (lookbackGrouped.TryGetValue((pointId, tagDesc), out var lookback) && !string.IsNullOrWhiteSpace(lookback.Value))
+            {
+                return (lookback.Value, lookback.TagName?.Unit ?? defaultUnit);
+            }
+            return ("0", defaultUnit);
+        }
+
+        var result = new List<MeasurementPointEnergyReportDto>();
+        foreach (var point in activePoints)
+        {
+            var btGiao = GetTagValue(point.Id, ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPBieuGioBT, "kWh");
+            var cdGiao = GetTagValue(point.Id, ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPBieuGioCD, "kWh");
+            var tdGiao = GetTagValue(point.Id, ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPBieuGioTD, "kWh");
+            var tongGiao = GetTagValue(point.Id, ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPTong, "kWh");
+            var qTongGiao = GetTagValue(point.Id, ListDataMeasurementPoint.ChiSoTichLuyDienNangPhanKhangAQTong, "kvarh");
+
+            var btNhan = GetTagValue(point.Id, ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPBieuGioBTChieuNhan, "kWh");
+            var cdNhan = GetTagValue(point.Id, ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPBieuGioCDChieuNhan, "kWh");
+            var tdNhan = GetTagValue(point.Id, ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPBieuGioTDChieuNhan, "kWh");
+            var tongNhan = GetTagValue(point.Id, ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPTongChieuNhan, "kWh");
+            var qTongNhan = GetTagValue(point.Id, ListDataMeasurementPoint.ChiSoTichLuyDienNangPhanKhangAQTongChieuNhan, "kvarh");
+
+            result.Add(new MeasurementPointEnergyReportDto
+            {
+                MeasurementPointId = point.Id,
+                CreatedTime = now,
+                ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao = btGiao.Value,
+                ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiaoUnit = btGiao.Unit,
+                ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao = cdGiao.Value,
+                ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiaoUnit = cdGiao.Unit,
+                ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao = tdGiao.Value,
+                ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiaoUnit = tdGiao.Unit,
+                ChiSoTichLuyDienNangTacDungAPTongKenhGiao = tongGiao.Value,
+                ChiSoTichLuyDienNangTacDungAPTongKenhGiaoUnit = tongGiao.Unit,
+                ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao = qTongGiao.Value,
+                ChiSoTichLuyDienNangPhanKhangAQTongKenhGiaoUnit = qTongGiao.Unit,
+                ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan = btNhan.Value,
+                ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhanUnit = btNhan.Unit,
+                ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan = cdNhan.Value,
+                ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhanUnit = cdNhan.Unit,
+                ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan = tdNhan.Value,
+                ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhanUnit = tdNhan.Unit,
+                ChiSoTichLuyDienNangTacDungAPTongKenhNhan = tongNhan.Value,
+                ChiSoTichLuyDienNangTacDungAPTongKenhNhanUnit = tongNhan.Unit,
+                ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan = qTongNhan.Value,
+                ChiSoTichLuyDienNangPhanKhangAQTongKenhNhanUnit = qTongNhan.Unit
+            });
+        }
+
         return result;
     }
 }
