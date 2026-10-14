@@ -23,7 +23,12 @@
     - Lọc danh sách theo `Mã khách hàng` (`code`) và `Trạng thái` (`status`), loại bỏ ô lọc `Tên khách hàng`.
     - Menu hành động "Chi tiết": Mở trang chi tiết khách hàng tại tab trình duyệt mới (`window.open(..., '_blank')`).
     - Nút "Nhập từ CSV" bọc trong `<PrivateComponent roles={[Constants.Role.Admin.value, Constants.Role.SuperAdmin.value]}>`.
+    - Cập nhật icon nút Import thành `FiDownload` (mũi tên hướng xuống), đồng bộ kiểu dáng với nút Export `FiShare` (mũi tên hướng lên).
+    - Cập nhật thứ tự các cột danh sách khách hàng: `Mã khách hàng`, `Tên khách hàng`, `Điện thoại`, `Địa chỉ`, `Trạng thái`. Cập nhật tiêu đề cột tương ứng (`Mã khách hàng` thay vì `Mã KH`, `Tên khách hàng` thay vì `Tên KH`, `Điện thoại` thay vì `Số điện thoại`).
     - Bổ sung `email` vào `tableDataSource`.
+  * Cải tiến trang Quản lý danh sách phiếu báo [table-detail-gcs.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/notice-management/components/table/table-detail-gcs.tsx) và [notice-detail/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/notice-management/notice-detail/index.tsx):
+    - Nút "Chi tiết" trong menu thao tác (`...`) chuyển sang mở trang Chi tiết phiếu báo trong **tab mới** (`window.open(url, '_blank')`).
+    - Đồng bộ lưu trữ và phục hồi ngữ cảnh chu kỳ chốt sổ qua `localStorage` và `sessionStorage`, chống crash khi mở tab mới hoặc F5.
 
 ## 2. Kết quả Tự kiểm tra (Self-Check Results)
 - [x] **Backend .NET 8**: `dotnet build Backend/AMR.sln` -> PASS (0 errors, 18 warnings về third-party libraries).
