@@ -1,6 +1,7 @@
 using Application.Commands.Customers;
 using Application.Common;
 using Application.Common.Responses.Common.Responses;
+using Application.Common.ValueObjects;
 using Application.Common.ValueObjects.CursorBased;
 using Application.DataTransferObjects.Requests.Customers;
 using Application.DataTransferObjects.Responses.Customers;
@@ -8,6 +9,7 @@ using Application.Queries.Customers;
 using Application.Repositories.ReadWrite;
 using AutoMapper;
 using MediatR;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Nobisoft.Core.Authorization;
 using Nobisoft.Core.Authorization.Attributes;
@@ -215,6 +217,45 @@ public class CustomerController : ControllerBase
         catch (Exception e)
         {
             _loggerService.LogError(e, nameof(ExportCsvCustomersAsync));
+            throw;
+        }
+    }
+
+    [HttpPost]
+    [Route(Common.Url.Default.Customer.ImportCsv)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin])]
+    public async Task<RequestResult<ImportCustomerResponse>> ImportCsvCustomersAsync(IFormFile file, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (file == null || file.Length == 0)
+            {
+                return RequestResult<ImportCustomerResponse>.Fail(new[]
+                {
+                    new ErrorItem { FieldName = "file", Error = "Vui lòng chọn tệp CSV hợp lệ!" }
+                });
+            }
+
+            if (!file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                return RequestResult<ImportCustomerResponse>.Fail(new[]
+                {
+                    new ErrorItem { FieldName = "file", Error = "Hệ thống chỉ hỗ trợ định dạng tệp .csv!" }
+                });
+            }
+
+            using var stream = file.OpenReadStream();
+            var command = new ImportCustomersCommand
+            {
+                FileStream = stream,
+                Tracker = _httpContextAccessorService.Tracker()
+            };
+
+            return await _mediator.Send(command, cancellationToken);
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(ImportCsvCustomersAsync));
             throw;
         }
     }

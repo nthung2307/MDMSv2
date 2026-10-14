@@ -44,6 +44,7 @@ public static class Url
             public const string View = "Customers/Get-Customer-Detail";
             public const string ExportPdf = "Customers/Export-Pdf-Customers";
             public const string ExportCsv = "Customers/Export-Csv-Customers";
+            public const string ImportCsv = "Customers/Import-Csv";
         }
 
         public static class Report

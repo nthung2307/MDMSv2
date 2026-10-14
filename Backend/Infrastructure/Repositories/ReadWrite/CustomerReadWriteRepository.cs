@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Application.DataTransferObjects.Requests.Customers;
+using Application.DataTransferObjects.Responses.Customers;
 using Application.Extensions;
 using Application.Repositories.ReadWrite;
 using CsvHelper;
@@ -20,10 +21,12 @@ namespace Infrastructure.Repositories.ReadWrite;
 public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, AppReadWriteDbContext>, ICustomerReadWriteRepository
 {
     private readonly DbSet<CustomerEntity> _customerEntities;
+    private readonly ISnowflakeIdService _snowflakeIdService;
 
     public CustomerReadWriteRepository(AppReadWriteDbContext applicationDbContext, ISnowflakeIdService snowflakeIdService) : base(applicationDbContext, snowflakeIdService)
     {
         _customerEntities = applicationDbContext.Set<CustomerEntity>();
+        _snowflakeIdService = snowflakeIdService;
         QuestPDF.Settings.License = LicenseType.Community;
     }
 
@@ -156,6 +159,7 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
         csvWriter.WriteField("Tên KH");
         csvWriter.WriteField("Mã KH");
         csvWriter.WriteField("Số điện thoại");
+        csvWriter.WriteField("Email");
         csvWriter.WriteField("Địa chỉ");
         csvWriter.WriteField("Trạng thái");
         await csvWriter.NextRecordAsync();
@@ -168,6 +172,7 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
             csvWriter.WriteField(customer.FullName);
             csvWriter.WriteField(customer.CustomerCode);
             csvWriter.WriteField(customer.PhoneNumber);
+            csvWriter.WriteField(customer.Email ?? string.Empty);
             csvWriter.WriteField(customer.Address);
             csvWriter.WriteField(customer.Status == EntityStatus.Active ? "Đang hoạt động" : "Ngừng hoạt động");
             await csvWriter.NextRecordAsync();
@@ -176,5 +181,199 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
         var csvBytes = memoryStream.ToArray();
 
         return csvBytes;
+    }
+
+    public async Task<ImportCustomerResponse> ImportCustomersFromCsvAsync(Stream fileStream, long currentUserId, string currentUserName, CancellationToken cancellationToken)
+    {
+        var response = new ImportCustomerResponse();
+
+        using var memoryStream = new MemoryStream();
+        await fileStream.CopyToAsync(memoryStream, cancellationToken);
+        var fileBytes = memoryStream.ToArray();
+        if (fileBytes.Length == 0)
+        {
+            response.Errors.Add(new ImportRowError { RowNumber = 0, ErrorMessage = "Tệp CSV rỗng!" });
+            response.ErrorCount = 1;
+            return response;
+        }
+
+        var textContent = Encoding.UTF8.GetString(fileBytes);
+        using var stringReader = new StringReader(textContent);
+
+        var firstLine = await stringReader.ReadLineAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(firstLine))
+        {
+            response.Errors.Add(new ImportRowError { RowNumber = 0, ErrorMessage = "Tệp CSV không có dữ liệu tiêu đề!" });
+            response.ErrorCount = 1;
+            return response;
+        }
+
+        var delimiter = ",";
+        var countSemicolon = firstLine.Count(c => c == ';');
+        var countComma = firstLine.Count(c => c == ',');
+        var countTab = firstLine.Count(c => c == '\t');
+        if (countSemicolon > countComma && countSemicolon > countTab)
+        {
+            delimiter = ";";
+        }
+        else if (countTab > countComma && countTab > countSemicolon)
+        {
+            delimiter = "\t";
+        }
+
+        using var reader = new StringReader(textContent);
+        var csvConfig = new CsvHelper.Configuration.CsvConfiguration(CultureInfo.InvariantCulture)
+        {
+            Delimiter = delimiter,
+            HasHeaderRecord = true,
+            MissingFieldFound = null,
+            HeaderValidated = null,
+            BadDataFound = null,
+            TrimOptions = CsvHelper.Configuration.TrimOptions.Trim
+        };
+
+        using var csv = new CsvReader(reader, csvConfig);
+        await csv.ReadAsync();
+        csv.ReadHeader();
+
+        if (csv.HeaderRecord == null || csv.HeaderRecord.Length == 0)
+        {
+            response.Errors.Add(new ImportRowError { RowNumber = 0, ErrorMessage = "Không tìm thấy tiêu đề cột trong tệp CSV!" });
+            response.ErrorCount = 1;
+            return response;
+        }
+
+        int colCode = -1, colName = -1, colPhone = -1, colEmail = -1, colAddress = -1, colStatus = -1;
+        for (int i = 0; i < csv.HeaderRecord.Length; i++)
+        {
+            var header = csv.HeaderRecord[i].Trim().ToLowerInvariant();
+            if (header.Contains("mã kh") || header.Contains("ma kh") || header.Contains("mã khách") || header.Contains("customercode") || header.Equals("code"))
+            {
+                colCode = i;
+            }
+            else if (header.Contains("tên kh") || header.Contains("ten kh") || header.Contains("tên khách") || header.Contains("fullname") || header.Equals("name"))
+            {
+                colName = i;
+            }
+            else if (header.Contains("thoại") || header.Contains("thoai") || header.Contains("sđt") || header.Contains("sdt") || header.Contains("phone"))
+            {
+                colPhone = i;
+            }
+            else if (header.Contains("email") || header.Contains("mail"))
+            {
+                colEmail = i;
+            }
+            else if (header.Contains("chỉ") || header.Contains("chi") || header.Contains("address"))
+            {
+                colAddress = i;
+            }
+            else if (header.Contains("thái") || header.Contains("thai") || header.Contains("status"))
+            {
+                colStatus = i;
+            }
+        }
+
+        if (colCode == -1)
+        {
+            response.Errors.Add(new ImportRowError
+            {
+                RowNumber = 1,
+                ErrorMessage = "Không tìm thấy cột 'Mã KH' hoặc 'CustomerCode' trong tiêu đề tệp!"
+            });
+            response.ErrorCount = 1;
+            return response;
+        }
+
+        var existingCustomers = await _customerEntities
+            .Where(x => !x.Deleted && x.CustomerCode != null)
+            .ToDictionaryAsync(x => x.CustomerCode!.Trim().ToUpperInvariant(), x => x, cancellationToken);
+
+        int rowNumber = 1;
+        var now = DateTimeOffset.UtcNow;
+
+        while (await csv.ReadAsync())
+        {
+            rowNumber++;
+            var code = colCode >= 0 ? csv.GetField(colCode)?.Trim() : null;
+            var name = colName >= 0 ? csv.GetField(colName)?.Trim() : null;
+            var phone = colPhone >= 0 ? csv.GetField(colPhone)?.Trim() : null;
+            var email = colEmail >= 0 ? csv.GetField(colEmail)?.Trim() : null;
+            var address = colAddress >= 0 ? csv.GetField(colAddress)?.Trim() : null;
+            var rawStatus = colStatus >= 0 ? csv.GetField(colStatus)?.Trim() : null;
+
+            if (string.IsNullOrWhiteSpace(code) && string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(phone) && string.IsNullOrWhiteSpace(email))
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                response.Errors.Add(new ImportRowError
+                {
+                    RowNumber = rowNumber,
+                    CustomerCode = string.Empty,
+                    ErrorMessage = "Mã khách hàng không được để trống!"
+                });
+                response.ErrorCount++;
+                continue;
+            }
+
+            var status = EntityStatus.Active;
+            if (!string.IsNullOrWhiteSpace(rawStatus))
+            {
+                var lowerStatus = rawStatus.ToLowerInvariant();
+                if (lowerStatus.Contains("ngừng") || lowerStatus.Contains("ngung") || lowerStatus.Contains("dừng") ||
+                    lowerStatus.Contains("dung") || lowerStatus.Contains("deactivate") || lowerStatus.Contains("inactive") ||
+                    lowerStatus == "0")
+                {
+                    status = EntityStatus.Deactivate;
+                }
+            }
+
+            var upperCode = code.ToUpperInvariant();
+            if (existingCustomers.TryGetValue(upperCode, out var existingCustomer))
+            {
+                if (!string.IsNullOrWhiteSpace(name)) existingCustomer.FullName = name;
+                if (phone != null) existingCustomer.PhoneNumber = phone;
+                if (email != null) existingCustomer.Email = email;
+                if (address != null) existingCustomer.Address = address;
+                existingCustomer.Status = status;
+                existingCustomer.ModifiedTime = now;
+                existingCustomer.ModifiedBy = currentUserId;
+                existingCustomer.ModifiedName = currentUserName;
+
+                response.UpdatedCount++;
+            }
+            else
+            {
+                var newId = await _snowflakeIdService.GenerateId(cancellationToken);
+                var newCustomer = new CustomerEntity
+                {
+                    Id = newId,
+                    CustomerCode = code,
+                    FullName = name ?? code,
+                    PhoneNumber = phone,
+                    Email = email,
+                    Address = address,
+                    Status = status,
+                    CreatedBy = currentUserId,
+                    CreatedName = currentUserName,
+                    CreatedTime = now,
+                    ModifiedBy = currentUserId,
+                    ModifiedName = currentUserName,
+                    ModifiedTime = now,
+                    Deleted = false
+                };
+
+                await _customerEntities.AddAsync(newCustomer, cancellationToken);
+                existingCustomers[upperCode] = newCustomer;
+                response.InsertedCount++;
+            }
+        }
+
+        await SaveChangesAsync(cancellationToken);
+        response.TotalRows = response.InsertedCount + response.UpdatedCount + response.ErrorCount;
+
+        return response;
     }
 }

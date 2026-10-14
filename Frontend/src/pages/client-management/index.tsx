@@ -2,7 +2,7 @@ import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import { Card, Dropdown, MenuProps, TableProps } from 'antd';
 import { useEffect, useState } from 'react';
 import { BsThreeDots } from 'react-icons/bs';
-import { FiShare } from 'react-icons/fi';
+import { FiShare, FiUpload } from 'react-icons/fi';
 import { IoBackspaceOutline, IoSearch } from 'react-icons/io5';
 import { useNavigate } from 'react-router-dom';
 
@@ -25,6 +25,7 @@ import { useStateDataForm } from '@/infrastructure/common/libs/hooks/useStateDat
 import useGetListCustomerHook from '@/infrastructure/repository/customer/hooks/useGetCustomerList.hook';
 import { deleteParams } from '@/infrastructure/utils/helpers.ts';
 import { _t } from '@/infrastructure/utils/translation';
+import DialogImportCustomer from '@/pages/client-management/components/dialog-import-customer';
 
 const ClientManagement = () => {
   const navigate = useNavigate();
@@ -32,6 +33,7 @@ const ClientManagement = () => {
     status: Constants.AccountStatus.Active,
   });
   const [isShowExport, setIsShowExport] = useState<boolean>(false);
+  const [isShowImport, setIsShowImport] = useState<boolean>(false);
   const [getListCustomer] = useGetListCustomerHook();
   // const [deleteCustomerRequest] = useDeleteCustomerHook();
   // const [changeCustomerStatus] = useChangeCustomerStatusHook();
@@ -78,15 +80,11 @@ const ClientManagement = () => {
   };
 
   // Add debounced search hooks
-  const debounceCustomerName = useDebounce(dataForm?.name, 300);
   const debounceCustomerCode = useDebounce(dataForm?.code, 300);
 
   // Replace handleSearch with useEffect
   useEffect(() => {
     const searchByFields: any = [];
-    if (debounceCustomerName) {
-      searchByFields.push({ searchFieldName: 'fullName', searchValue: debounceCustomerName });
-    }
     if (debounceCustomerCode) {
       searchByFields.push({ searchFieldName: 'customerCode', searchValue: debounceCustomerCode });
     }
@@ -100,11 +98,10 @@ const ClientManagement = () => {
     } else {
       updateParamsValueFromListCustomerParams({ searchByFields: [] });
     }
-  }, [debounceCustomerName, debounceCustomerCode, dataForm?.status]);
+  }, [debounceCustomerCode, dataForm?.status]);
 
   const handleClearSearch = () => {
     setDataForm({
-      name: '',
       code: '',
       status: '',
     });
@@ -160,9 +157,11 @@ const ClientManagement = () => {
             key: '1',
             label: 'Chi tiết',
             onClick: () => {
-              navigate(
-                ROUTE_PATH.CUSTOMER_DETAIL.replace(Constants.ReplaceRouterConfig.id, record.key)
+              const url = ROUTE_PATH.CUSTOMER_DETAIL.replace(
+                Constants.ReplaceRouterConfig.id,
+                record.key
               );
+              window.open(url, '_blank');
             },
           },
         ];
@@ -214,6 +213,7 @@ const ClientManagement = () => {
       name: item.fullName,
       code: item.customerCode,
       phoneNumber: item.phoneNumber,
+      email: item.email,
       address: item.address,
       status: item.status,
     };
@@ -250,24 +250,24 @@ const ClientManagement = () => {
             icon={<FiShare size={20} />}
             classButton='text-button-variant'
           />
+          <PrivateComponent roles={[Constants.Role.Admin.value, Constants.Role.SuperAdmin.value]}>
+            <ButtonCommonCustomizable
+              title={''}
+              tooltipText={'Nhập từ CSV'}
+              onClick={() => {
+                setIsShowImport(true);
+              }}
+              icon={<FiUpload size={20} />}
+              classButton='text-button-variant'
+            />
+          </PrivateComponent>
         </div>
       </div>
       <Card className='mt-5 shadow-custom'>
         <div className='mb-5 flex justify-between items-center'>
           <div className='flex items-center w-2/3 gap-2'>
             <div className='basis-4/5 flex items-center gap-2'>
-              <div className='basis-1/3'>
-                <InputTextCommon
-                  label={null}
-                  attribute={'name'}
-                  dataAttribute={dataForm?.name}
-                  placeholder={_t('Nhập tên khách hàng')}
-                  setData={setDataForm}
-                  isRequired={false}
-                  prefix={<IoSearch />}
-                />
-              </div>
-              <div className='basis-1/3'>
+              <div className='basis-1/2'>
                 <InputTextCommon
                   label={null}
                   dataAttribute={dataForm?.code}
@@ -275,9 +275,10 @@ const ClientManagement = () => {
                   setData={setDataForm}
                   isRequired={false}
                   placeholder={_t('Nhập mã khách hàng')}
+                  prefix={<IoSearch />}
                 />
               </div>
-              <div className='basis-1/3'>
+              <div className='basis-1/2'>
                 <InputSelectCommon
                   label={null}
                   attribute={'status'}
@@ -294,7 +295,7 @@ const ClientManagement = () => {
               </div>
             </div>
             <div className={'flex items-center gap-1'}>
-              {dataForm?.name || dataForm?.status || dataForm?.code ? (
+              {dataForm?.status || dataForm?.code ? (
                 <ButtonCommonCustomizable
                   title={_t('')}
                   tooltipText='Xoá tất cả'
@@ -353,6 +354,16 @@ const ClientManagement = () => {
         listHeader={Constants.listHeaderExport.clients}
         fileNameCsv={'khachhang'}
         typeExportAll={'customers'}
+      />
+      {/* Dialog import file */}
+      <DialogImportCustomer
+        open={isShowImport}
+        handleCancel={() => {
+          setIsShowImport(false);
+        }}
+        onSuccess={() => {
+          getListCustomerAsync({ ...getListCustomerParamsRequest });
+        }}
       />
     </div>
   );

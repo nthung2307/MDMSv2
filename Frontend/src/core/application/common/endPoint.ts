@@ -45,6 +45,7 @@ export class Endpoint {
     static DeleteCustomer: string = 'customers/delete-customer/:id';
     static ChangeCustomerStatus: string = 'customers/change-status';
     static GetListCustomerForReport: string = 'customers/get-list-customers-for-report';
+    static ImportCustomerCsv: string = 'customers/import-csv';
   };
 
   static IoT = class {

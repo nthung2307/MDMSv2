@@ -55,4 +55,5 @@ export interface ICustomerManagementService {
     params: ExportCustomerPDFRequest,
     cancellationToken: CancelToken
   ): Promise<RequestResponse>;
+  importCustomerCsv(endpoint: string, file: File): Promise<RequestResponse>;
 }

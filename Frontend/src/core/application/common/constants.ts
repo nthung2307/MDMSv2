@@ -1516,6 +1516,7 @@ export default class Constants {
       { label: 'Tên KH', attr: 'name', width: 25 },
       { label: 'Mã KH', attr: 'code', width: 7 },
       { label: 'Số điện thoại', attr: 'phoneNumber', width: 11 },
+      { label: 'Email', attr: 'email', width: 25 },
       { label: 'Địa chỉ', attr: 'address', width: 40 },
       {
         label: 'Trạng thái',

@@ -21,3 +21,7 @@ public interface IDeleteCustomerCommandHandler : IRequestHandler<DeleteCustomerC
 public interface IChangeStatusCustomerCommandHandler : IRequestHandler<ChangeStatusCustomerCommand, RequestResult<UpdateCustomerResponse>>
 {
 }
+
+public interface IImportCustomersCommandHandler : IRequestHandler<ImportCustomersCommand, RequestResult<ImportCustomerResponse>>
+{
+}

@@ -13,10 +13,9 @@ interface Props {
 }
 
 // Helper kiem tra diem do co the gui email duoc khong
-export const isPointSendable = (record: any): boolean => {
+const isPointSendable = (record: any): boolean => {
   const pointEmail =
-    record?.measurementPoint?.email?.trim() ||
-    record?.measurementPoint?.customer?.email?.trim();
+    record?.measurementPoint?.email?.trim() || record?.measurementPoint?.customer?.email?.trim();
   const hasValidEmail = Boolean(pointEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pointEmail));
   const isAlreadySentSuccess = record?.status === 'SEND_SUCCESS';
 
@@ -72,8 +71,7 @@ const TableDetailNotice = (props: Props) => {
       width: '5%',
       render: (_, record: any) => {
         const canSend = isPointSendable(record);
-        const isChecked =
-          canSend && sendData.listSend.some((item: any) => item.id === record.id);
+        const isChecked = canSend && sendData.listSend.some((item: any) => item.id === record.id);
 
         return (
           <div>
@@ -112,7 +110,7 @@ const TableDetailNotice = (props: Props) => {
         const email = record?.email?.trim() || record?.customer?.email?.trim();
         return (
           <div>
-            <div className="font-medium">{record?.code}</div>
+            <div className='font-medium'>{record?.code}</div>
             {email ? (
               <div style={{ fontSize: '11px', color: '#1677ff' }}>{email}</div>
             ) : (
@@ -133,21 +131,21 @@ const TableDetailNotice = (props: Props) => {
 
         // 1. Neu diem do chua co email hoac email khong hop le -> luon hien thi Chua cau hinh Email
         if (!hasValidEmail) {
-          return <Tag color="warning">Chưa cấu hình Email</Tag>;
+          return <Tag color='warning'>Chưa cấu hình Email</Tag>;
         }
 
         // 2. Neu diem do da co email hop le -> hien thi theo tien trinh gui
         switch (status) {
           case 'SEND_SUCCESS':
-            return <Tag color="success">Thành công</Tag>;
+            return <Tag color='success'>Thành công</Tag>;
           case 'SEND_FAILED':
-            return <Tag color="error">Thất bại</Tag>;
+            return <Tag color='error'>Thất bại</Tag>;
           case 'PENDING':
           case 'PROCESSING':
-            return <Tag color="processing">Chờ gửi</Tag>;
+            return <Tag color='processing'>Chờ gửi</Tag>;
           case 'NO_EMAIL_CONFIGURED':
           default:
-            return <Tag color="default">Chưa gửi</Tag>;
+            return <Tag color='default'>Chưa gửi</Tag>;
         }
       },
     },
