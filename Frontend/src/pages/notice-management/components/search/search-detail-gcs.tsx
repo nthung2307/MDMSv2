@@ -40,7 +40,7 @@ const SearchDetailGCS = (props: Props) => {
             label={null}
             attribute={'year'}
             dataAttribute={dataForm?.year}
-            placeholder={_t('Tất cả năm')}
+            placeholder={_t('Tất cả')}
             allowClear={true}
             setData={setDataForm}
             isRequired={false}

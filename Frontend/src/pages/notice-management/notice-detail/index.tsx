@@ -2,7 +2,7 @@ import { Card } from 'antd';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-expect-error
 import html2pdf from 'html2pdf.js';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { IoMailOutline } from 'react-icons/io5';
 import { IoPrintOutline } from 'react-icons/io5';
@@ -38,7 +38,7 @@ const NoticeDetail = () => {
   const queryGcsId = searchParams.get('gcsId');
   const cycleId = searchParams.get('cycleId');
 
-  const getInitialState = () => {
+  const noticeState = useMemo(() => {
     if (location.state && location.state.record) {
       return location.state;
     }
@@ -57,9 +57,9 @@ const NoticeDetail = () => {
       // Ignore parse error
     }
     return {};
-  };
+  }, [location.state, queryGcsId, cycleId]);
 
-  const { record, GCSName, gcsId, breadcumbDate } = getInitialState();
+  const { record, GCSName, gcsId, breadcumbDate } = noticeState;
   const [dataForm, setDataForm] = useStateDataForm({});
   const [isShowDialogPDF, setIsShowDialogPDF] = useState<any>({ status: false, record: null });
   const [loading, setLoading] = useState<boolean>(false);
@@ -331,7 +331,7 @@ const NoticeDetail = () => {
       year: record.year,
       periodNumber: record.periodNumber,
     });
-  }, [size, getListNoticeRequest, record, gcsId]);
+  }, [size, getListNoticeRequest, record?.id, gcsId]);
 
   useEffect(() => {
     if (!record || !gcsId) return;
@@ -339,7 +339,7 @@ const NoticeDetail = () => {
     const intervalId = setInterval(getStatusSendMailAsync, 30000);
 
     return () => clearInterval(intervalId);
-  }, [record, gcsId]);
+  }, [record?.id, gcsId]);
   const isValidateData = !(sendData.listSend.length > 0) && !sendData.isAll;
 
   const renderMailDialogContent = () => {
