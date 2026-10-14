@@ -54,3 +54,19 @@
   * **Nguyên nhân cốt lõi 3 (Binding an toàn phía Backend)**: Tại [CustomerController.cs](file:///e:/sources/MDMSv2/Backend/WebApi/Controllers/CustomerController.cs), thêm `[FromForm(Name = "file")]` và cơ chế fallback `Request.Form.Files["file"]`.
   * **Nguyên nhân cốt lõi 4 (Chống xung đột trùng khóa)**: Thay thế `ToDictionaryAsync` bằng Dictionary khởi tạo an toàn, loại trừ khả năng crash 500 nếu database có khách hàng trùng mã.
   * Đã publish gói cài đặt mới vào `Publish/MDMSv2_InstallPackage` (Backend Release + Frontend Dist).
+
+---
+
+## 5. Hotfix Refinement 2: Khắc phục Treo Trình duyệt khi Import & Cập nhật Icon Phân biệt Nút
+- **Yêu cầu 1: Khắc phục hiện tượng Import làm treo/đơ trình duyệt**:
+  * **Nguyên nhân cốt lõi**: Trong [request.service.ts](file:///e:/sources/MDMSv2/Frontend/src/infrastructure/services/request.service.ts), hàm `makeUploadRequestAsync` trước đó gọi `setRecoilStateAsync(LoadingState, { isLoading: true })` kích hoạt component `<FullPageLoading />` che phủ toàn màn hình, nhưng khối `finally` hủy loading bị comment. Toàn bộ viewport bị lớp phủ loading vô hình chặn toàn bộ sự kiện click/scroll của người dùng.
+  * **Xử lý**: Loại bỏ `FullPageLoading` toàn cục tại hàm upload (nhất quán với các API khác trong dự án). Tiến trình tải được hiển thị trực tiếp và mượt mà ngay trên nút "Thực hiện nhập" của Dialog qua trạng thái `loading={loading}` của Ant Design Button.
+  * Đồng thời sửa lỗi bóc tách `payload.data` trong [useImportCustomerCsv.hook.tsx](file:///e:/sources/MDMSv2/Frontend/src/infrastructure/repository/customer/hooks/useImportCustomerCsv.hook.tsx) để hook không bị nhảy nhầm vào `onError`.
+  * Sửa lỗi thẻ tải về `const link = document.createElement('a'); link.href = url;` trong [dialog-export.tsx](file:///e:/sources/MDMSv2/Frontend/src/infrastructure/common/components/dialog-export/dialog-export.tsx).
+- **Yêu cầu 2: Cập nhật Icon trực quan, phân biệt rõ ràng 2 nút Xuất/Nhập**:
+  * Trước đó: Nút Xuất (`FiShare`) và Nút Nhập (`FiUpload`) đều có mũi tên hướng ra ngoài/lên trên gây nhầm lẫn thị giác.
+  * Đã cập nhật:
+    - Nút **Xuất file**: Giữ nguyên `FiShare` (mũi tên xuất ra ngoài - chuẩn thống nhất toàn hệ thống MDMSv2).
+    - Nút **Nhập từ CSV**: Đổi sang `FaFileImport` từ `react-icons/fa6` (biểu tượng tệp tài liệu với mũi tên nạp dữ liệu vào trong `📄⮞`), phân biệt 100% rõ ràng và trực quan.
+- **Đóng gói**: Đã build sạch toàn bộ, publish Backend Release và Frontend Dist mới nhất vào `Publish/MDMSv2_InstallPackage`.
+
