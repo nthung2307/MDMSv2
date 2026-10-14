@@ -12,9 +12,40 @@ interface Props {
   loading: boolean;
 }
 
+// Helper kiem tra diem do co the gui email duoc khong
+export const isPointSendable = (record: any): boolean => {
+  const pointEmail =
+    record?.measurementPoint?.email?.trim() ||
+    record?.measurementPoint?.customer?.email?.trim();
+  const hasValidEmail = Boolean(pointEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pointEmail));
+  const isAlreadySentSuccess = record?.status === 'SEND_SUCCESS';
+
+  // 1. Diem do CHUA cau hinh email -> Disable (khong the gui)
+  // 2. Diem do DA gui thanh cong -> Disable (khong can gui lai)
+  return hasValidEmail && !isAlreadySentSuccess;
+};
+
 const TableDetailNotice = (props: Props) => {
   const { dataSource, setSendData, sendData, setIsShowDialogPDF, loading } = props;
+
+  // Danh sach cac ban ghi du dieu kien de gui email
+  const sendableItems = (dataSource || []).filter(isPointSendable);
+  const isAllSendableChecked =
+    sendableItems.length > 0 &&
+    sendableItems.every((item: any) =>
+      sendData.listSend.some((selected: any) => selected.id === item.id)
+    );
+
+  const toggleSelectAll = () => {
+    if (isAllSendableChecked) {
+      setSendData({ isAll: false, listSend: [] });
+    } else {
+      setSendData({ isAll: false, listSend: [...sendableItems] });
+    }
+  };
+
   const addSendMail = (record: any) => {
+    if (!isPointSendable(record)) return;
     let arr = [...sendData.listSend];
     const index = arr.findIndex((item) => item.id === record.id);
     if (index !== -1) {
@@ -30,29 +61,29 @@ const TableDetailNotice = (props: Props) => {
       title: (
         <div>
           <CheckboxCommon
-            dataAttribute={sendData.isAll}
-            setData={() => {
-              setSendData({
-                listSend: sendData.isAll ? [] : [...dataSource],
-                isAll: !sendData.isAll,
-              });
-            }}
-            disabled={!(dataSource.length > 0)}
+            dataAttribute={isAllSendableChecked}
+            setData={toggleSelectAll}
+            disabled={sendableItems.length === 0}
             label={undefined}
           />
         </div>
       ),
       dataIndex: 'measurementPoint',
       width: '5%',
-      render: (_, record) => {
+      render: (_, record: any) => {
+        const canSend = isPointSendable(record);
+        const isChecked =
+          canSend && sendData.listSend.some((item: any) => item.id === record.id);
+
         return (
           <div>
             <CheckboxCommon
-              dataAttribute={
-                !!sendData.listSend.find((item: any) => item.id === record.id) || sendData.isAll
-              }
+              dataAttribute={isChecked}
+              disabled={!canSend}
               setData={() => {
-                addSendMail(record);
+                if (canSend) {
+                  addSendMail(record);
+                }
               }}
               label={undefined}
             />

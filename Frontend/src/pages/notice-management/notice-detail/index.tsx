@@ -136,6 +136,46 @@ const NoticeDetail = () => {
     }, 0);
   };
 
+  const getListNoticeAsync = async ({
+    pageSize = size,
+    before,
+    after,
+    searchByFields = [],
+    sortByFields = [],
+    gcsId,
+    month,
+    year,
+    periodNumber,
+  }: GetListNoticeRequest) => {
+    const params: GetListNoticeRequest = {
+      pageSize: pageSize,
+      ...(before && { before }),
+      ...(after && { after }),
+      ...(month && { month }),
+      ...(year && { year }),
+      searchByFields: searchByFields.length > 0 ? searchByFields : [],
+      sortByFields: sortByFields.length > 0 ? sortByFields : [],
+      gcsId: gcsId,
+      month: month,
+      year: year,
+      periodNumber: periodNumber,
+    };
+    await getListNotice(
+      params,
+      (res: DataResponse) => {
+        const { data } = res;
+        const result = data?.data;
+        setData(result);
+        setPaginationData({
+          hasNext: data.hasNext,
+          hasPrevious: data.hasPrevious,
+        });
+      },
+      () => {},
+      setLoading
+    );
+  };
+
   const sendMailNoticeAsync = async () => {
     setMailStatus('sending');
     const params = new SendAllMailNoticeRequest({
@@ -147,15 +187,30 @@ const NoticeDetail = () => {
 
     const onSuccess = () => {
       setIsShowDialog(false);
-      // setMailStatus(null);
-      notifySuccess('', _t('Vui lòng chờ vài phút'));
-      // getListNoticeAsync({
-      //   ...getListNoticeRequest,
-      //   gcsId: Number(gcsId),
-      //   month: record.month,
-      //   year: record.year,
-      //   periodNumber: record.periodNumber,
-      // });
+      setMailStatus(null);
+      setSendData({ isAll: false, listSend: [] });
+      notifySuccess('', _t('Đã gửi yêu cầu thành công, hệ thống đang xử lý...'));
+
+      const refreshParams = {
+        ...getListNoticeRequest,
+        gcsId: Number(gcsId),
+        month: record.month,
+        year: record.year,
+        periodNumber: record.periodNumber,
+      };
+
+      // 1. Tải lại dữ liệu ngay lập tức
+      void getListNoticeAsync(refreshParams);
+
+      // 2. Tự động kiểm tra và cập nhật định kỳ mỗi 2 giây (trong 12 giây) để cập nhật trạng thái trực tiếp
+      let pollCount = 0;
+      const pollTimer = setInterval(() => {
+        pollCount++;
+        void getListNoticeAsync(refreshParams);
+        if (pollCount >= 6) {
+          clearInterval(pollTimer);
+        }
+      }, 2000);
     };
 
     if (sendData.isAll) {
@@ -198,8 +253,6 @@ const NoticeDetail = () => {
       params,
       (res: DataResponse) => {
         if (res.data) {
-          // setMailStatus('sending');
-          // setIsShowDialog(true);
           notifySuccess('', 'Đang gửi mail, vui lòng chờ vài phút');
         } else {
           setMailStatus(null);
@@ -221,8 +274,6 @@ const NoticeDetail = () => {
       params,
       (res: DataResponse) => {
         if (!res.data) {
-          // setMailStatus(null);
-          // setIsShowDialog(false);
           getListNoticeAsync({
             ...getListNoticeRequest,
             gcsId: Number(gcsId),
@@ -234,46 +285,6 @@ const NoticeDetail = () => {
       },
       () => {},
       () => {}
-    );
-  };
-
-  const getListNoticeAsync = async ({
-    pageSize = size,
-    before,
-    after,
-    searchByFields = [],
-    sortByFields = [],
-    gcsId,
-    month,
-    year,
-    periodNumber,
-  }: GetListNoticeRequest) => {
-    const params: GetListNoticeRequest = {
-      pageSize: pageSize,
-      ...(before && { before }),
-      ...(after && { after }),
-      ...(month && { month }),
-      ...(year && { year }),
-      searchByFields: searchByFields.length > 0 ? searchByFields : [],
-      sortByFields: sortByFields.length > 0 ? sortByFields : [],
-      gcsId: gcsId,
-      month: month,
-      year: year,
-      periodNumber: periodNumber,
-    };
-    await getListNotice(
-      params,
-      (res: DataResponse) => {
-        const { data } = res;
-        const result = data?.data;
-        setData(result);
-        setPaginationData({
-          hasNext: data.hasNext,
-          hasPrevious: data.hasPrevious,
-        });
-      },
-      () => {},
-      setLoading
     );
   };
 
@@ -289,7 +300,7 @@ const NoticeDetail = () => {
 
   useEffect(() => {
     getStatusSendMailFirstAsync();
-    const intervalId = setInterval(getStatusSendMailAsync, 300000);
+    const intervalId = setInterval(getStatusSendMailAsync, 30000);
 
     return () => clearInterval(intervalId);
   }, []);
