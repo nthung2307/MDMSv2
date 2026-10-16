@@ -216,4 +216,16 @@ export class MeasurementPointService implements IMeasurementPointService {
       throw e;
     }
   }
+
+  public async importMeasurementPointCsv(endpoint: string, file: File): Promise<RequestResponse> {
+    try {
+      return await new RequestService().makeUploadRequestAsync(endpoint, {
+        key: 'file',
+        file: file,
+      });
+    } catch (e) {
+      this.loggerService.error(e);
+      throw e;
+    }
+  }
 }

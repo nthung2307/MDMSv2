@@ -27,50 +27,98 @@ const SocketDetail = ({ children, setDataSocket, id }: Props) => {
       .build();
   }, [id]);
 
+  const hubConnectionSummary = useMemo(() => {
+    return new signalR.HubConnectionBuilder()
+      .withUrl(`${baseURL}/${Constants.socketIoEndpoint.summary}`)
+      .withAutomaticReconnect([0, 2000, 10000, 30000])
+      .build();
+  }, [baseURL]);
+
   const startConnection = async () => {
-    if (
-      hubConnection.state === signalR.HubConnectionState.Disconnected &&
-      hubConnectionDateTime.state === signalR.HubConnectionState.Disconnected
-    ) {
+    // 1. Detail Hub
+    if (hubConnection.state === signalR.HubConnectionState.Disconnected) {
       try {
         await hubConnection.start();
-        await hubConnectionDateTime.start();
-
-        // Subscribe to detail updates for the specific item
-        await hubConnection.invoke('SubscribeToDetail', id);
-        await hubConnectionDateTime.invoke('SubscribeToDetail', id);
-
+        if (id) {
+          await hubConnection.invoke('SubscribeToDetail', id);
+        }
+        hubConnection.off('ReceiveDetailUpdate');
         hubConnection.on('ReceiveDetailUpdate', (message) => {
           setDataSocket(message);
         });
+      } catch (err) {
+        // console.error('Error connecting to Detail Hub:', err);
+      }
+    }
 
+    // 2. DateTime Hub
+    if (hubConnectionDateTime.state === signalR.HubConnectionState.Disconnected) {
+      try {
+        await hubConnectionDateTime.start();
+        if (id) {
+          await hubConnectionDateTime.invoke('SubscribeToDetail', id);
+        }
+        hubConnectionDateTime.off('ReceiveDetailDateTimeUpdate');
         hubConnectionDateTime.on('ReceiveDetailDateTimeUpdate', (message) => {
           setDataSocket(message);
         });
       } catch (err) {
-        // console.error('Error connecting to SignalR Hub:', err);
+        // console.error('Error connecting to DateTime Hub:', err);
+      }
+    }
+
+    // 3. Summary Hub (global updates from REST API)
+    if (hubConnectionSummary.state === signalR.HubConnectionState.Disconnected) {
+      try {
+        await hubConnectionSummary.start();
+        hubConnectionSummary.off(Constants.socketIoStatus.ReceiveUpdate);
+        hubConnectionSummary.on(Constants.socketIoStatus.ReceiveUpdate, (message) => {
+          setDataSocket(message);
+        });
+      } catch (err) {
+        // console.error('Error connecting to Summary Hub:', err);
       }
     }
   };
 
   useEffect(() => {
+    hubConnection.onreconnected(async () => {
+      if (id && hubConnection.state === signalR.HubConnectionState.Connected) {
+        try {
+          await hubConnection.invoke('SubscribeToDetail', id);
+        } catch (e) {}
+      }
+    });
+
+    hubConnectionDateTime.onreconnected(async () => {
+      if (id && hubConnectionDateTime.state === signalR.HubConnectionState.Connected) {
+        try {
+          await hubConnectionDateTime.invoke('SubscribeToDetail', id);
+        } catch (e) {}
+      }
+    });
+
     startConnection();
 
-    // Cleanup when navigating away: stop the connection
+    // Cleanup when navigating away: stop connections
     return () => {
       if (hubConnection.state === signalR.HubConnectionState.Connected) {
-        hubConnection.invoke('UnsubscribeFromDetail', id);
-        hubConnection
-          .stop()
-          .then(() => {
-            // console.log('SignalR connection for Detail View stopped');
-          })
-          .catch(() => {
-            // console.error('Error stopping SignalR connection:', error);
-          });
+        if (id) {
+          hubConnection.invoke('UnsubscribeFromDetail', id).catch(() => {});
+        }
+        hubConnection.stop().catch(() => {});
+      }
+      if (hubConnectionDateTime.state === signalR.HubConnectionState.Connected) {
+        if (id) {
+          hubConnectionDateTime.invoke('UnsubscribeFromDetail', id).catch(() => {});
+        }
+        hubConnectionDateTime.stop().catch(() => {});
+      }
+      if (hubConnectionSummary.state === signalR.HubConnectionState.Connected) {
+        hubConnectionSummary.stop().catch(() => {});
       }
     };
-  }, [hubConnection, id]);
+  }, [hubConnection, hubConnectionDateTime, hubConnectionSummary, id]);
 
   return <>{children}</>; // Fragment for cleaner JSX
 };

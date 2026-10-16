@@ -94,6 +94,7 @@ public static class Url
             public const string View = "Measurement-Points/Get-Measurement-Point";
             public const string ExportPdf = "Measurement-Points/Export-Pdf-Measurement-Points";
             public const string ExportCsv = "Measurement-Points/Export-Csv-Measurement-Points";
+            public const string ImportCsv = "Measurement-Points/Import-Csv";
         }
 
         public static class MeasurementPointMonitoring

@@ -54,6 +54,7 @@ const SearchNotice = (props: Props) => {
             listDataItem={[
               { label: 'Chưa gửi', value: 'UNSENT' },
               { label: 'Thành công', value: 'SEND_SUCCESS' },
+              { label: 'Gửi một phần', value: 'PARTIAL_SUCCESS' },
               { label: 'Thất bại', value: 'SEND_FAILED' },
               { label: 'Chưa cấu hình Email', value: 'NO_EMAIL' },
             ]}

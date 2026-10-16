@@ -1,4 +1,4 @@
-import { TableProps, Tag } from 'antd';
+import { TableProps, Tag, Tooltip } from 'antd';
 
 import { CheckboxCommon } from '@/infrastructure/common/components/Checkbox/checkbox-common';
 import TableCommon from '@/infrastructure/common/components/table/table-common';
@@ -12,16 +12,86 @@ interface Props {
   loading: boolean;
 }
 
+interface EmailRecipientResult {
+  email: string;
+  status: 'SUCCESS' | 'FAILED' | 'PENDING';
+  error?: string | null;
+}
+
+interface ParsedStatementStatus {
+  overall: string;
+  sentTime?: string | null;
+  details: EmailRecipientResult[];
+}
+
+// Helper phan tich trang thai json hoac chuoi truyen thong
+const parseStatusDetail = (rawStatus: any): ParsedStatementStatus => {
+  if (!rawStatus) {
+    return { overall: 'UNSENT', details: [] };
+  }
+
+  if (typeof rawStatus === 'string') {
+    const trimmed = rawStatus.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return {
+          overall: parsed.overall || parsed.Overall || 'UNSENT',
+          sentTime: parsed.sentTime || parsed.SentTime || null,
+          details: (parsed.details || parsed.Details || []).map((d: any) => ({
+            email: d.email || d.Email || '',
+            status: d.status || d.Status || 'PENDING',
+            error: d.error || d.Error || null,
+          })),
+        };
+      } catch (e) {
+        // Fallback
+      }
+    }
+
+    if (
+      trimmed === 'SEND_SUCCESS' ||
+      trimmed === 'SEND_FAILED' ||
+      trimmed === 'PENDING' ||
+      trimmed === 'PROCESSING' ||
+      trimmed === 'PARTIAL_SUCCESS'
+    ) {
+      return { overall: trimmed, details: [] };
+    }
+  }
+
+  return { overall: 'UNSENT', details: [] };
+};
+
+// Helper lay toan bo danh sach email cua diem do (toi da 3 email hoac email fallback tu khach hang)
+const getPointEmails = (record: any): string[] => {
+  const mp = record?.measurementPoint;
+  const emails: string[] = [];
+  if (mp?.email?.trim()) emails.push(mp.email.trim());
+  if (mp?.email2?.trim()) emails.push(mp.email2.trim());
+  if (mp?.email3?.trim()) emails.push(mp.email3.trim());
+
+  if (emails.length === 0 && mp?.customer?.email?.trim()) {
+    emails.push(mp.customer.email.trim());
+  }
+  return emails;
+};
+
+const isEmailFormatValid = (email: string): boolean => {
+  return Boolean(email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()));
+};
+
 // Helper kiem tra diem do co the gui email duoc khong
 const isPointSendable = (record: any): boolean => {
-  const pointEmail =
-    record?.measurementPoint?.email?.trim() || record?.measurementPoint?.customer?.email?.trim();
-  const hasValidEmail = Boolean(pointEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pointEmail));
-  const isAlreadySentSuccess = record?.status === 'SEND_SUCCESS';
+  const emails = getPointEmails(record);
+  // Co it nhat 1 email va tat ca email deu dung dinh dang
+  const hasValidEmails = emails.length > 0 && emails.every(isEmailFormatValid);
+  const parsedStatus = parseStatusDetail(record?.status);
 
-  // 1. Diem do CHUA cau hinh email -> Disable (khong the gui)
-  // 2. Diem do DA gui thanh cong -> Disable (khong can gui lai)
-  return hasValidEmail && !isAlreadySentSuccess;
+  // 1. Diem do CHUA cau hinh email hoac email khong hop le -> Disable (khong the gui)
+  // 2. Diem do DA gui thanh cong tat ca email -> Disable (khong can gui lai)
+  // 3. Diem do That bai hoac Gui mot phan -> Enable (cho phep gui bu cac email chua thanh cong)
+  return hasValidEmails && parsedStatus.overall !== 'SEND_SUCCESS';
 };
 
 const TableDetailNotice = (props: Props) => {
@@ -107,15 +177,161 @@ const TableDetailNotice = (props: Props) => {
       title: 'Mã điểm đo',
       dataIndex: 'measurementPoint',
       render: (record) => {
-        const email = record?.email?.trim() || record?.customer?.email?.trim();
+        return <div className='font-medium'>{record?.code}</div>;
+      },
+    },
+    {
+      title: 'Email nhận phiếu báo',
+      dataIndex: 'measurementPoint',
+      render: (_, record: any) => {
+        const emails = getPointEmails(record);
+        if (emails.length === 0) {
+          return <span style={{ fontSize: '12px', color: '#faad14' }}>Chưa có email</span>;
+        }
+
+        const parsedStatus = parseStatusDetail(record?.status);
+
         return (
-          <div>
-            <div className='font-medium'>{record?.code}</div>
-            {email ? (
-              <div style={{ fontSize: '11px', color: '#1677ff' }}>{email}</div>
-            ) : (
-              <div style={{ fontSize: '11px', color: '#faad14' }}>Chưa có email</div>
-            )}
+          <div className='flex flex-col gap-1.5 py-0.5'>
+            {emails.map((email, idx) => {
+              const trimmed = email.trim();
+              const isValid = isEmailFormatValid(trimmed);
+              const detail = parsedStatus.details.find(
+                (d) => d.email.trim().toLowerCase() === trimmed.toLowerCase()
+              );
+
+              // 1. Neu email khong dung dinh dang
+              if (!isValid) {
+                return (
+                  <div key={idx} className='flex items-center gap-1.5' style={{ fontSize: '12px' }}>
+                    <span style={{ color: '#ff4d4f' }}>{trimmed}</span>
+                    <Tag
+                      color='error'
+                      style={{
+                        fontSize: '10px',
+                        margin: 0,
+                        padding: '0 4px',
+                        lineHeight: '18px',
+                        height: '18px',
+                      }}
+                    >
+                      Sai cú pháp
+                    </Tag>
+                  </div>
+                );
+              }
+
+              // 2. Neu co chi tiet tu JSON trang thai
+              if (detail) {
+                if (detail.status === 'SUCCESS') {
+                  return (
+                    <div key={idx} className='flex items-center gap-1.5' style={{ fontSize: '12px' }}>
+                      <span style={{ color: '#2b8a3e', fontWeight: 500 }}>{trimmed}</span>
+                      <Tag
+                        color='success'
+                        style={{
+                          fontSize: '10px',
+                          margin: 0,
+                          padding: '0 4px',
+                          lineHeight: '18px',
+                          height: '18px',
+                        }}
+                      >
+                        Đã gửi
+                      </Tag>
+                    </div>
+                  );
+                }
+
+                if (detail.status === 'FAILED') {
+                  return (
+                    <div key={idx} className='flex items-center gap-1.5' style={{ fontSize: '12px' }}>
+                      <span style={{ color: '#d32f2f', fontWeight: 500 }}>{trimmed}</span>
+                      <Tooltip title={detail.error || 'Gửi thất bại'}>
+                        <Tag
+                          color='error'
+                          style={{
+                            fontSize: '10px',
+                            margin: 0,
+                            padding: '0 4px',
+                            lineHeight: '18px',
+                            height: '18px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Thất bại
+                        </Tag>
+                      </Tooltip>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div key={idx} className='flex items-center gap-1.5' style={{ fontSize: '12px' }}>
+                    <span style={{ color: '#595959' }}>{trimmed}</span>
+                    <Tag
+                      color='default'
+                      style={{
+                        fontSize: '10px',
+                        margin: 0,
+                        padding: '0 4px',
+                        lineHeight: '18px',
+                        height: '18px',
+                      }}
+                    >
+                      Chờ gửi
+                    </Tag>
+                  </div>
+                );
+              }
+
+              // 3. Fallback cho du lieu cu (overall string) hoac chua gui
+              if (parsedStatus.overall === 'SEND_SUCCESS') {
+                return (
+                  <div key={idx} className='flex items-center gap-1.5' style={{ fontSize: '12px' }}>
+                    <span style={{ color: '#2b8a3e', fontWeight: 500 }}>{trimmed}</span>
+                    <Tag
+                      color='success'
+                      style={{
+                        fontSize: '10px',
+                        margin: 0,
+                        padding: '0 4px',
+                        lineHeight: '18px',
+                        height: '18px',
+                      }}
+                    >
+                      Đã gửi
+                    </Tag>
+                  </div>
+                );
+              }
+
+              if (parsedStatus.overall === 'SEND_FAILED') {
+                return (
+                  <div key={idx} className='flex items-center gap-1.5' style={{ fontSize: '12px' }}>
+                    <span style={{ color: '#d32f2f', fontWeight: 500 }}>{trimmed}</span>
+                    <Tag
+                      color='error'
+                      style={{
+                        fontSize: '10px',
+                        margin: 0,
+                        padding: '0 4px',
+                        lineHeight: '18px',
+                        height: '18px',
+                      }}
+                    >
+                      Thất bại
+                    </Tag>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={idx} style={{ fontSize: '12px', color: '#1677ff' }}>
+                  {trimmed}
+                </div>
+              );
+            })}
           </div>
         );
       },
@@ -124,26 +340,33 @@ const TableDetailNotice = (props: Props) => {
       title: 'Trạng thái gửi Email',
       dataIndex: 'status',
       render: (status, record: any) => {
-        const pointEmail =
-          record?.measurementPoint?.email?.trim() ||
-          record?.measurementPoint?.customer?.email?.trim();
-        const hasValidEmail = Boolean(pointEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pointEmail));
+        const emails = getPointEmails(record);
+        const hasValidEmails = emails.length > 0 && emails.every(isEmailFormatValid);
 
-        // 1. Neu diem do chua co email hoac email khong hop le -> luon hien thi Chua cau hinh Email
-        if (!hasValidEmail) {
+        // 1. Neu diem do chua co email hoac email khong hop le -> luon hien thi canh bao
+        if (emails.length === 0) {
           return <Tag color='warning'>Chưa cấu hình Email</Tag>;
         }
+        if (!hasValidEmails) {
+          return <Tag color='error'>Email không hợp lệ</Tag>;
+        }
 
-        // 2. Neu diem do da co email hop le -> hien thi theo tien trinh gui
-        switch (status) {
+        const parsed = parseStatusDetail(status);
+        switch (parsed.overall) {
           case 'SEND_SUCCESS':
             return <Tag color='success'>Thành công</Tag>;
+          case 'PARTIAL_SUCCESS': {
+            const successCount = parsed.details.filter((d) => d.status === 'SUCCESS').length;
+            const totalCount = emails.length || parsed.details.length;
+            return <Tag color='orange'>Gửi một phần ({successCount}/{totalCount})</Tag>;
+          }
           case 'SEND_FAILED':
             return <Tag color='error'>Thất bại</Tag>;
           case 'PENDING':
           case 'PROCESSING':
             return <Tag color='processing'>Chờ gửi</Tag>;
           case 'NO_EMAIL_CONFIGURED':
+            return <Tag color='warning'>Chưa cấu hình Email</Tag>;
           default:
             return <Tag color='default'>Chưa gửi</Tag>;
         }
@@ -153,18 +376,20 @@ const TableDetailNotice = (props: Props) => {
       title: 'Thời gian gửi gần nhất',
       dataIndex: 'sentTime',
       render: (sentTime, record: any) => {
-        const pointEmail =
-          record?.measurementPoint?.email?.trim() ||
-          record?.measurementPoint?.customer?.email?.trim();
-        const hasValidEmail = Boolean(pointEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pointEmail));
+        const emails = getPointEmails(record);
+        const hasValidEmails = emails.length > 0 && emails.every(isEmailFormatValid);
+        const parsed = parseStatusDetail(record?.status);
+        const latestTime = parsed.sentTime || sentTime;
 
-        // Chi hien thi thoi gian gui khi da thuc su gui thanh cong hoac that bai
+        // Chi hien thi thoi gian gui khi da thuc su gui
         if (
-          hasValidEmail &&
-          (record?.status === 'SEND_SUCCESS' || record?.status === 'SEND_FAILED') &&
-          sentTime
+          hasValidEmails &&
+          (parsed.overall === 'SEND_SUCCESS' ||
+            parsed.overall === 'PARTIAL_SUCCESS' ||
+            parsed.overall === 'SEND_FAILED') &&
+          latestTime
         ) {
-          return <div>{convertDateTime(sentTime, 'dd/mm/yyyy hh:mi:ss')}</div>;
+          return <div>{convertDateTime(latestTime, 'dd/mm/yyyy hh:mi:ss')}</div>;
         }
 
         return <span style={{ color: '#bfbfbf' }}>-</span>;

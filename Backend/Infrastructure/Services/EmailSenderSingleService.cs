@@ -260,6 +260,20 @@ public class EmailSenderSingleService
         return container.Border(0.5f).BorderColor(Colors.Black).Padding(5);
     }
     
+    private static bool IsValidEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return false;
+        try
+        {
+            var addr = new MailAddress(email.Trim());
+            return addr.Address == email.Trim();
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public async Task SendEmailsInBackground(List<long> statementIds, int monthGcs, int yearGcs, int periodNumber, long gcsId)
     {
         try
@@ -268,11 +282,39 @@ public class EmailSenderSingleService
             var systemConfig = await _systemConfigReadOnlyRepository.GetListSystemConfigAsync(CancellationToken.None);
             foreach (var item in periodicEnergyStatement)
             {
-                var mail = new List<MailAddress>();
-                if (!string.IsNullOrEmpty(item.MeasurementPoint.Email2))
-                    mail.Add(new MailAddress(item.MeasurementPoint.Email2));
-                if (!string.IsNullOrEmpty(item.MeasurementPoint.Email3))
-                    mail.Add(new MailAddress(item.MeasurementPoint.Email3));
+                var recipients = new List<string>();
+                if (!string.IsNullOrWhiteSpace(item.MeasurementPoint?.Email))
+                    recipients.Add(item.MeasurementPoint.Email.Trim());
+                if (!string.IsNullOrWhiteSpace(item.MeasurementPoint?.Email2))
+                    recipients.Add(item.MeasurementPoint.Email2.Trim());
+                if (!string.IsNullOrWhiteSpace(item.MeasurementPoint?.Email3))
+                    recipients.Add(item.MeasurementPoint.Email3.Trim());
+
+                if (recipients.Count == 0 && !string.IsNullOrWhiteSpace(item.MeasurementPoint?.Customer?.Email))
+                {
+                    recipients.Add(item.MeasurementPoint.Customer.Email.Trim());
+                }
+
+                if (recipients.Count == 0)
+                {
+                    item.Status = "NO_EMAIL_CONFIGURED";
+                    item.SentTime = _dateTimeService.UtcNow();
+                    await _periodicEnergyStatementReadWriteRepository.UpdateAsync(item, CancellationToken.None);
+                    continue;
+                }
+
+                var invalidEmails = recipients.Where(e => !IsValidEmail(e)).ToList();
+                if (invalidEmails.Any())
+                {
+                    item.Status = "SEND_FAILED";
+                    item.SentTime = _dateTimeService.UtcNow();
+                    await _periodicEnergyStatementReadWriteRepository.UpdateAsync(item, CancellationToken.None);
+                    continue;
+                }
+
+                var primaryEmail = recipients[0];
+                var ccEmails = recipients.Skip(1).Select(e => new MailAddress(e)).ToList();
+
                 var day = item.Day == 1
                     ? DateTime.DaysInMonth(
                         item.Year,
@@ -291,10 +333,14 @@ public class EmailSenderSingleService
                     using var pdfStream = GenerateMonthlyPowerMeterReadingPdf(item);
                     var attachment = new Attachment(pdfStream, "InvoiceReport.pdf", "application/pdf");
 
+                    var careFullname = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCareFullname)?.Value ?? "CSKH MDMS";
+                    var careEmail = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCareEmail)?.Value ?? "cskh@mdms.vn";
+                    var carePhone = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCarePhone)?.Value ?? "19001006";
+
                     await _mailingService.SendEmailAsync(new Email()
                     {
-                        To = new List<MailAddress> { new MailAddress(item.MeasurementPoint.Email) },
-                        Cc = item.MeasurementPoint.Email2 != null ? mail : null,
+                        To = new List<MailAddress> { new MailAddress(primaryEmail) },
+                        Cc = ccEmails.Any() ? ccEmails : null,
                         Subject = $"Phiếu Báo Số {item.SerialNumber} - {item.MeasurementPoint.Customer.FullName}",
                         Body = $@"<html>
                             <body>
@@ -329,7 +375,7 @@ public class EmailSenderSingleService
                                     </li>
                                 </ul>
                                 <p></p>
-                                <p>Quý khách vui lòng kiểm tra thông tin trên phiếu báo đính kèm. Nếu có bất kỳ thắc mắc hoặc cần hỗ trợ thêm thông tin, xin vui lòng liên hệ với {systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCareFullname).Value} qua email {systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCareEmail).Value} hoặc số điện thoại {systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCarePhone).Value} để được giải đáp kịp thời</p>
+                                <p>Quý khách vui lòng kiểm tra thông tin trên phiếu báo đính kèm. Nếu có bất kỳ thắc mắc hoặc cần hỗ trợ thêm thông tin, xin vui lòng liên hệ với {careFullname} qua email {careEmail} hoặc số điện thoại {carePhone} để được giải đáp kịp thời</p>
                                 <p>Xin chân thành cảm ơn và rất mong được hợp tác với Quý khách.</p>
                                 <p>Trân trọng,</p>
                             </body>

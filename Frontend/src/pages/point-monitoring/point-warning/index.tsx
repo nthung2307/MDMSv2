@@ -46,6 +46,14 @@ const PointMonitoringWarning = () => {
     hasPrevious: boolean;
   }>({ hasNext: false, hasPrevious: false });
 
+  const currentParamsRef = useRef<GetListMeasurementPointMonitoringRequest | undefined>(
+    getListMeasurementParamsRequest
+  );
+  currentParamsRef.current = getListMeasurementParamsRequest;
+
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
+
   const firstCustomerID = data?.[0]?.id;
   const lastCustomerID = data?.[data.length - 1]?.id;
 
@@ -118,7 +126,10 @@ const PointMonitoringWarning = () => {
       pageSize,
       ...(before && { before }),
       ...(after && { after }),
-      ...(measurementpointCode && { measurementpointCode }),
+      ...(measurementpointCode && {
+        measurementpointCode,
+        measurementPointCode: measurementpointCode,
+      }),
       ...(startDate && { startDate: await getISODate(startDate) }),
       ...(endDate && { endDate: await getISODate(endDate) }),
       searchByFields: searchByFields.length > 0 ? searchByFields : [],
@@ -140,22 +151,76 @@ const PointMonitoringWarning = () => {
     );
   };
 
+  const refreshCurrentPageAsync = async () => {
+    const currentParams = currentParamsRef.current || {};
+    const currentSize = sizeRef.current || 10;
+    const measurementpointCode =
+      currentParams.measurementpointCode || currentParams.measurementPointCode;
+    const params: GetListMeasurementPointMonitoringRequest = {
+      pageSize: currentParams.pageSize || currentSize,
+      ...(currentParams.before && { before: currentParams.before }),
+      ...(currentParams.after && { after: currentParams.after }),
+      ...(measurementpointCode && {
+        measurementpointCode,
+        measurementPointCode,
+      }),
+      ...(currentParams.startDate && { startDate: await getISODate(currentParams.startDate) }),
+      ...(currentParams.endDate && { endDate: await getISODate(currentParams.endDate) }),
+      searchByFields: currentParams.searchByFields?.length ? currentParams.searchByFields : [],
+      sortByFields: currentParams.sortByFields?.length ? currentParams.sortByFields : [],
+    };
+
+    await getListMeasurementPointAlert(
+      params,
+      (res: DataResponse) => {
+        const { data: resData } = res;
+        setData(resData?.data || []);
+        setPaginationData({
+          hasNext: resData?.hasNext || false,
+          hasPrevious: resData?.hasPrevious || false,
+        });
+      },
+      () => {},
+      () => {} // Silent refresh without popping table loading overlay
+    );
+  };
+
   const dataExport = data?.map((item) => ({
     createdTime: convertDateTime(item.createdTime, 'dd-mm-yyyy hh:mm:ss') ?? 'N/A',
-    main: `${item.measurementPointCode ?? 'N/A'} - ${item.customerName ?? 'N/A'}`,
+    measurementPointCode: item.measurementPointCode ?? 'N/A',
+    customerName: item.customerName ?? 'N/A',
     eventName: item.eventName ? item.eventName : 'N/A',
     status: `${item.status.charAt(0)}${item.status.slice(1).toLowerCase()}`,
     value: item.value ? 1 : 0,
   }));
+
   // Effect for fetching data
   useEffect(() => {
     getListMeasurementPointAlertAsync({
       ...getListMeasurementParamsRequest,
     });
   }, [size, getListMeasurementParamsRequest]);
+
   useEffect(() => {
-    getListMeasurementPointAlertAsync({ ...getListMeasurementParamsRequest });
-  }, [dataSocket, countState]);
+    if (dataSocket) {
+      refreshCurrentPageAsync();
+      setDataSocket(null);
+    }
+  }, [dataSocket]);
+
+  useEffect(() => {
+    if (countState) {
+      refreshCurrentPageAsync();
+    }
+  }, [countState]);
+
+  useEffect(() => {
+    // Tự động kiểm tra và refresh dữ liệu định kỳ (mỗi 15 giây) để đảm bảo dữ liệu luôn mới nhất
+    const interval = setInterval(() => {
+      refreshCurrentPageAsync();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <>
@@ -198,9 +263,10 @@ const PointMonitoringWarning = () => {
                     label={null}
                     attribute={'measurementPointCode'}
                     dataAttribute={dataForm?.measurementPointCode}
-                    placeholder={_t('Nguồn')}
+                    placeholder={_t('Mã điểm đo')}
                     setData={setDataForm}
                     isRequired={false}
+                    allowClear={true}
                   />
                 </div>
                 <div className='basis-1/3'>
@@ -211,6 +277,7 @@ const PointMonitoringWarning = () => {
                     setData={setDataForm}
                     isRequired={false}
                     placeholder={_t('Tên cảnh báo')}
+                    allowClear={true}
                   />
                 </div>
               </div>

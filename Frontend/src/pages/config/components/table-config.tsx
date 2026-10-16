@@ -40,17 +40,9 @@ const TableConfigManagement = (props: Props) => {
       dataIndex: 'type',
     },
     {
-      title: 'Địa chỉ',
-      dataIndex: 'address',
-      width: '15%',
-      render: (text) => {
-        return text ? <span>{text}</span> : <span>N/A</span>;
-      },
-    },
-    {
       title: 'Mô tả',
       dataIndex: 'description',
-      width: '15%',
+      width: '20%',
       render: (text) => {
         return text ? <span>{text}</span> : <span>N/A</span>;
       },
@@ -58,7 +50,7 @@ const TableConfigManagement = (props: Props) => {
     {
       title: 'Tên khách hàng',
       dataIndex: 'customer',
-      width: '15%',
+      width: '20%',
       render: (record) => {
         return record ? <span>{record.fullName}</span> : <span>N/A</span>;
       },
@@ -87,17 +79,11 @@ const TableConfigManagement = (props: Props) => {
             key: '1',
             label: 'Chi tiết',
             onClick: () => {
-              navigate(
-                ROUTE_PATH.DATA_MEASUREMENT_POINT.replace(
-                  Constants.ReplaceRouterConfig.id,
-                  record.key
-                ),
-                {
-                  state: {
-                    record: record,
-                  },
-                }
-              );
+              const url = `${ROUTE_PATH.DATA_MEASUREMENT_POINT.replace(
+                Constants.ReplaceRouterConfig.id,
+                record.key
+              )}?code=${encodeURIComponent(record.code || '')}&name=${encodeURIComponent(record.customer?.fullName || '')}`;
+              window.open(url, '_blank');
             },
           },
         ];

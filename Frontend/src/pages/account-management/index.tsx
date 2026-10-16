@@ -171,7 +171,7 @@ const AccountManagement = () => {
       align: 'left',
     },
     {
-      title: 'Số điện thoại',
+      title: 'Điện thoại',
       dataIndex: 'phoneNumber',
       align: 'left',
     },
@@ -188,7 +188,7 @@ const AccountManagement = () => {
       render: (_, record) => {
         const isActive = record.status === Constants.CustomerStatus.Active;
         const backgroundColor = isActive ? '#41A026' : '#B22222';
-        const statusText = isActive ? 'Hoạt động' : 'Vô hiệu';
+        const statusText = isActive ? 'Đang hoạt động' : 'Vô hiệu';
         return (
           <StatusTagCommon status={statusText} bgColor={backgroundColor} textColor={'#FFFFFF'} />
         );
@@ -204,9 +204,11 @@ const AccountManagement = () => {
             key: '1',
             label: 'Chi tiết',
             onClick: () => {
-              navigate(
-                ROUTE_PATH.ACCOUNT_DETAIL.replace(Constants.ReplaceRouterConfig.id, record.id)
+              const url = ROUTE_PATH.ACCOUNT_DETAIL.replace(
+                Constants.ReplaceRouterConfig.id,
+                record.id
               );
+              window.open(url, '_blank');
             },
           },
         ];
@@ -312,7 +314,7 @@ const AccountManagement = () => {
                 setData={setDataForm}
                 isRequired={false}
                 listDataItem={[
-                  { label: 'Hoạt động', value: Constants.AccountStatus.Active },
+                  { label: 'Đang hoạt động', value: Constants.AccountStatus.Active },
                   { label: 'Vô hiệu', value: Constants.AccountStatus.Deactivate },
                 ]}
                 placeholder={_t('Trạng thái')}

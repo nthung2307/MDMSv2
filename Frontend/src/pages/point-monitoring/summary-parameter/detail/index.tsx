@@ -128,20 +128,23 @@ const PointMonitoringDetail = () => {
     return dataUser[quantityKey] ? (dataUser[warningKey] ? 'warning' : 'normal') : 'quanlity';
   };
   useEffect(() => {
-    // if (isFirstLoad.current) {
-    //   getMeasurementPointMonitoringAsync();
-    // } else {
-    // }
     getMeasurementPointMonitoringNoLoadingAsync();
 
-    // if (isFirstLoad.current) {
-    //   isFirstLoad.current = false;
-    // }
-  }, [alertState, countState]);
+    // Tự động cập nhật dữ liệu định kỳ (mỗi 10 giây) từ REST API
+    const interval = setInterval(() => {
+      getMeasurementPointMonitoringNoLoadingAsync();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [id, alertState, countState]);
 
   useEffect(() => {
     if (dataSocket) {
-      setDataUser({ ...dataUser, ...dataSocket });
+      // 1. Cập nhật tức thời các trường dữ liệu có sẵn từ WebSocket
+      setDataUser((prev) => ({ ...prev, ...dataSocket }));
+
+      // 2. Tự động gọi REST API để cập nhật và làm mới toàn bộ thông số chi tiết của điểm đo
+      getMeasurementPointMonitoringNoLoadingAsync();
     }
   }, [dataSocket]);
   const electricParam = Array.from({ length: 3 }, (_, i) =>

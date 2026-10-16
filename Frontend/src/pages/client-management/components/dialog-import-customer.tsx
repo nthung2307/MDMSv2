@@ -58,14 +58,14 @@ const DialogImportCustomer = ({ open, handleCancel, onSuccess }: Props) => {
 
   const handleUpload = async () => {
     if (fileList.length === 0) {
-      notifyError('Vui lòng chọn tệp CSV trước khi nhập!');
+      notifyError('', 'Vui lòng chọn tệp CSV trước khi nhập!');
       return;
     }
 
     const selected = fileList[0];
     const file = ((selected as any)?.originFileObj || selected) as File;
     if (!file) {
-      notifyError('Tệp không hợp lệ, vui lòng chọn lại!');
+      notifyError('', 'Tệp không hợp lệ, vui lòng chọn lại!');
       return;
     }
 
@@ -74,6 +74,7 @@ const DialogImportCustomer = ({ open, handleCancel, onSuccess }: Props) => {
       (resData: ImportResult) => {
         setResult(resData);
         notifySuccess(
+          '',
           `Nhập dữ liệu thành công! Cập nhật: ${resData.updatedCount}, Thêm mới: ${resData.insertedCount}, Lỗi: ${resData.errorCount}`
         );
         onSuccess();
@@ -81,7 +82,7 @@ const DialogImportCustomer = ({ open, handleCancel, onSuccess }: Props) => {
       (err: any) => {
         const errorMsg =
           err?.data?.message || err?.message || 'Có lỗi xảy ra khi nhập dữ liệu từ CSV!';
-        notifyError(errorMsg);
+        notifyError('', errorMsg);
       },
       setLoading
     );
@@ -165,7 +166,7 @@ const DialogImportCustomer = ({ open, handleCancel, onSuccess }: Props) => {
                 file.type === 'text/csv' ||
                 file.type === 'application/vnd.ms-excel';
               if (!isCsv) {
-                notifyError('Chỉ chấp nhận tệp định dạng .csv!');
+                notifyError('', 'Chỉ chấp nhận tệp định dạng .csv!');
                 return Upload.LIST_IGNORE;
               }
               setFileList([file]);

@@ -13,6 +13,9 @@ public class ListMeasurementPointDto
     public CustomerEntity Customer { get; set; }
     public string Status { get; set; }
     public double MultiplierFactor { get; set; }
+    public string? Email { get; set; }
+    public string? Email2 { get; set; }
+    public string? Email3 { get; set; }
     public DateTimeOffset? CreatedTime { get; set; }
     public long? CreatedBy { get; set; }
     public string? CreatedName { get; set; }

@@ -94,7 +94,7 @@ const TableClientPoint = (props: Props) => {
           render={(val) => {
             const isActive = val === Constants.CustomerStatus.Active;
             const backgroundColor = isActive ? '#41A026' : '#B22222';
-            const statusText = isActive ? 'Hoạt động' : 'Ngưng hoạt động';
+            const statusText = isActive ? 'Đang sử dụng' : 'Ngừng sử dụng';
             return (
               <div className='flex justify-center w-full'>
                 <StatusTagCommon

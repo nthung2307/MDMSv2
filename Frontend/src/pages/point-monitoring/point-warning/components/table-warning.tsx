@@ -19,7 +19,7 @@ const TableWarning = (props: Props) => {
     {
       title: 'Thời gian',
       dataIndex: 'createdTime',
-      width: '15%',
+      width: '16%',
       render: (record) => {
         return record ? (
           <span>{convertDateTime(record, 'dd/mm/yyyy hh:mi:ss')}</span>
@@ -29,26 +29,35 @@ const TableWarning = (props: Props) => {
       },
     },
     {
-      title: 'Nguồn',
+      title: 'Mã điểm đo',
+      dataIndex: 'measurementPointCode',
       align: 'left',
-      render: (record) => {
-        return (
-          <span>{`${record.measurementPointCode ?? 'N/A'} - ${record.customerName ?? 'N/A'}`}</span>
-        );
+      width: '18%',
+      render: (val) => {
+        return <span>{val ?? 'N/A'}</span>;
+      },
+    },
+    {
+      title: 'Tên khách hàng',
+      dataIndex: 'customerName',
+      align: 'left',
+      width: '30%',
+      render: (val) => {
+        return <span>{val ?? 'N/A'}</span>;
       },
     },
     {
       title: 'Tên cảnh báo',
       dataIndex: 'eventName',
       align: 'left',
-      width: '15%',
+      width: '20%',
       render: (record) => {
         return record ? <span>{record}</span> : <span>N/A</span>;
       },
     },
     {
       title: 'Trạng thái',
-      align: 'left',
+      align: 'center',
       dataIndex: 'status',
       width: '10%',
       render: (record) => {
@@ -58,8 +67,8 @@ const TableWarning = (props: Props) => {
     {
       title: 'Giá trị',
       dataIndex: 'value',
-      align: 'left',
-      width: '10%',
+      align: 'center',
+      width: '6%',
       render: (record) => {
         return <span>{record ? 1 : 0}</span>;
       },
@@ -72,16 +81,19 @@ const TableWarning = (props: Props) => {
       dataSource={dataSource}
       pagination={false}
       loading={loading}
-      scroll={{ x: 'max-content', y: window.innerHeight * 0.66 }}
+      scroll={{ x: 1000, y: window.innerHeight * 0.66 }}
       onRow={(record) => {
         return {
           onClick: () => {
-            navigate(
-              ROUTE_PATH.POINT_MONITORING_DETAIL.replace(
-                Constants.ReplaceRouterConfig.type,
-                record.measurementPoints.tagName.tagName
-              )
-            );
+            const code = record.measurementPointCode;
+            if (code) {
+              navigate(
+                ROUTE_PATH.POINT_MONITORING_DETAIL.replace(
+                  Constants.ReplaceRouterConfig.id,
+                  code
+                )
+              );
+            }
           },
         };
       }}

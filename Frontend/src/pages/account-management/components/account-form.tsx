@@ -126,7 +126,7 @@ const AccountForm = (props: IAccountForm) => {
           </div>
           <div className='basis-1/2'>
             <InputNumberCommon
-              label={_t('Số điện thoại')}
+              label={_t('Điện thoại')}
               attribute={'phoneNumber'}
               dataAttribute={data?.phoneNumber}
               setData={setData}

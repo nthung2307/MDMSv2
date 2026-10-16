@@ -57,11 +57,15 @@ public class PeriodicEnergyStatementReadOnlyRepository : RestfulRepository<Perio
                 {
                     if (val == "SEND_SUCCESS")
                     {
-                        query = query.Where(x => x.Status == "SEND_SUCCESS");
+                        query = query.Where(x => x.Status == "SEND_SUCCESS" || (x.Status != null && x.Status.Contains("\"overall\":\"SEND_SUCCESS\"")));
                     }
                     else if (val == "SEND_FAILED")
                     {
-                        query = query.Where(x => x.Status == "SEND_FAILED");
+                        query = query.Where(x => x.Status == "SEND_FAILED" || (x.Status != null && (x.Status.Contains("\"overall\":\"SEND_FAILED\"") || x.Status.Contains("\"overall\":\"PARTIAL_SUCCESS\""))));
+                    }
+                    else if (val == "PARTIAL_SUCCESS")
+                    {
+                        query = query.Where(x => x.Status != null && x.Status.Contains("\"overall\":\"PARTIAL_SUCCESS\""));
                     }
                     else if (val == "NO_EMAIL" || val == "NO_EMAIL_CONFIGURED")
                     {
@@ -74,7 +78,8 @@ public class PeriodicEnergyStatementReadOnlyRepository : RestfulRepository<Perio
                         query = query.Where(x =>
                             ((x.MeasurementPoint.Email != null && x.MeasurementPoint.Email.Contains("@")) ||
                              (x.MeasurementPoint.Customer != null && x.MeasurementPoint.Customer.Email != null && x.MeasurementPoint.Customer.Email.Contains("@"))) &&
-                            x.Status != "SEND_SUCCESS" && x.Status != "SEND_FAILED");
+                            x.Status != "SEND_SUCCESS" && x.Status != "SEND_FAILED" &&
+                            (x.Status == null || (!x.Status.Contains("\"overall\":\"SEND_SUCCESS\"") && !x.Status.Contains("\"overall\":\"SEND_FAILED\"") && !x.Status.Contains("\"overall\":\"PARTIAL_SUCCESS\""))));
                     }
                     else
                     {

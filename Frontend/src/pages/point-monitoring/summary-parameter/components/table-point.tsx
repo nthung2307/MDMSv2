@@ -1,6 +1,5 @@
 import { Dropdown, MenuProps, TableProps, Tooltip } from 'antd';
 import { BsThreeDots } from 'react-icons/bs';
-import { useNavigate } from 'react-router-dom';
 
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
 import Constants from '@/core/application/common/constants.ts';
@@ -13,7 +12,6 @@ interface Props {
 
 const TableSummary = (props: Props) => {
   const { dataSource, loading } = props;
-  const navigate = useNavigate();
 
   const renderValue = (val: number, quanlity: boolean, unit?: any) => {
     if (!val && !quanlity) return `????`;
@@ -35,18 +33,6 @@ const TableSummary = (props: Props) => {
       className: 'antd-action-table',
       render: (record) => {
         return record ? <span>{record}</span> : <span>N/A</span>;
-      },
-    },
-    {
-      title: 'Mô tả điểm đo',
-      width: 150,
-      dataIndex: 'measurementPointDescription',
-      render: (record) => {
-        return (
-          <Tooltip title={`${record}`}>
-            <div className='w-52 truncate'>{record ? <span>{record}</span> : <span>N/A</span>}</div>
-          </Tooltip>
-        );
       },
     },
     // {
@@ -164,12 +150,11 @@ const TableSummary = (props: Props) => {
             key: '1',
             label: 'Chi tiết',
             onClick: () => {
-              navigate(
-                ROUTE_PATH.POINT_MONITORING_DETAIL.replace(
-                  Constants.ReplaceRouterConfig.id,
-                  record.measurementPointCode
-                )
+              const url = ROUTE_PATH.POINT_MONITORING_DETAIL.replace(
+                Constants.ReplaceRouterConfig.id,
+                record.measurementPointCode
               );
+              window.open(url, '_blank');
             },
           },
         ];

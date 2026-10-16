@@ -64,6 +64,7 @@ export class Endpoint {
     static GetCountAlert: string = 'measurement-point-monitoring/cout-alert';
     static GetListMeasurementPointForReport: string =
       'measurement-points/get-list-measurement-points-for-report';
+    static ImportMeasurementPointCsv: string = 'measurement-points/import-csv';
   };
 
   static MeasurementPointMonitoring = class {

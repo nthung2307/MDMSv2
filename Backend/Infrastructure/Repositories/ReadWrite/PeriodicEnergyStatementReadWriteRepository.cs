@@ -31,7 +31,8 @@ namespace Infrastructure.Repositories.ReadWrite
             return await _periodicEnergyStatementEntities
                 .Include(x => x.MeasurementPoint)
                 .ThenInclude(x => x.Customer)
-                .Where(x => request.GcsId == x.GcsId && x.Month == request.Month && x.Year == request.Year && x.PeriodNumber == request.PeriodNumber && x.Status != "SEND_SUCCESS")
+                .Where(x => request.GcsId == x.GcsId && x.Month == request.Month && x.Year == request.Year && x.PeriodNumber == request.PeriodNumber &&
+                            x.Status != "SEND_SUCCESS" && (x.Status == null || !x.Status.Contains("\"overall\":\"SEND_SUCCESS\"")))
                 .ToListAsync(cancellationToken);
         }
 

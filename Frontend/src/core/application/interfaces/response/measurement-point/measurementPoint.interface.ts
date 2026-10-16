@@ -94,7 +94,11 @@ interface MeasurementPoint {
   description: string;
   userId: number;
   user: User;
+  customer?: any;
   email: string;
+  email2?: string;
+  email3?: string;
+  status?: string;
   createdTime: string;
   createdBy: number;
   createdName: string;

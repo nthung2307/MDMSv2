@@ -1,7 +1,7 @@
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import { Card } from 'antd';
 import { useEffect, useState } from 'react';
-import { FiShare } from 'react-icons/fi';
+import { FiDownload, FiShare } from 'react-icons/fi';
 import { IoBackspaceOutline, IoSearch } from 'react-icons/io5';
 import { useNavigate } from 'react-router-dom';
 
@@ -24,16 +24,18 @@ import useChangeMeasurementPointStatusHook from '@/infrastructure/repository/mea
 import useGetListMeasurementPointsHook from '@/infrastructure/repository/measurement-point/hooks/useGetListMeasurementPoints.hook';
 import { deleteParams } from '@/infrastructure/utils/helpers';
 import { _t } from '@/infrastructure/utils/translation';
+import DialogImportPoint from '@/pages/point-management/components/dialog-import-point';
 import TablePointManagement from '@/pages/point-management/components/table-point';
 
 const PointManagement = () => {
   const navigate = useNavigate();
   const [dataForm, setDataForm] = useStateDataForm({
-    fullName: '',
+    code: '',
     status: Constants.CustomerStatus.Active,
   });
   const [getListMeasurementPoints] = useGetListMeasurementPointsHook();
   const [isShowExport, setIsShowExport] = useState<boolean>(false);
+  const [isShowImport, setIsShowImport] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [size, setSize] = useState<number>(10);
   const [data, setData] = useState<any[]>([]);
@@ -61,18 +63,15 @@ const PointManagement = () => {
 
   const handleClearSearch = () => {
     setDataForm({
-      fullName: '',
       code: '',
       status: '',
     });
-    setGetListMeasurementParamsRequest({
-      searchByFields: [
-        {
-          searchFieldName: 'status',
-          searchValue: Constants.AccountStatus.Active,
-        },
-      ],
-      sortByFields: [],
+    setGetListMeasurementParamsRequest((prev) => {
+      const updatedParams = {
+        ...prev,
+        searchByFields: [],
+      };
+      return deleteParams(updatedParams, ['before', 'after']);
     });
   };
 
@@ -122,28 +121,30 @@ const PointManagement = () => {
     );
   };
 
-  const dataExport = data?.map((item, index) => {
+  // Sắp xếp thứ tự từ cũ đến mới (Điểm đo tạo cũ nhất hiển thị đầu danh sách)
+  const sortedData = [...(data ?? [])].sort((a, b) => {
+    const timeA = a.createdTime ? new Date(a.createdTime).getTime() : 0;
+    const timeB = b.createdTime ? new Date(b.createdTime).getTime() : 0;
+    return timeA - timeB || Number(a.id) - Number(b.id);
+  });
+
+  const dataExport = sortedData.map((item, index) => {
+    const emails = [item.email, item.email2, item.email3].filter(Boolean).join('; ');
     return {
       index: index + 1,
       code: item.code ?? 'N/A',
       type: item.type ?? 'N/A',
       address: item.address ?? 'N/A',
       description: item.description ?? 'N/A',
-      customer: item.customer.fullName ?? 'N/A',
+      customer: item.customer?.fullName ?? 'N/A',
+      emails: emails || '',
       status: item.status ?? 'N/A',
     };
   });
 
-  const debounceCustomerName = useDebounce(dataForm?.fullName, 300);
   const debounceCode = useDebounce(dataForm?.code, 300);
   useEffect(() => {
     const searchByFields: any = [];
-    if (debounceCustomerName) {
-      searchByFields.push({
-        searchFieldName: 'customer.fullName',
-        searchValue: debounceCustomerName,
-      });
-    }
     if (debounceCode) {
       searchByFields.push({
         searchFieldName: 'code',
@@ -164,7 +165,7 @@ const PointManagement = () => {
       };
       return deleteParams(updatedParams, ['before', 'after']);
     });
-  }, [debounceCustomerName, debounceCode, dataForm?.status]);
+  }, [debounceCode, dataForm?.status]);
   useEffect(() => {
     getListMeasurementPointsAsync({ ...getListMeasurementParamsRequest });
   }, [size, getListMeasurementParamsRequest]);
@@ -197,24 +198,24 @@ const PointManagement = () => {
             icon={<FiShare size={20} />}
             disabled={!(data && data.length > 0)}
           />
+
+          <PrivateComponent roles={[Constants.Role.SuperAdmin.value, Constants.Role.Admin.value]}>
+            <ButtonCommonCustomizable
+              title={''}
+              tooltipText={'Nhập từ CSV'}
+              onClick={() => {
+                setIsShowImport(true);
+              }}
+              icon={<FiDownload size={20} />}
+              classButton='text-button-variant'
+            />
+          </PrivateComponent>
         </div>
       </div>
       <Card className='mt-5 shadow-custom'>
         <div className='mb-5 flex justify-between items-center'>
           <div className='flex items-center w-2/3 gap-2'>
-            <div className='basis-4/5 flex items-center gap-3'>
-              <div className='basis-1/2'>
-                <InputTextCommon
-                  label={null}
-                  attribute={'fullName'}
-                  dataAttribute={dataForm?.fullName}
-                  placeholder={_t('Nhập tên khách hàng')}
-                  setData={setDataForm}
-                  isRequired={false}
-                  prefix={<IoSearch />}
-                  allowClear={true}
-                />
-              </div>
+            <div className='basis-4/5 flex items-center gap-2'>
               <div className='basis-1/2'>
                 <InputTextCommon
                   label={null}
@@ -223,6 +224,7 @@ const PointManagement = () => {
                   placeholder={_t('Nhập mã điểm đo')}
                   setData={setDataForm}
                   isRequired={false}
+                  prefix={<IoSearch />}
                   allowClear={true}
                 />
               </div>
@@ -243,7 +245,7 @@ const PointManagement = () => {
               </div>
             </div>
             <div className='flex gap-1'>
-              {dataForm?.fullName || dataForm?.status ? (
+              {dataForm?.code || dataForm?.status ? (
                 <ButtonCommonCustomizable
                   title={_t('')}
                   tooltipText='Xoá tất cả'
@@ -299,6 +301,17 @@ const PointManagement = () => {
         listHeader={Constants.listHeaderExport.PointManagement}
         fileNameCsv={'diemdo'}
         typeExportAll={'measurement-points'}
+        requestBody={getListMeasurementParamsRequest}
+      />
+      {/* Dialog import file */}
+      <DialogImportPoint
+        open={isShowImport}
+        handleCancel={() => {
+          setIsShowImport(false);
+        }}
+        onSuccess={() => {
+          getListMeasurementPointsAsync({ ...getListMeasurementParamsRequest });
+        }}
       />
       <DialogCommon
         title={''}

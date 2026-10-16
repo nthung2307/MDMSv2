@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Net.Mail;
+using System.Text.Json;
 using Application.Common;
+using Application.DataTransferObjects.Responses.PeriodicEnergyStatement;
 using Application.DataTransferObjects.Responses.SystemConfig;
 using Application.Repositories.ReadOnly;
 using Application.Repositories.ReadWrite;
@@ -335,6 +337,41 @@ public class EmailSenderService
         }
     }
 
+    private static StatementEmailStatusDetail ParseStatusDetail(string? rawStatus)
+    {
+        if (string.IsNullOrWhiteSpace(rawStatus))
+        {
+            return new StatementEmailStatusDetail { Overall = "UNSENT" };
+        }
+
+        var trimmed = rawStatus.Trim();
+        if (trimmed.StartsWith("{") && trimmed.EndsWith("}"))
+        {
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<StatementEmailStatusDetail>(trimmed, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+                if (parsed != null && !string.IsNullOrWhiteSpace(parsed.Overall))
+                {
+                    return parsed;
+                }
+            }
+            catch
+            {
+                // Fallback nếu chuỗi JSON không khớp
+            }
+        }
+
+        // Tương thích ngược với các chuỗi trạng thái cũ
+        return new StatementEmailStatusDetail
+        {
+            Overall = trimmed,
+            Details = new List<StatementEmailRecipientResult>()
+        };
+    }
+
     [AutomaticRetry(Attempts = 3, OnAttemptsExceeded = AttemptsExceededAction.Fail)]
     public async Task ProcessSingleStatementEmailAsync(long statementId, CancellationToken cancellationToken)
     {
@@ -347,30 +384,70 @@ public class EmailSenderService
             return;
         }
 
-        // Validate email address: Check MeasurementPoint.Email first, then fallback to Customer.Email
-        var targetEmail = !string.IsNullOrWhiteSpace(item.MeasurementPoint?.Email)
-            ? item.MeasurementPoint.Email.Trim()
-            : item.MeasurementPoint?.Customer?.Email?.Trim();
+        // 1. Thu thập tất cả các email được cấu hình cho điểm đo
+        var recipients = new List<string>();
+        if (!string.IsNullOrWhiteSpace(item.MeasurementPoint?.Email))
+            recipients.Add(item.MeasurementPoint.Email.Trim());
+        if (!string.IsNullOrWhiteSpace(item.MeasurementPoint?.Email2))
+            recipients.Add(item.MeasurementPoint.Email2.Trim());
+        if (!string.IsNullOrWhiteSpace(item.MeasurementPoint?.Email3))
+            recipients.Add(item.MeasurementPoint.Email3.Trim());
 
-        if (string.IsNullOrEmpty(targetEmail) || !IsValidEmail(targetEmail))
+        // Nếu điểm đo không có email nào, fallback sang email của khách hàng liên kết
+        if (recipients.Count == 0 && !string.IsNullOrWhiteSpace(item.MeasurementPoint?.Customer?.Email))
         {
-            _loggerService.LogInformation("Điểm đo {PointCode} (StatementId = {StatementId}) chưa cấu hình email hoặc email không hợp lệ: '{Email}'.",
-                item.MeasurementPoint?.Code, statementId, targetEmail);
-            item.Status = "NO_EMAIL_CONFIGURED";
-            item.SentTime = _dateTimeService.UtcNow();
+            recipients.Add(item.MeasurementPoint.Customer.Email.Trim());
+        }
+
+        recipients = recipients.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        // TIÊU CHÍ 1: Chưa cấu hình email
+        if (recipients.Count == 0)
+        {
+            _loggerService.LogInformation("Điểm đo {PointCode} (StatementId = {StatementId}) chưa cấu hình email nhận phiếu báo.",
+                item.MeasurementPoint?.Code, statementId);
+            var emptyStatus = new StatementEmailStatusDetail
+            {
+                Overall = "NO_EMAIL_CONFIGURED",
+                SentTime = _dateTimeService.UtcNow(),
+                Details = new List<StatementEmailRecipientResult>()
+            };
+            item.Status = JsonSerializer.Serialize(emptyStatus);
+            item.SentTime = emptyStatus.SentTime;
             await _periodicEnergyStatementReadWriteRepository.UpdateAsync(item, cancellationToken);
             await _periodicEnergyStatementReadWriteRepository.SaveChangesAsync(cancellationToken);
             return;
         }
 
+        // 2. Phân tích trạng thái cũ để nhận diện email nào ĐÃ THÀNH CÔNG trước đó (Smart Selective Resend)
+        var previousStatus = ParseStatusDetail(item.Status);
+        var alreadySuccessfulMap = previousStatus.Details
+            .Where(d => d.Status == "SUCCESS")
+            .GroupBy(d => d.Email.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        // Lọc danh sách email CẦN gửi (chưa gửi hoặc từng bị lỗi)
+        var emailsToSend = recipients
+            .Where(e => !alreadySuccessfulMap.ContainsKey(e))
+            .ToList();
+
+        // Nếu tất cả email đều đã gửi thành công trước đó -> Hoàn tất, KHÔNG GỬI TRÙNG LẶP
+        if (emailsToSend.Count == 0)
+        {
+            _loggerService.LogInformation("Tất cả email của điểm đo {PointCode} (StatementId = {StatementId}) đều đã gửi thành công trước đó. Bỏ qua gửi lại.",
+                item.MeasurementPoint?.Code, statementId);
+            if (previousStatus.Overall != "SEND_SUCCESS")
+            {
+                previousStatus.Overall = "SEND_SUCCESS";
+                item.Status = JsonSerializer.Serialize(previousStatus);
+                await _periodicEnergyStatementReadWriteRepository.UpdateAsync(item, cancellationToken);
+                await _periodicEnergyStatementReadWriteRepository.SaveChangesAsync(cancellationToken);
+            }
+            return;
+        }
+
         var systemConfig = await _systemConfigReadOnlyRepository
             .GetListSystemConfigAsync(cancellationToken);
-
-        var mail = new List<MailAddress>();
-        if (!string.IsNullOrEmpty(item.MeasurementPoint?.Email2) && IsValidEmail(item.MeasurementPoint.Email2))
-            mail.Add(new MailAddress(item.MeasurementPoint.Email2.Trim()));
-        if (!string.IsNullOrEmpty(item.MeasurementPoint?.Email3) && IsValidEmail(item.MeasurementPoint.Email3))
-            mail.Add(new MailAddress(item.MeasurementPoint.Email3.Trim()));
 
         var day = item.Day == 1
             ? DateTime.DaysInMonth(
@@ -385,78 +462,153 @@ public class EmailSenderService
             ? item.Year - 1
             : item.Year;
 
-        try
+        var careFullname = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCareFullname)?.Value ?? "CSKH MDMS";
+        var careEmail = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCareEmail)?.Value ?? "cskh@mdms.vn";
+        var carePhone = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCarePhone)?.Value ?? "19001006";
+
+        var bodyHtml = $@"<html>
+            <body>
+                <p>Kính gửi {item.MeasurementPoint?.Customer?.FullName},</p>
+                <p>Chúng tôi xin gửi đến Quý khách hàng phiếu báo số {item.SerialNumber} kèm theo email này.</p>
+                <p></p>
+                <p>Thông tin phiếu báo:</p>
+                <ul>
+                    <li>Tên khách hàng: {item.MeasurementPoint?.Customer?.FullName}</li>
+                    <li>Mã điểm đo: {item.MeasurementPoint?.Code}</li>
+                    <li>Thời gian: (Từ ngày {item.PreviousDay?.ToString() ?? "..."}/{item.PreviousMonth?.ToString() ?? "..."}/{item.PreviousYear?.ToString() ?? "....."} đến ngày {day}/{month}/{year})</li>
+                    <li>
+                        Chỉ số cũ <br>
+                        BT: {item.PreviousBt} <br> 
+                        CD: {item.PreviousCd} <br> 
+                        TD: {item.PreviousTd} <br>
+                        SG: {item.PreviousSg} <br>
+                    </li>
+                    <li>
+                        Chỉ số mới <br> 
+                        BT: {item.Bt} <br>
+                        CD: {item.Cd} <br>
+                        TD: {item.Td} <br>
+                        SG: {item.Sg} <br>
+                    </li>
+                    <li>
+                        Sản lượng tiêu thụ <br> 
+                        BT: {item.ConsumtionBt} <br> 
+                        CD: {item.ConsumtionCd} <br> 
+                        TD: {item.ConsumtionTd} <br> 
+                        SG: {item.ConsumtionSg}
+                    </li>
+                </ul>
+                <p></p>
+                <p>Quý khách vui lòng kiểm tra thông tin trên phiếu báo đính kèm. Nếu có bất kỳ thắc mắc hoặc cần hỗ trợ thêm thông tin, xin vui lòng liên hệ với {careFullname} qua email {careEmail} hoặc số điện thoại {carePhone} để được giải đáp kịp thời.</p>
+                <p>Xin chân thành cảm ơn và rất mong được hợp tác với Quý khách.</p>
+                <p>Trân trọng,</p>
+            </body>
+        </html>";
+
+        var newResults = new Dictionary<string, StatementEmailRecipientResult>(StringComparer.OrdinalIgnoreCase);
+
+        // 3. Tiến hành gửi bù cho từng email chưa hoàn tất
+        foreach (var email in emailsToSend)
         {
-            using var pdfStream = GenerateMonthlyPowerMeterReadingPdf(item);
-            var attachment = new Attachment(pdfStream, $"PhieuBaoSo_{item.SerialNumber}.pdf", "application/pdf");
-
-            var careFullname = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCareFullname)?.Value ?? "CSKH MDMS";
-            var careEmail = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCareEmail)?.Value ?? "cskh@mdms.vn";
-            var carePhone = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCarePhone)?.Value ?? "19001006";
-
-            await _mailingService.SendEmailAsync(new Email()
+            if (!IsValidEmail(email))
             {
-                To = new List<MailAddress> { new MailAddress(targetEmail) },
-                Cc = mail.Any() ? mail : null,
-                Subject = $"Phiếu Báo Số {item.SerialNumber} - {item.MeasurementPoint?.Customer?.FullName}",
-                Body = $@"<html>
-                    <body>
-                        <p>Kính gửi {item.MeasurementPoint?.Customer?.FullName},</p>
-                        <p>Chúng tôi xin gửi đến Quý khách hàng phiếu báo số {item.SerialNumber} kèm theo email này.</p>
-                        <p></p>
-                        <p>Thông tin phiếu báo:</p>
-                        <ul>
-                            <li>Tên khách hàng: {item.MeasurementPoint?.Customer?.FullName}</li>
-                            <li>Mã điểm đo: {item.MeasurementPoint?.Code}</li>
-                            <li>Thời gian: (Từ ngày {item.PreviousDay?.ToString() ?? "..."}/{item.PreviousMonth?.ToString() ?? "..."}/{item.PreviousYear?.ToString() ?? "....."} đến ngày {day}/{month}/{year})</li>
-                            <li>
-                                Chỉ số cũ <br>
-                                BT: {item.PreviousBt} <br> 
-                                CD: {item.PreviousCd} <br> 
-                                TD: {item.PreviousTd} <br>
-                                SG: {item.PreviousSg} <br>
-                            </li>
-                            <li>
-                                Chỉ số mới <br> 
-                                BT: {item.Bt} <br>
-                                CD: {item.Cd} <br>
-                                TD: {item.Td} <br>
-                                SG: {item.Sg} <br>
-                            </li>
-                            <li>
-                                Sản lượng tiêu thụ <br> 
-                                BT: {item.ConsumtionBt} <br> 
-                                CD: {item.ConsumtionCd} <br> 
-                                TD: {item.ConsumtionTd} <br> 
-                                SG: {item.ConsumtionSg}
-                            </li>
-                        </ul>
-                        <p></p>
-                        <p>Quý khách vui lòng kiểm tra thông tin trên phiếu báo đính kèm. Nếu có bất kỳ thắc mắc hoặc cần hỗ trợ thêm thông tin, xin vui lòng liên hệ với {careFullname} qua email {careEmail} hoặc số điện thoại {carePhone} để được giải đáp kịp thời.</p>
-                        <p>Xin chân thành cảm ơn và rất mong được hợp tác với Quý khách.</p>
-                        <p>Trân trọng,</p>
-                    </body>
-                </html>",
-                Attachments = new List<Attachment> { attachment }
-            }, cancellationToken);
+                newResults[email] = new StatementEmailRecipientResult
+                {
+                    Email = email,
+                    Status = "FAILED",
+                    Error = "Địa chỉ email không đúng định dạng cú pháp"
+                };
+                _loggerService.LogWarning("Email '{Email}' của điểm đo {PointCode} không đúng định dạng.", email, item.MeasurementPoint?.Code);
+                continue;
+            }
 
-            item.Status = "SEND_SUCCESS";
-            item.SentTime = _dateTimeService.UtcNow();
-            await _periodicEnergyStatementReadWriteRepository.UpdateAsync(item, cancellationToken);
-            await _periodicEnergyStatementReadWriteRepository.SaveChangesAsync(cancellationToken);
-            _loggerService.LogInformation("Gửi email thành công cho điểm đo {PointCode} (StatementId = {StatementId}) tới {Email}",
-                item.MeasurementPoint?.Code, statementId, targetEmail);
+            try
+            {
+                using var pdfStream = GenerateMonthlyPowerMeterReadingPdf(item);
+                var attachment = new Attachment(pdfStream, $"PhieuBaoSo_{item.SerialNumber}.pdf", "application/pdf");
+
+                await _mailingService.SendEmailAsync(new Email
+                {
+                    To = new List<MailAddress> { new MailAddress(email.Trim()) },
+                    Subject = $"Phiếu Báo Số {item.SerialNumber} - {item.MeasurementPoint?.Customer?.FullName}",
+                    Body = bodyHtml,
+                    Attachments = new List<Attachment> { attachment }
+                }, cancellationToken);
+
+                newResults[email] = new StatementEmailRecipientResult
+                {
+                    Email = email,
+                    Status = "SUCCESS",
+                    Error = null
+                };
+                _loggerService.LogInformation("Gửi email thành công tới {Email} (StatementId = {StatementId})", email, statementId);
+            }
+            catch (Exception ex)
+            {
+                newResults[email] = new StatementEmailRecipientResult
+                {
+                    Email = email,
+                    Status = "FAILED",
+                    Error = ex.Message
+                };
+                _loggerService.LogError(ex, "Lỗi khi gửi email tới {Email} (StatementId = {StatementId}): {Message}", email, statementId, ex.Message);
+            }
         }
-        catch (Exception ex)
+
+        // 4. Tổng hợp chi tiết kết quả cho toàn bộ recipients
+        var finalDetails = new List<StatementEmailRecipientResult>();
+        foreach (var r in recipients)
         {
-            _loggerService.LogError(ex, "Lỗi khi gửi email cho điểm đo {PointCode} (StatementId = {StatementId}) tới {Email}: {Message}",
-                item.MeasurementPoint?.Code, statementId, targetEmail, ex.Message);
-            item.Status = "SEND_FAILED";
-            item.SentTime = _dateTimeService.UtcNow();
-            await _periodicEnergyStatementReadWriteRepository.UpdateAsync(item, cancellationToken);
-            await _periodicEnergyStatementReadWriteRepository.SaveChangesAsync(cancellationToken);
-            throw; // Re-throw để kích hoạt cơ chế retry của Hangfire
+            if (newResults.TryGetValue(r, out var nr))
+            {
+                finalDetails.Add(nr);
+            }
+            else if (alreadySuccessfulMap.TryGetValue(r, out var ar))
+            {
+                finalDetails.Add(ar);
+            }
+            else
+            {
+                finalDetails.Add(new StatementEmailRecipientResult
+                {
+                    Email = r,
+                    Status = "PENDING"
+                });
+            }
         }
+
+        var totalCount = recipients.Count;
+        var successCount = finalDetails.Count(d => d.Status == "SUCCESS");
+        var failedCount = finalDetails.Count(d => d.Status == "FAILED");
+
+        string overallStatus;
+        if (successCount == totalCount)
+        {
+            overallStatus = "SEND_SUCCESS";
+        }
+        else if (successCount > 0)
+        {
+            overallStatus = "PARTIAL_SUCCESS";
+        }
+        else
+        {
+            overallStatus = "SEND_FAILED";
+        }
+
+        var statusDetail = new StatementEmailStatusDetail
+        {
+            Overall = overallStatus,
+            SentTime = _dateTimeService.UtcNow(),
+            Details = finalDetails
+        };
+
+        item.Status = JsonSerializer.Serialize(statusDetail);
+        item.SentTime = statusDetail.SentTime;
+        await _periodicEnergyStatementReadWriteRepository.UpdateAsync(item, cancellationToken);
+        await _periodicEnergyStatementReadWriteRepository.SaveChangesAsync(cancellationToken);
+
+        _loggerService.LogInformation("Hoàn tất xử lý gửi phiếu báo StatementId = {StatementId}: Trạng thái={Overall}, Thành công={Success}/{Total}",
+            statementId, overallStatus, successCount, totalCount);
     }
 
     public async Task SendEmailsInBackground(List<long> statementIds, int monthGcs, int yearGcs, int periodNumber, long gcsId)

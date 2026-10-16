@@ -34,7 +34,6 @@ const GCSManagement = () => {
   const [data, setData] = useState<IGCSListResponseInterface>();
   const [dataForm, setDataForm] = useStateDataForm({
     code: '',
-    name: '',
     status: Constants.CustomerStatus.Active,
   });
   const [getListGCSParamsRequest, setGetListGCSParamsRequest] = useState<GetListGCSRequest>({
@@ -53,7 +52,6 @@ const GCSManagement = () => {
   const lastRecordId = data?.data?.[data?.data?.length - 1]?.id;
 
   const debounceCode = useDebounce(dataForm?.code, 300);
-  const debounceName = useDebounce(dataForm?.name, 300);
 
   const getListGCSAsync = async ({
     before,
@@ -83,7 +81,6 @@ const GCSManagement = () => {
   const handleClearSearch = () => {
     setDataForm({
       code: '',
-      name: '',
       status: '',
     });
     setGetListGCSParamsRequest({
@@ -97,9 +94,6 @@ const GCSManagement = () => {
     if (debounceCode) {
       searchByFields.push({ searchFieldName: 'code', searchValue: debounceCode });
     }
-    if (debounceName) {
-      searchByFields.push({ searchFieldName: 'name', searchValue: debounceName });
-    }
     if (dataForm?.status) {
       searchByFields.push({ searchFieldName: 'status', searchValue: dataForm.status });
     }
@@ -111,7 +105,7 @@ const GCSManagement = () => {
       };
       return deleteParams(updated, ['before', 'after']);
     });
-  }, [debounceCode, debounceName, dataForm?.status]);
+  }, [debounceCode, dataForm?.status]);
 
   const columns: TableProps['columns'] = [
     {
@@ -161,15 +155,19 @@ const GCSManagement = () => {
             key: '1',
             label: 'Chi tiết',
             onClick: () => {
-              navigate(ROUTE_PATH.GCS_DETAILS.replace(Constants.ReplaceRouterConfig.id, record.id));
+              const url = ROUTE_PATH.GCS_DETAILS.replace(
+                Constants.ReplaceRouterConfig.id,
+                record.id
+              );
+              window.open(url, '_blank');
             },
           },
           {
             key: '3',
             label: 'Tra soát',
             onClick: () => {
-              // Pass record data and navigate to detail page
-              navigate(ROUTE_PATH.GCS_CHECK, { state: { record } });
+              const url = `${ROUTE_PATH.GCS_CHECK}?id=${record.id}&name=${encodeURIComponent(record.name || '')}&code=${encodeURIComponent(record.code || '')}`;
+              window.open(url, '_blank');
             },
           },
         ];
@@ -237,8 +235,8 @@ const GCSManagement = () => {
       <Card className='mt-5 shadow-custom'>
         <div className={'mb-5 flex justify-between items-center'}>
           <div className='flex items-center w-2/3 gap-2'>
-            <div className='basis-4/5 flex items-center gap-1'>
-              <div className='basis-1/3'>
+            <div className='basis-4/5 flex items-center gap-2'>
+              <div className='basis-1/2'>
                 <InputTextCommon
                   label={null}
                   attribute={'code'}
@@ -249,17 +247,7 @@ const GCSManagement = () => {
                   prefix={<IoSearch />}
                 />
               </div>
-              <div className='basis-1/3'>
-                <InputTextCommon
-                  label={null}
-                  attribute={'name'}
-                  dataAttribute={dataForm?.name}
-                  placeholder={_t('Nhập tên sổ')}
-                  setData={setDataForm}
-                  isRequired={false}
-                />
-              </div>
-              <div className='basis-1/3'>
+              <div className='basis-1/2'>
                 <InputSelectCommon
                   label={''}
                   attribute={'status'}
@@ -276,7 +264,7 @@ const GCSManagement = () => {
               </div>
             </div>
             <div className='flex gap-1'>
-              {dataForm?.code || dataForm?.name || dataForm?.status ? (
+              {dataForm?.code || dataForm?.status ? (
                 <ButtonCommonCustomizable
                   title={_t('')}
                   tooltipText='Xoá tất cả'

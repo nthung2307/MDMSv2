@@ -1,6 +1,5 @@
 import { Dropdown, MenuProps, TableProps, Tooltip } from 'antd';
 import { BsThreeDots } from 'react-icons/bs';
-import { useNavigate } from 'react-router-dom';
 
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
 import Constants from '@/core/application/common/constants.ts';
@@ -15,7 +14,6 @@ interface Props {
 
 const TablePointManagement = (props: Props) => {
   const { dataSource, loading } = props;
-  const navigate = useNavigate();
 
   const dataTable = dataSource.map((item: any, index: number) => {
     return {
@@ -60,7 +58,7 @@ const TablePointManagement = (props: Props) => {
       },
     },
     {
-      title: 'Tên KH',
+      title: 'Tên khách hàng',
       dataIndex: 'customer',
       width: 200,
       render: (record) => {
@@ -95,9 +93,8 @@ const TablePointManagement = (props: Props) => {
             key: '1',
             label: 'Chi tiết',
             onClick: () => {
-              navigate(ROUTE_PATH.POINT_DETAIL.replace(':id', record.key.toString()), {
-                replace: true,
-              });
+              const url = ROUTE_PATH.POINT_DETAIL.replace(':id', record.key.toString());
+              window.open(url, '_blank');
             },
           },
         ];

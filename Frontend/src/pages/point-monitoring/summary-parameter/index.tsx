@@ -1,5 +1,5 @@
 import { Card } from 'antd';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { FiShare } from 'react-icons/fi';
 import { IoBackspaceOutline, IoSearch } from 'react-icons/io5';
 
@@ -29,11 +29,21 @@ const PointMonitoring = () => {
   const [data, setData] = useState<any[]>();
   const [dataSocket, setDataSocket] = useState(null);
   const [isShowExport, setIsShowExport] = useState<boolean>(false);
-  const debounceSearch = useDebounce(dataForm.name, 300);
   const debounceSearchCode = useDebounce(dataForm.measurementPointCode, 300);
 
   const [getListMeasurementParamsRequest, setGetListMeasurementParamsRequest] =
     useState<GetListMeasurementPointMonitoringRequest>();
+
+  const currentParamsRef = useRef<GetListMeasurementPointMonitoringRequest | undefined>(
+    getListMeasurementParamsRequest
+  );
+  currentParamsRef.current = getListMeasurementParamsRequest;
+
+  const dataFormRef = useRef(dataForm);
+  dataFormRef.current = dataForm;
+
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
 
   const [paginationData, setPaginationData] = useState<{
     hasNext: boolean;
@@ -45,7 +55,6 @@ const PointMonitoring = () => {
 
   const handleClearSearch = () => {
     setDataForm({
-      name: '',
       measurementPointCode: '',
       connectionStatus: null,
     });
@@ -58,14 +67,12 @@ const PointMonitoring = () => {
     after,
     searchByFields = [],
     sortByFields = [],
-    customerName,
     measurementPointCode,
   }: GetListMeasurementPointMonitoringRequest) => {
     const params: GetListMeasurementPointMonitoringRequest = {
       pageSize: pageSize,
       ...(before && { before }),
       ...(after && { after }),
-      ...(customerName && { customerName }),
       ...(measurementPointCode && { measurementPointCode }),
       searchByFields: searchByFields.length > 0 ? searchByFields : [],
       sortByFields: sortByFields.length > 0 ? sortByFields : [],
@@ -92,6 +99,43 @@ const PointMonitoring = () => {
       },
       () => {},
       setLoading
+    );
+  };
+
+  const refreshCurrentPageAsync = async () => {
+    const currentParams = currentParamsRef.current || {};
+    const currentDataForm = dataFormRef.current || {};
+    const currentSize = sizeRef.current || 10;
+    const params: GetListMeasurementPointMonitoringRequest = {
+      pageSize: currentParams.pageSize || currentSize,
+      ...(currentParams.before && { before: currentParams.before }),
+      ...(currentParams.after && { after: currentParams.after }),
+      ...(currentParams.measurementPointCode && { measurementPointCode: currentParams.measurementPointCode }),
+      searchByFields: currentParams.searchByFields?.length ? currentParams.searchByFields : [],
+      sortByFields: currentParams.sortByFields?.length ? currentParams.sortByFields : [],
+    };
+
+    await getListMeasurementPointMonitoring(
+      params,
+      (res: DataResponse) => {
+        const { data: resData } = res;
+        let result = resData?.data || [];
+
+        // Apply filtering based on connectionStatus
+        if (currentDataForm.connectionStatus === 'normal') {
+          result = result.filter((item: any) => item.matKetNoi === false);
+        } else if (currentDataForm.connectionStatus === 'lost') {
+          result = result.filter((item: any) => item.matKetNoi === true || item.matKetNoi === null);
+        }
+
+        setData(result);
+        setPaginationData({
+          hasNext: resData?.hasNext || false,
+          hasPrevious: resData?.hasPrevious || false,
+        });
+      },
+      () => {},
+      () => {} // Silent refresh without popping table loading overlay
     );
   };
 
@@ -126,14 +170,12 @@ const PointMonitoring = () => {
     setGetListMeasurementParamsRequest((prev) => {
       const updated: any = {
         ...prev,
-        ...(debounceSearch && { customerName: debounceSearch }),
         ...(debounceSearchCode && { measurementPointCode: debounceSearchCode }),
       };
-      if (!debounceSearch) delete updated.customerName;
       if (!debounceSearchCode) delete updated.measurementPointCode;
       return deleteParams(updated, ['before', 'after']);
     });
-  }, [debounceSearch, debounceSearchCode, dataForm.connectionStatus]);
+  }, [debounceSearchCode, dataForm.connectionStatus]);
 
   useEffect(() => {
     getListMeasurementPointMonitoringAsync({
@@ -142,18 +184,40 @@ const PointMonitoring = () => {
   }, [size, getListMeasurementParamsRequest]);
 
   useEffect(() => {
-    if (!dataSocket?.data || !Array.isArray(dataSocket.data)) return;
-    setData((prevData) => {
-      if (!prevData || prevData.length === 0) return prevData;
-      const updatedMap = new Map(
-        dataSocket.data.map((item: any) => [item.measurementPointsId || item.id, item])
-      );
-      return prevData.map((item: any) => {
-        const update = updatedMap.get(item.measurementPointsId || item.id);
-        return update ? { ...item, ...update } : item;
+    if (!dataSocket) return;
+
+    // 1. Cập nhật tức thời (in-memory) cho các điểm đo trùng khớp đang hiển thị trên bảng
+    if (dataSocket.data && Array.isArray(dataSocket.data)) {
+      setData((prevData) => {
+        if (!prevData || prevData.length === 0) return prevData;
+        const updatedMap = new Map(
+          dataSocket.data.map((item: any) => [String(item.measurementPointsId || item.id), item])
+        );
+        let hasChanges = false;
+        const nextData = prevData.map((item: any) => {
+          const key = String(item.measurementPointsId || item.id);
+          const update = updatedMap.get(key);
+          if (update) {
+            hasChanges = true;
+            return { ...item, ...update };
+          }
+          return item;
+        });
+        return hasChanges ? nextData : prevData;
       });
-    });
+    }
+
+    // 2. Tự động refresh dữ liệu từ REST API cho đúng vị trí trang và bộ lọc hiện tại (không nhảy về trang đầu)
+    refreshCurrentPageAsync();
   }, [dataSocket]);
+
+  useEffect(() => {
+    // Tự động kiểm tra và refresh dữ liệu định kỳ (mỗi 15 giây) để đảm bảo dữ liệu luôn mới nhất
+    const interval = setInterval(() => {
+      refreshCurrentPageAsync();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <>
@@ -181,18 +245,7 @@ const PointMonitoring = () => {
         <Card className='mt-5 shadow-custom '>
           <div className='mb-5 flex justify-between items-center'>
             <div className='flex w-2/3 items-center gap-2'>
-              <div className='basis-4/5 flex items-center gap-1'>
-                <div className='basis-1/2'>
-                  <InputTextCommon
-                    label={null}
-                    attribute={'name'}
-                    dataAttribute={dataForm?.name}
-                    placeholder={_t('Nhập tên khách hàng')}
-                    setData={setDataForm}
-                    isRequired={false}
-                    prefix={<IoSearch />}
-                  />
-                </div>
+              <div className='basis-3/5 flex items-center gap-1'>
                 <div className='basis-1/2'>
                   <InputTextCommon
                     label={null}
@@ -202,6 +255,7 @@ const PointMonitoring = () => {
                     setData={setDataForm}
                     isRequired={false}
                     allowClear={true}
+                    prefix={<IoSearch />}
                   />
                 </div>
                 <div className='basis-1/2'>
@@ -218,7 +272,7 @@ const PointMonitoring = () => {
                 </div>
               </div>
               <div className='flex gap-1'>
-                {(dataForm.name || dataForm.connectionStatus) && (
+                {(dataForm.measurementPointCode || dataForm.connectionStatus) && (
                   <ButtonCommonCustomizable
                     title={_t('')}
                     tooltipText='Xoá tất cả'

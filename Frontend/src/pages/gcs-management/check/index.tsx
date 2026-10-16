@@ -20,7 +20,18 @@ interface GcsParams {
 
 const GCSCheck = () => {
   const location = useLocation();
-  const { record } = location.state;
+  const searchParams = new URLSearchParams(location.search);
+  const queryId = searchParams.get('id');
+  const queryName = searchParams.get('name');
+  const queryCode = searchParams.get('code');
+
+  const record = location.state?.record || {
+    id: queryId ? Number(queryId) : 0,
+    gcsId: queryId ? Number(queryId) : 0,
+    name: queryName || '',
+    code: queryCode || '',
+  };
+
   const [dataForm, setDataForm] = useStateDataForm({});
   const [loading, setLoading] = useState<boolean>(false);
   const [size, setSize] = useState<number>(10);
@@ -41,7 +52,7 @@ const GCSCheck = () => {
       month: '',
       year: '',
     });
-    setGetGCSCutOffCycleRequest({ gcsId: record.gcsId ? record.gcsId : record.id });
+    setGetGCSCutOffCycleRequest({ gcsId: record?.gcsId ? record.gcsId : record?.id });
   };
 
   useEffect(() => {
@@ -95,11 +106,15 @@ const GCSCheck = () => {
   }, [size, getGCSCutOffCycleRequest, gcsParams]);
 
   useEffect(() => {
-    if (location.state) {
-      setGcsParams({ gcsId: record.gcsId ? record.gcsId : record.id });
-      setGCSName(record.name ? record.name : record.nameGcs.name);
+    const activeGcsId = record?.gcsId ? record.gcsId : record?.id;
+    const activeGcsName = record?.name ? record.name : (record?.nameGcs?.name || '');
+    if (activeGcsId) {
+      setGcsParams({ gcsId: activeGcsId });
     }
-  }, [location.state]);
+    if (activeGcsName) {
+      setGCSName(activeGcsName);
+    }
+  }, [location.state, location.search]);
 
   return (
     <div>
@@ -121,7 +136,7 @@ const GCSCheck = () => {
               dataForm={dataForm}
               setDataForm={setDataForm}
               handleClearSearch={handleClearSearch}
-              gcsId={record.gcsId ? record.gcsId : record.id}
+              gcsId={record?.gcsId ? record.gcsId : record?.id}
             />
             <PaginationCommon
               pageSize={size}

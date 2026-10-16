@@ -104,7 +104,7 @@ const ClientForm = (props: IClientForm) => {
         <div className='flex gap-2'>
           <div className='basis-1/2'>
             <InputNumberCommon
-              label={_t('Số điện thoại')}
+              label={_t('Điện thoại')}
               attribute={'phoneNumber'}
               placeholder={_t('Nhập số điện thoại')}
               setData={setData}

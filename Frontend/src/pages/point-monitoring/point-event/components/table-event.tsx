@@ -19,7 +19,7 @@ const TableEvent = (props: Props) => {
     {
       title: 'Thời gian',
       dataIndex: 'createdTime',
-      width: '15%',
+      width: '16%',
       render: (value) => {
         return value ? (
           <p>
@@ -32,17 +32,28 @@ const TableEvent = (props: Props) => {
       },
     },
     {
-      title: 'Nguồn',
-      render: (record) => {
-        return (
-          <span>{`${record.measurementPointCode ?? 'N/A'} - ${record.customerName ?? 'N/A'}`}</span>
-        );
+      title: 'Mã điểm đo',
+      dataIndex: 'measurementPointCode',
+      align: 'left',
+      width: '18%',
+      render: (val) => {
+        return <span>{val ?? 'N/A'}</span>;
       },
     },
     {
-      title: 'Tên cảnh báo',
+      title: 'Tên khách hàng',
+      dataIndex: 'customerName',
+      align: 'left',
+      width: '30%',
+      render: (val) => {
+        return <span>{val ?? 'N/A'}</span>;
+      },
+    },
+    {
+      title: 'Tên sự kiện',
       dataIndex: 'eventName',
-      width: '15%',
+      align: 'left',
+      width: '20%',
       render: (val) => {
         return <span>{val}</span>;
       },
@@ -60,7 +71,7 @@ const TableEvent = (props: Props) => {
       title: 'Giá trị',
       dataIndex: 'value',
       align: 'center',
-      width: '5%',
+      width: '6%',
       render: (value) => {
         return <span>{value == 'False' ? 0 : 1}</span>;
       },
@@ -72,16 +83,20 @@ const TableEvent = (props: Props) => {
       columns={columns}
       dataSource={dataSource}
       pagination={false}
-      scroll={{ x: 'max-content', y: window.innerHeight * 0.66 }}
+      loading={loading}
+      scroll={{ x: 1000, y: window.innerHeight * 0.66 }}
       onRow={(record) => {
         return {
           onClick: () => {
-            navigate(
-              ROUTE_PATH.POINT_MONITORING_DETAIL.replace(
-                Constants.ReplaceRouterConfig.type,
-                record.measurementPoints.tagName.tagName
-              )
-            );
+            const code = record.measurementPointCode;
+            if (code) {
+              navigate(
+                ROUTE_PATH.POINT_MONITORING_DETAIL.replace(
+                  Constants.ReplaceRouterConfig.id,
+                  code
+                )
+              );
+            }
           },
         };
       }}

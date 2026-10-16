@@ -20,3 +20,7 @@ public interface IDeleteMeasurementPointsCommandHandler : IRequestHandler<Delete
 public interface IChangeStatusMeasurementPointsCommandHandler : IRequestHandler<ChangeStatusMeasurementPointCommand, RequestResult<MeasurementPointResponse>>
 {
 }
+
+public interface IImportMeasurementPointsCommandHandler : IRequestHandler<ImportMeasurementPointsCommand, RequestResult<ImportMeasurementPointResponse>>
+{
+}

@@ -1,6 +1,6 @@
 import { Card } from 'antd';
-import { useEffect, useState } from 'react';
-import { IoCopyOutline } from 'react-icons/io5';
+import { useEffect, useRef, useState } from 'react';
+import { FiDownload, FiShare } from 'react-icons/fi';
 import { LuSave } from 'react-icons/lu';
 import { useLocation, useParams } from 'react-router-dom';
 
@@ -16,17 +16,22 @@ import { notifyError, notifySuccess } from '@/infrastructure/common/components/t
 import useCreateTagNameHook from '@/infrastructure/repository/config/hooks/useCreateTagName.hook';
 import useGetTagNameListHook from '@/infrastructure/repository/config/hooks/useGetListTagName.hook';
 import { _t } from '@/infrastructure/utils/translation';
-import DialogDuplicate from '@/pages/config/components/duplicate-dialog';
+import DialogImportConfig from '@/pages/config/components/dialog-import-config';
 import TableTagNameManagement from '@/pages/config/components/table-tag-name';
+
 const DataMeasurementPoint = () => {
   const { id } = useParams();
-  const { record } = useLocation().state;
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const queryCode = searchParams.get('code');
+  const record = location.state?.record || { code: queryCode || '' };
+
   const [getTagNameList] = useGetTagNameListHook();
   const [createTagNameList] = useCreateTagNameHook();
   const [loading, setLoading] = useState<boolean>(false);
-  const [dialogDuplicate, setDialogDuplicate] = useState<boolean>(false);
   const [listTagName, setListTagName] = useState<any>();
   const [typeTable, setTypeTable] = useState<any>(Constants.TYPE_TABLE.operatingParams.value);
+  const [isShowImport, setIsShowImport] = useState<boolean>(false);
 
   const getTagNameListAsync = async () => {
     const params: tagNameListRequest = {
@@ -38,10 +43,19 @@ const DataMeasurementPoint = () => {
         const { data } = res;
         const dataUpdate = Constants.dataMeasurementPoint.allDataParams.map((param) => {
           const nowData = data.find((item: any) => item.description == param.value);
+          const fixedUnit = param.unit && param.unit.length === 1 ? param.unit[0].value : null;
+          const assignedUnit =
+            fixedUnit ||
+            (nowData?.unit
+              ? nowData.unit
+              : param.unit && param.unit.length > 0
+                ? param.unit[0].value
+                : '');
+
           return {
             description: param.value,
             tagName: nowData?.tagName || '',
-            unit: nowData?.unit ? nowData.unit : param.unit.length != 0 ? param.unit[0].value : '',
+            unit: assignedUnit,
             customName: nowData?.customName || '',
             type: param.type,
           };
@@ -68,33 +82,74 @@ const DataMeasurementPoint = () => {
     );
   };
 
-  const duplicateTagNameAsync = async (arr: number[]) => {
-    const promises = arr.map((numberId) => {
-      const params: tagNameRequest = {
-        tagNames: listTagName,
-        measurementPointId: numberId,
+  const handleExportCsv = () => {
+    if (!listTagName || listTagName.length === 0) {
+      notifyError('', 'Chưa có dữ liệu để xuất');
+      return;
+    }
+
+    const getGroupName = (type: string) => {
+      switch (type) {
+        case 'ELECTRICAL_PARAMETERS':
+          return 'Thông số vận hành';
+        case 'OPERATING_PARAMETERS':
+          return 'Thông số điện năng';
+        case 'WARNING':
+          return 'Cảnh báo';
+        case 'TIME':
+        case 'DATETIME':
+          return 'Thời gian';
+        default:
+          return 'Khác';
+      }
+    };
+
+    const headers = [
+      'STT',
+      'Nhóm thông số',
+      'Tên thông số',
+      'Mã tham số',
+      'Tag ID',
+      'Đơn vị',
+      'Tên cảnh báo',
+    ];
+    const rows = Constants.dataMeasurementPoint.allDataParams.map((param: any, idx: number) => {
+      const item = listTagName.find((t: any) => t.description === param.value) || {};
+      const groupName = getGroupName(param.type);
+      const label = param.label || '';
+      const code = param.value || '';
+      const tagId = item.tagName || '';
+      const unit = item.unit || (param.unit && param.unit.length > 0 ? param.unit[0].value : '');
+      const customName = item.customName || '';
+
+      const escapeCsv = (str: string) => {
+        if (!str) return '""';
+        return `"${str.toString().replace(/"/g, '""')}"`;
       };
 
-      return new Promise<void>((resolve, reject) => {
-        createTagNameList(
-          params,
-          () => {
-            resolve();
-          },
-          () => {
-            reject('error');
-          },
-          setLoading
-        );
-      });
+      return [
+        idx + 1,
+        escapeCsv(groupName),
+        escapeCsv(label),
+        escapeCsv(code),
+        escapeCsv(tagId),
+        escapeCsv(unit),
+        escapeCsv(customName),
+      ].join(',');
     });
 
-    try {
-      await Promise.all(promises);
-      notifySuccess('', 'Sao chép điểm đo thành công');
-    } catch (error) {
-      notifyError('', 'Sao chép điểm đo thất bại');
-    }
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const pointCode = record?.code || id;
+    link.setAttribute('download', `LienKetDuLieu_${pointCode}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    notifySuccess('', _t('Xuất file CSV thành công'));
   };
 
   const validateWarning = listTagName
@@ -121,16 +176,20 @@ const DataMeasurementPoint = () => {
             { name: record.code },
           ]}
         />
-        <div className='flex gap-5'>
+        <div className='flex gap-2 items-center'>
           <ButtonCommonCustomizable
             title={''}
             classButton='text-button-variant'
-            tooltipText={'Sao chép'}
-            disabled={validateWarning}
-            onClick={() => {
-              setDialogDuplicate(true);
-            }}
-            icon={<IoCopyOutline size={20} />}
+            tooltipText={'Xuất CSV'}
+            onClick={handleExportCsv}
+            icon={<FiShare size={20} />}
+          />
+          <ButtonCommonCustomizable
+            title={''}
+            classButton='text-button-variant'
+            tooltipText={'Nhập từ CSV'}
+            onClick={() => setIsShowImport(true)}
+            icon={<FiDownload size={20} />}
           />
           <ButtonCommonCustomizable
             title={''}
@@ -164,11 +223,14 @@ const DataMeasurementPoint = () => {
           />
         </div>
       </Card>
-      <DialogDuplicate
-        open={dialogDuplicate}
-        handleCancel={() => setDialogDuplicate(false)}
-        handelSubmit={duplicateTagNameAsync}
-        setGCSName={undefined}
+      <DialogImportConfig
+        open={isShowImport}
+        handleCancel={() => setIsShowImport(false)}
+        onSuccess={(updatedList) => {
+          setListTagName(updatedList);
+        }}
+        currentListTagName={listTagName || []}
+        pointCode={record?.code || id || ''}
       />
     </div>
   );

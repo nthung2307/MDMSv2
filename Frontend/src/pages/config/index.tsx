@@ -34,12 +34,10 @@ const Configuration = () => {
   const firstCustomerID = data?.[0]?.id;
   const lastCustomerID = data?.[data.length - 1]?.id;
 
-  const debounceFullName = useDebounce(dataForm?.fullName, 300);
   const debounceCode = useDebounce(dataForm?.code, 300);
 
   const handleClearSearch = () => {
     setDataForm({
-      fullName: '',
       status: '',
       code: '',
     });
@@ -48,12 +46,6 @@ const Configuration = () => {
 
   useEffect(() => {
     const searchByFields: any = [];
-    if (debounceFullName) {
-      searchByFields.push({
-        searchFieldName: 'customer.fullName',
-        searchValue: debounceFullName,
-      });
-    }
 
     if (debounceCode) {
       searchByFields.push({
@@ -72,7 +64,7 @@ const Configuration = () => {
     setGetListMeasurementParamsRequest({
       searchByFields: searchByFields.length > 0 ? searchByFields : [],
     });
-  }, [debounceFullName, debounceCode, dataForm?.status]);
+  }, [debounceCode, dataForm?.status]);
 
   const getListMeasurementPointsAsync = async ({
     pageSize = size,
@@ -121,23 +113,12 @@ const Configuration = () => {
               <div className='basis-1/2'>
                 <InputTextCommon
                   label={null}
-                  attribute={'fullName'}
-                  dataAttribute={dataForm?.fullName}
-                  placeholder={_t('Nhập tên khách hàng')}
-                  setData={setDataForm}
-                  isRequired={false}
-                  prefix={<IoSearch />}
-                  allowClear={true}
-                />
-              </div>
-              <div className='basis-1/2'>
-                <InputTextCommon
-                  label={null}
                   attribute={'code'}
                   dataAttribute={dataForm?.code}
                   placeholder={_t('Mã điểm đo')}
                   setData={setDataForm}
                   isRequired={false}
+                  prefix={<IoSearch />}
                   allowClear={true}
                 />
               </div>
@@ -158,7 +139,7 @@ const Configuration = () => {
               </div>
             </div>
             <div className='flex gap-1 items-center'>
-              {dataForm?.fullName || dataForm?.status ? (
+              {dataForm?.code || dataForm?.status ? (
                 <ButtonCommonCustomizable
                   title={_t('')}
                   classButton='text-button-variant'

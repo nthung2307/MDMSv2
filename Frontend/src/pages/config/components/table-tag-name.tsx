@@ -1,6 +1,4 @@
 import Column from 'antd/es/table/Column';
-// import Constants from '@/core/application/common/constants.ts';
-// import { FaRegEdit } from 'react-icons/fa';
 
 import Constants from '@/core/application/common/constants';
 import InputSelectCommon from '@/infrastructure/common/components/input/input-select-common';
@@ -57,15 +55,18 @@ const TableDetailAttribute = (props: Props) => {
   const getUnit = (record: any) => {
     const result = listTagName?.find((item: any) => item.description === record.value);
 
-    if (!result) return null;
+    if (!result) return record?.unit && record.unit.length > 0 ? record.unit[0].value : null;
 
-    return result.unit ? result.unit : record.unit.length === 1 ? record.unit[0] : '';
+    return result.unit ? result.unit : record.unit && record.unit.length > 0 ? record.unit[0].value : '';
   };
+
+  const isDateTimeTab = typeTable === Constants.TYPE_TABLE.dateTimeParams.value;
+
   return (
     <>
       <TableCommon
         dataSource={[...dataConfig()]}
-        rowKey={(record: any) => record.idTable}
+        rowKey={(record: any) => record.value || record.idTable}
         pagination={false}
         className='table-common'
         loading={loading}
@@ -74,7 +75,7 @@ const TableDetailAttribute = (props: Props) => {
           title={<div className='text-14-20 font-bold'>{_t('Dữ liệu')}</div>}
           dataIndex='label'
           key='label'
-          width={'25%'}
+          width={isDateTimeTab ? '50%' : '45%'}
           render={(val) => (
             <div className={`attribute-input font-bold`}>
               <p>{val}</p>
@@ -85,7 +86,7 @@ const TableDetailAttribute = (props: Props) => {
           title={<div className='text-14-20 font-bold '>{_t('Tag ID')}</div>}
           dataIndex='value'
           key='value'
-          width={'20%'}
+          width={isDateTimeTab ? '50%' : '30%'}
           render={(val, record, index) => (
             <div className={`attribute-input`}>
               <InputTextCommon
@@ -104,13 +105,13 @@ const TableDetailAttribute = (props: Props) => {
           )}
         />
 
-        {typeTable != Constants.TYPE_TABLE.dateTimeParams.value &&
+        {!isDateTimeTab &&
           (typeTable != Constants.TYPE_TABLE.warningParams.value ? (
             <Column
               title={<div className='text-14-20 font-bold '>{_t('Đơn vị')}</div>}
               dataIndex='unit'
               key='unit'
-              width={'20%'}
+              width={'25%'}
               render={(val, record) => (
                 <div className={`attribute-input`}>
                   <InputSelectCommon
@@ -123,7 +124,7 @@ const TableDetailAttribute = (props: Props) => {
                     isRequired={false}
                     placeholder={val.length > 0 ? 'Chọn đơn vị' : ''}
                     listDataItem={val}
-                    disabled={val.length < 1}
+                    disabled={val.length <= 1}
                   />
                 </div>
               )}
@@ -133,7 +134,7 @@ const TableDetailAttribute = (props: Props) => {
               title={<div className='text-14-20 font-bold '>{_t('Tên cảnh báo')}</div>}
               dataIndex='customName'
               key='customName'
-              width={'20%'}
+              width={'25%'}
               render={(_, record, index) => (
                 <div className={`attribute-input`}>
                   {index !== dataConfig().length - 1 && (

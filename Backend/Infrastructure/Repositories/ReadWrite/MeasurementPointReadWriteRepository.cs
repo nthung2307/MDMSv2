@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text;
 using Application.DataTransferObjects.Requests.Customers;
+using Application.DataTransferObjects.Requests.MeasurementPoints;
+using Application.DataTransferObjects.Responses.MeasurementPoints;
 using Application.Repositories.ReadWrite;
 using CsvHelper;
 using Domain.Entities;
@@ -18,10 +20,14 @@ namespace Infrastructure.Repositories.ReadWrite
     public class MeasurementPointReadWriteRepository : RestfulRepository<MeasurementPointsEntity, AppReadWriteDbContext>, IMeasurementPointsReadWriteRepository
     {
         private readonly DbSet<MeasurementPointsEntity> _measurementPointsEntities;
+        private readonly DbSet<CustomerEntity> _customerEntities;
+        private readonly ISnowflakeIdService _snowflakeIdService;
 
         public MeasurementPointReadWriteRepository(AppReadWriteDbContext applicationDbContext, ISnowflakeIdService snowflakeIdService) : base(applicationDbContext, snowflakeIdService)
         {
             _measurementPointsEntities = applicationDbContext.Set<MeasurementPointsEntity>();
+            _customerEntities = applicationDbContext.Set<CustomerEntity>();
+            _snowflakeIdService = snowflakeIdService;
             QuestPDF.Settings.License = LicenseType.Community;
         }
 
@@ -156,15 +162,49 @@ namespace Infrastructure.Repositories.ReadWrite
             return document.GeneratePdf();
         }
 
-        public async Task<byte[]> GenerateCustomerCsv(CancellationToken cancellationToken)
+        public async Task<byte[]> GenerateCustomerCsv(ExportMeasurementPointsCsvRequest? request, CancellationToken cancellationToken)
         {
             using var memoryStream = new MemoryStream();
-            await using var streamWriter = new StreamWriter(memoryStream, Encoding.UTF8);
-            var query = await _measurementPointsEntities
+            await using var streamWriter = new StreamWriter(memoryStream, new UTF8Encoding(true));
+            var query = _measurementPointsEntities
                 .AsNoTracking()
                 .Where(x => !x.Deleted)
                 .Include(x => x.Customer)
-                .OrderByDescending(x => x.Id)
+                .AsQueryable();
+
+            if (request != null)
+            {
+                if (!string.IsNullOrWhiteSpace(request.Code))
+                {
+                    var code = request.Code.Trim().ToLower();
+                    query = query.Where(x => x.Code.ToLower().Contains(code));
+                }
+                if (!string.IsNullOrWhiteSpace(request.Status))
+                {
+                    var status = request.Status.Trim();
+                    query = query.Where(x => x.Status == status);
+                }
+                if (request.SearchByFields != null && request.SearchByFields.Count > 0)
+                {
+                    foreach (var searchField in request.SearchByFields)
+                    {
+                        if (searchField.SearchFieldName.Equals("code", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(searchField.SearchValue))
+                        {
+                            var codeVal = searchField.SearchValue.Trim().ToLower();
+                            query = query.Where(x => x.Code.ToLower().Contains(codeVal));
+                        }
+                        else if (searchField.SearchFieldName.Equals("status", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(searchField.SearchValue))
+                        {
+                            var statusVal = searchField.SearchValue.Trim();
+                            query = query.Where(x => x.Status == statusVal);
+                        }
+                    }
+                }
+            }
+
+            // Sắp xếp theo thứ tự từ cũ đến mới (Điểm đo tạo cũ nhất hiển thị đầu danh sách)
+            var list = await query
+                .OrderBy(x => x.Id)
                 .ToListAsync(cancellationToken);
 
             await using var csvWriter = new CsvWriter(streamWriter, CultureInfo.InvariantCulture);
@@ -173,26 +213,440 @@ namespace Infrastructure.Repositories.ReadWrite
             csvWriter.WriteField("Mã điểm đo");
             csvWriter.WriteField("Loại điểm đo");
             csvWriter.WriteField("Mô tả");
-            csvWriter.WriteField("Tên KH");
+            csvWriter.WriteField("Tên khách hàng");
+            csvWriter.WriteField("Email nhận phiếu báo (tối đa 3 email)");
             csvWriter.WriteField("Trạng thái");
             await csvWriter.NextRecordAsync();
 
             // Write rows
-            for (var i = 0; i < query.Count; i++)
+            for (var i = 0; i < list.Count; i++)
             {
-                var customer = query[i];
+                var point = list[i];
+                var emails = string.Join("; ", new[] { point.Email, point.Email2, point.Email3 }
+                    .Where(e => !string.IsNullOrWhiteSpace(e)));
+
                 csvWriter.WriteField(i + 1);
-                csvWriter.WriteField(customer.Code);
-                csvWriter.WriteField(customer.Type);
-                csvWriter.WriteField(customer.Description);
-                csvWriter.WriteField(customer.Customer.FullName);
-                csvWriter.WriteField(customer.Status == EntityStatus.Active ? "Đang sử dụng" : "Ngừng sử dụng");
+                csvWriter.WriteField(point.Code);
+                csvWriter.WriteField(point.Type);
+                csvWriter.WriteField(point.Description ?? string.Empty);
+                csvWriter.WriteField(point.Customer?.FullName ?? string.Empty);
+                csvWriter.WriteField(emails);
+                csvWriter.WriteField(point.Status == EntityStatus.Active ? "Đang sử dụng" : "Ngừng sử dụng");
                 await csvWriter.NextRecordAsync();
             }
+            await csvWriter.FlushAsync();
             await streamWriter.FlushAsync(cancellationToken);
             var csvBytes = memoryStream.ToArray();
 
             return csvBytes;
+        }
+
+        private static string DecodeCsvBytes(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0) return string.Empty;
+
+            // Detect UTF-8 BOM (EF BB BF)
+            if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
+            {
+                return Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3);
+            }
+
+            // Try standard UTF-8 with exception on invalid bytes
+            try
+            {
+                var utf8Strict = new UTF8Encoding(false, true);
+                return utf8Strict.GetString(bytes);
+            }
+            catch (DecoderFallbackException)
+            {
+                // Fallback: Windows-1258 (Vietnamese) or Default
+                try
+                {
+                    Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+                    var win1258 = Encoding.GetEncoding(1258);
+                    return win1258.GetString(bytes);
+                }
+                catch
+                {
+                    return Encoding.UTF8.GetString(bytes);
+                }
+            }
+        }
+
+        private static string NormalizeHeaderText(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+            var normalized = text.Trim().Normalize(NormalizationForm.FormD);
+            var sb = new StringBuilder();
+            foreach (var c in normalized)
+            {
+                var unicodeCategory = CharUnicodeInfo.GetUnicodeCategory(c);
+                if (unicodeCategory != UnicodeCategory.NonSpacingMark)
+                {
+                    sb.Append(c);
+                }
+            }
+            return sb.ToString().Normalize(NormalizationForm.FormC).ToLowerInvariant();
+        }
+
+        public async Task<ImportMeasurementPointResponse> ImportMeasurementPointsFromCsvAsync(Stream fileStream, long currentUserId, string currentUserName, CancellationToken cancellationToken)
+        {
+            var response = new ImportMeasurementPointResponse();
+
+            using var memoryStream = new MemoryStream();
+            await fileStream.CopyToAsync(memoryStream, cancellationToken);
+            var fileBytes = memoryStream.ToArray();
+            if (fileBytes.Length == 0)
+            {
+                response.Errors.Add(new ImportMeasurementPointRowError { RowNumber = 0, ErrorMessage = "Tệp CSV rỗng!" });
+                response.ErrorCount = 1;
+                return response;
+            }
+
+            var textContent = DecodeCsvBytes(fileBytes);
+            using var lineReader = new StringReader(textContent);
+            string? firstNonEmptyLine = null;
+            while (true)
+            {
+                var line = await lineReader.ReadLineAsync(cancellationToken);
+                if (line == null) break;
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    firstNonEmptyLine = line;
+                    break;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(firstNonEmptyLine))
+            {
+                response.Errors.Add(new ImportMeasurementPointRowError { RowNumber = 0, ErrorMessage = "Tệp CSV không có dữ liệu!" });
+                response.ErrorCount = 1;
+                return response;
+            }
+
+            var delimiter = ",";
+            var countSemicolon = firstNonEmptyLine.Count(c => c == ';');
+            var countComma = firstNonEmptyLine.Count(c => c == ',');
+            var countTab = firstNonEmptyLine.Count(c => c == '\t');
+            if (countSemicolon > countComma && countSemicolon > countTab)
+            {
+                delimiter = ";";
+            }
+            else if (countTab > countComma && countTab > countSemicolon)
+            {
+                delimiter = "\t";
+            }
+
+            using var reader = new StringReader(textContent);
+            var csvConfig = new CsvHelper.Configuration.CsvConfiguration(CultureInfo.InvariantCulture)
+            {
+                Delimiter = delimiter,
+                HasHeaderRecord = true,
+                MissingFieldFound = null,
+                HeaderValidated = null,
+                BadDataFound = null,
+                TrimOptions = CsvHelper.Configuration.TrimOptions.Trim
+            };
+
+            using var csv = new CsvReader(reader, csvConfig);
+            await csv.ReadAsync();
+            csv.ReadHeader();
+
+            if (csv.HeaderRecord == null || csv.HeaderRecord.Length == 0)
+            {
+                response.Errors.Add(new ImportMeasurementPointRowError { RowNumber = 0, ErrorMessage = "Không tìm thấy tiêu đề cột trong tệp CSV!" });
+                response.ErrorCount = 1;
+                return response;
+            }
+
+            int colCode = -1, colType = -1, colDesc = -1, colCustomer = -1, colEmail = -1, colEmail2 = -1, colEmail3 = -1, colAddress = -1, colStatus = -1;
+            for (int i = 0; i < csv.HeaderRecord.Length; i++)
+            {
+                var header = NormalizeHeaderText(csv.HeaderRecord[i]);
+                if (header.Contains("ma diem do") || header.Contains("pointcode") || header.Contains("point_code") || header.Equals("madiemdo") || (header.Contains("diem do") && !header.Contains("loai")) || header.Equals("code"))
+                {
+                    colCode = i;
+                }
+                else if (header.Contains("loai diem do") || header.Contains("loaidiemdo") || header.Contains("point_type") || header.Equals("type") || header.Equals("loai"))
+                {
+                    colType = i;
+                }
+                else if (header.Contains("mo ta") || header.Contains("description") || header.Equals("mota"))
+                {
+                    colDesc = i;
+                }
+                else if (header.Contains("ten khach hang") || header.Contains("ten kh") || header.Contains("customername") || header.Contains("khach hang") || header.Equals("customer") || header.Equals("tenkh") || header.Contains("customercode") || header.Equals("makh") || header.Contains("ma kh"))
+                {
+                    colCustomer = i;
+                }
+                else if (header.Contains("email 2") || header.Contains("email2") || header.Contains("mail 2"))
+                {
+                    colEmail2 = i;
+                }
+                else if (header.Contains("email 3") || header.Contains("email3") || header.Contains("mail 3"))
+                {
+                    colEmail3 = i;
+                }
+                else if (header.Contains("email") || header.Contains("mail") || header.Contains("phieu bao"))
+                {
+                    colEmail = i;
+                }
+                else if (header.Contains("dia chi") || header.Contains("address") || header.Equals("diachi"))
+                {
+                    colAddress = i;
+                }
+                else if (header.Contains("trang thai") || header.Contains("status") || header.Equals("trangthai"))
+                {
+                    colStatus = i;
+                }
+            }
+
+            // Positional fallback matching standard export format (STT, Mã điểm đo, Loại điểm đo, Mô tả, Tên khách hàng, Email nhận phiếu báo, Trạng thái)
+            if (colCode == -1 && csv.HeaderRecord.Length > 1) colCode = 1;
+            if (colType == -1 && csv.HeaderRecord.Length > 2) colType = 2;
+            if (colDesc == -1 && csv.HeaderRecord.Length > 3) colDesc = 3;
+            if (colCustomer == -1 && csv.HeaderRecord.Length > 4) colCustomer = 4;
+            if (colEmail == -1 && csv.HeaderRecord.Length > 5) colEmail = 5;
+            if (colStatus == -1 && csv.HeaderRecord.Length > 6) colStatus = 6;
+
+            if (colCode == -1)
+            {
+                response.Errors.Add(new ImportMeasurementPointRowError
+                {
+                    RowNumber = 1,
+                    ErrorMessage = "Không tìm thấy cột 'Mã điểm đo' hoặc 'PointCode' trong tiêu đề tệp!"
+                });
+                response.ErrorCount = 1;
+                return response;
+            }
+
+            var pointList = await _measurementPointsEntities
+                .Where(x => !x.Deleted && x.Code != null && x.Code != "")
+                .ToListAsync(cancellationToken);
+
+            var existingPoints = new Dictionary<string, MeasurementPointsEntity>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in pointList)
+            {
+                var key = p.Code.Trim().ToUpperInvariant();
+                if (!string.IsNullOrEmpty(key) && !existingPoints.ContainsKey(key))
+                {
+                    existingPoints[key] = p;
+                }
+            }
+
+            var customerList = await _customerEntities
+                .Where(x => !x.Deleted)
+                .ToListAsync(cancellationToken);
+
+            var customersByCode = new Dictionary<string, CustomerEntity>(StringComparer.OrdinalIgnoreCase);
+            var customersByName = new Dictionary<string, CustomerEntity>(StringComparer.OrdinalIgnoreCase);
+            foreach (var c in customerList)
+            {
+                if (!string.IsNullOrWhiteSpace(c.CustomerCode))
+                {
+                    var codeKey = c.CustomerCode.Trim().ToUpperInvariant();
+                    if (!customersByCode.ContainsKey(codeKey))
+                        customersByCode[codeKey] = c;
+                }
+                if (!string.IsNullOrWhiteSpace(c.FullName))
+                {
+                    var nameKey = c.FullName.Trim().ToUpperInvariant();
+                    if (!customersByName.ContainsKey(nameKey))
+                        customersByName[nameKey] = c;
+                }
+            }
+
+            int rowNumber = 1;
+            var now = DateTimeOffset.UtcNow;
+
+            while (await csv.ReadAsync())
+            {
+                rowNumber++;
+                var code = colCode >= 0 ? csv.GetField(colCode)?.Trim() : null;
+                var type = colType >= 0 ? csv.GetField(colType)?.Trim() : null;
+                var desc = colDesc >= 0 ? csv.GetField(colDesc)?.Trim() : null;
+                var customerRaw = colCustomer >= 0 ? csv.GetField(colCustomer)?.Trim() : null;
+                var emailRaw = colEmail >= 0 ? csv.GetField(colEmail)?.Trim() : null;
+                var email2Raw = colEmail2 >= 0 ? csv.GetField(colEmail2)?.Trim() : null;
+                var email3Raw = colEmail3 >= 0 ? csv.GetField(colEmail3)?.Trim() : null;
+                var address = colAddress >= 0 ? csv.GetField(colAddress)?.Trim() : null;
+                var rawStatus = colStatus >= 0 ? csv.GetField(colStatus)?.Trim() : null;
+
+                if (string.IsNullOrWhiteSpace(code) && string.IsNullOrWhiteSpace(type) && string.IsNullOrWhiteSpace(customerRaw) && string.IsNullOrWhiteSpace(emailRaw))
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(code))
+                {
+                    response.Errors.Add(new ImportMeasurementPointRowError
+                    {
+                        RowNumber = rowNumber,
+                        PointCode = string.Empty,
+                        ErrorMessage = "Mã điểm đo không được để trống!"
+                    });
+                    response.ErrorCount++;
+                    continue;
+                }
+
+                // Phân tích Trạng thái (Active / Deactivate)
+                string? status = null;
+                bool hasStatusSpecified = false;
+
+                if (!string.IsNullOrWhiteSpace(rawStatus))
+                {
+                    hasStatusSpecified = true;
+                    var lowerStatus = NormalizeHeaderText(rawStatus);
+
+                    // 1. Kiểm tra Deactivate (ngừng sử dụng / tạm dừng / inactive)
+                    if (lowerStatus.Contains("ngung") || lowerStatus.Contains("tam dung") ||
+                        lowerStatus.Contains("deactivate") || lowerStatus.Contains("inactive") ||
+                        lowerStatus == "0")
+                    {
+                        status = EntityStatus.Deactivate;
+                    }
+                    // 2. Kiểm tra Active (đang sử dụng / đang hoạt động / active)
+                    else if (lowerStatus.Contains("dang") || lowerStatus.Contains("su dung") ||
+                             lowerStatus.Contains("hoat dong") || lowerStatus.Contains("active") ||
+                             lowerStatus == "1")
+                    {
+                        status = EntityStatus.Active;
+                    }
+                    else
+                    {
+                        status = EntityStatus.Active;
+                    }
+                }
+
+                // Phân tích Email nhận phiếu báo (tối đa 3 email)
+                string? email1 = null;
+                string? email2 = null;
+                string? email3 = null;
+                bool hasEmailSpecified = false;
+
+                if (!string.IsNullOrWhiteSpace(emailRaw))
+                {
+                    hasEmailSpecified = true;
+                    var splitEmails = emailRaw.Split(new[] { ';', ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(e => e.Trim())
+                        .Where(e => !string.IsNullOrWhiteSpace(e))
+                        .ToList();
+
+                    if (splitEmails.Count > 0) email1 = splitEmails[0];
+                    if (splitEmails.Count > 1) email2 = splitEmails[1];
+                    if (splitEmails.Count > 2) email3 = splitEmails[2];
+                }
+
+                if (!string.IsNullOrWhiteSpace(email2Raw))
+                {
+                    hasEmailSpecified = true;
+                    email2 = email2Raw.Trim();
+                }
+                if (!string.IsNullOrWhiteSpace(email3Raw))
+                {
+                    hasEmailSpecified = true;
+                    email3 = email3Raw.Trim();
+                }
+
+                // Tìm kiếm Customer liên kết nếu có
+                CustomerEntity? matchedCustomer = null;
+                if (!string.IsNullOrWhiteSpace(customerRaw))
+                {
+                    var custKey = customerRaw.Trim().ToUpperInvariant();
+                    if (customersByCode.TryGetValue(custKey, out var cByCode))
+                    {
+                        matchedCustomer = cByCode;
+                    }
+                    else if (customersByName.TryGetValue(custKey, out var cByName))
+                    {
+                        matchedCustomer = cByName;
+                    }
+                }
+
+                var upperCode = code.ToUpperInvariant();
+                if (existingPoints.TryGetValue(upperCode, out var existingPoint))
+                {
+                    // SAFE UPSERT: Cập nhật thông tin điểm đo, giữ nguyên 100% ID
+                    if (!string.IsNullOrWhiteSpace(type)) existingPoint.Type = type.Trim();
+                    if (desc != null) existingPoint.Description = string.IsNullOrWhiteSpace(desc) ? null : desc.Trim();
+                    if (address != null && !string.IsNullOrWhiteSpace(address)) existingPoint.Address = address.Trim();
+                    if (matchedCustomer != null) existingPoint.CustomerId = matchedCustomer.Id;
+
+                    if (hasEmailSpecified)
+                    {
+                        existingPoint.Email = email1;
+                        existingPoint.Email2 = email2;
+                        existingPoint.Email3 = email3;
+                    }
+
+                    if (hasStatusSpecified && status != null)
+                    {
+                        existingPoint.Status = status;
+                    }
+
+                    existingPoint.ModifiedTime = now;
+                    existingPoint.ModifiedBy = currentUserId;
+                    existingPoint.ModifiedName = currentUserName;
+
+                    response.UpdatedCount++;
+                }
+                else
+                {
+                    // Thêm mới điểm đo: Yêu cầu phải xác định được Customer
+                    if (matchedCustomer == null)
+                    {
+                        if (customerList.Count == 1)
+                        {
+                            matchedCustomer = customerList[0];
+                        }
+                        else
+                        {
+                            response.Errors.Add(new ImportMeasurementPointRowError
+                            {
+                                RowNumber = rowNumber,
+                                PointCode = code,
+                                ErrorMessage = string.IsNullOrWhiteSpace(customerRaw)
+                                    ? "Khách hàng không được để trống khi thêm mới điểm đo!"
+                                    : $"Không tìm thấy khách hàng '{customerRaw}' trong hệ thống!"
+                            });
+                            response.ErrorCount++;
+                            continue;
+                        }
+                    }
+
+                    var newId = await _snowflakeIdService.GenerateId(cancellationToken);
+                    var newPoint = new MeasurementPointsEntity
+                    {
+                        Id = newId,
+                        Code = code,
+                        Type = !string.IsNullOrWhiteSpace(type) ? type.Trim() : "1 Pha",
+                        Description = !string.IsNullOrWhiteSpace(desc) ? desc.Trim() : null,
+                        Address = !string.IsNullOrWhiteSpace(address) ? address.Trim() : null,
+                        CustomerId = matchedCustomer.Id,
+                        Email = email1,
+                        Email2 = email2,
+                        Email3 = email3,
+                        Status = status ?? EntityStatus.Active,
+                        MultiplierFactor = 1.0,
+                        CreatedBy = currentUserId,
+                        CreatedName = currentUserName,
+                        CreatedTime = now,
+                        ModifiedBy = currentUserId,
+                        ModifiedName = currentUserName,
+                        ModifiedTime = now,
+                        Deleted = false
+                    };
+
+                    await _measurementPointsEntities.AddAsync(newPoint, cancellationToken);
+                    existingPoints[upperCode] = newPoint;
+                    response.InsertedCount++;
+                }
+            }
+
+            await SaveChangesAsync(cancellationToken);
+            response.TotalRows = response.InsertedCount + response.UpdatedCount + response.ErrorCount;
+
+            return response;
         }
     }
 }

@@ -181,7 +181,7 @@ public class MeasurementPointMonitoringCommandHandler : IMeasurementPointMonitor
             var responseViewList = await _measurementPointMonitoringReadOnlyRepository.GetListMeasurementPointsMonitoringAsync(
                 new GetListMeasurementPointMonitoringRequest()
                 {
-                    PageSize = 10
+                    PageSize = 1000
                 }, cancellationToken);
 
             await _listHubContext.Clients.All.SendAsync("ReceiveUpdate", responseViewList, cancellationToken: cancellationToken);

@@ -37,4 +37,6 @@ export interface IMeasurementPointService {
     params: DeleteMeasurementPointRequest,
     cancellationToken: CancelToken
   ): Promise<RequestResponse>;
+
+  importMeasurementPointCsv(endpoint: string, file: File): Promise<RequestResponse>;
 }

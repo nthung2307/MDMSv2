@@ -21,7 +21,7 @@ const SocketCommon = ({ children, setDataSocket, endPoint, status }: Props) => {
       .withUrl(`${baseURL}/${endPoint}`)
       .withAutomaticReconnect([0, 2000, 10000, 30000]) // Retry after 2s, 10s, and 30s if connection drops
       .build();
-  }, [baseURL]);
+  }, [baseURL, endPoint]);
   // ReceiveEvent
   // CountAlert
   // ReceiveAlert
@@ -30,8 +30,15 @@ const SocketCommon = ({ children, setDataSocket, endPoint, status }: Props) => {
       try {
         await hubConnection.start();
         // Listen for list updates
+        hubConnection.off(status);
         hubConnection.on(status, (message) => {
           setDataSocket(message);
+        });
+        hubConnection.onreconnected(() => {
+          hubConnection.off(status);
+          hubConnection.on(status, (message) => {
+            setDataSocket(message);
+          });
         });
       } catch (err) {
         // console.error('Error connecting to SignalR Hub:', err);
@@ -46,6 +53,7 @@ const SocketCommon = ({ children, setDataSocket, endPoint, status }: Props) => {
 
     // Cleanup when navigating away: stop the connection
     return () => {
+      hubConnection.off(status);
       if (hubConnection.state === signalR.HubConnectionState.Connected) {
         hubConnection.stop().catch(() => {
           // console.error('Error stopping SignalR connection:', error);

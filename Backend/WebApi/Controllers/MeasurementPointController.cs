@@ -1,6 +1,7 @@
 using Application.Commands.MeasurementPoints;
 using Application.Common;
 using Application.Common.Responses.Common.Responses;
+using Application.Common.ValueObjects;
 using Application.Common.ValueObjects.CursorBased;
 using Application.DataTransferObjects.Requests.Customers;
 using Application.DataTransferObjects.Requests.MeasurementPoints;
@@ -8,6 +9,7 @@ using Application.DataTransferObjects.Responses.MeasurementPoints;
 using Application.Queries.MeasurementPoints;
 using Application.Repositories.ReadWrite;
 using MediatR;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Nobisoft.Core.Authorization;
 using Nobisoft.Core.Authorization.Attributes;
@@ -206,19 +208,66 @@ public class MeasurementPointController : ControllerBase
     [HttpPost]
     [Route(Common.Url.Default.MeasurementPoints.ExportCsv)]
     // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
-    public async Task<IActionResult> ExportCsvMeasurementPointAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> ExportCsvMeasurementPointAsync([FromBody] ExportMeasurementPointsCsvRequest? request, CancellationToken cancellationToken)
     {
         try
         {
-            var csvData = await _measurementPointsReadWriteRepository.GenerateCustomerCsv(cancellationToken);
+            var csvData = await _measurementPointsReadWriteRepository.GenerateCustomerCsv(request, cancellationToken);
             return File(
                 fileContents: csvData,
-                contentType: "application/octet-stream; charset=utf-8",
+                contentType: "text/csv; charset=utf-8",
                 fileDownloadName: $"Export-Measurement-Point-{DateTime.Now:s}.csv");
         }
         catch (Exception e)
         {
             _loggerService.LogError(e, nameof(ExportCsvMeasurementPointAsync));
+            throw;
+        }
+    }
+
+    [HttpPost]
+    [Route(Common.Url.Default.MeasurementPoints.ImportCsv)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin])]
+    public async Task<RequestResult<ImportMeasurementPointResponse>> ImportCsvMeasurementPointsAsync([FromForm(Name = "file")] IFormFile? file, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (file == null || file.Length == 0)
+            {
+                return RequestResult<ImportMeasurementPointResponse>.Fail(new[]
+                {
+                    new ErrorItem
+                    {
+                        FieldName = "file",
+                        Error = "Vui lòng chọn tệp CSV để nhập dữ liệu!"
+                    }
+                });
+            }
+
+            if (!file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                return RequestResult<ImportMeasurementPointResponse>.Fail(new[]
+                {
+                    new ErrorItem
+                    {
+                        FieldName = "file",
+                        Error = "Định dạng tệp không hợp lệ! Hệ thống chỉ hỗ trợ tệp định dạng .csv"
+                    }
+                });
+            }
+
+            await using var stream = file.OpenReadStream();
+            var command = new ImportMeasurementPointsCommand
+            {
+                FileStream = stream
+            };
+
+            var result = await _mediator.Send(command, cancellationToken);
+            return result;
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(ImportCsvMeasurementPointsAsync));
             throw;
         }
     }
