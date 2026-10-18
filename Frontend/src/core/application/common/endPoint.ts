@@ -95,6 +95,30 @@ export class Endpoint {
     static GetListFinalizedOutputElectricity: string = 'report/list-finalized-output-electricity';
     static GetHalfHourFinalizedEnergyReport: string = 'report/half-hour-finalized-energy-report';
     static GetDailyFinalizedEnergyReport: string = 'report/daily-finalized-energy-report';
+    static GetYearlyFinalizedEnergyReport: string = 'report/yearly-finalized-energy-report';
+
+    static ExportCsvHalfHourFinalizedEnergy: string = 'half-hour-finalized-energy/export-csv-half-hour-finalized-energy';
+    static ExportPdfHalfHourFinalizedEnergy: string = 'half-hour-finalized-energy/export-pdf-half-hour-finalized-energy';
+    static ExportExcelHalfHourFinalizedEnergy: string = 'half-hour-finalized-energy/export-excel-half-hour-finalized-energy';
+    static ExportCsvDailyFinalizedEnergy: string = 'daily-finalized-energy/export-csv-daily-finalized-energy';
+    static ExportPdfDailyFinalizedEnergy: string = 'daily-finalized-energy/export-pdf-daily-finalized-energy';
+    static ExportExcelDailyFinalizedEnergy: string = 'daily-finalized-energy/export-excel-daily-finalized-energy';
+    static ExportCsvYearlyFinalizedEnergy: string = 'yearly-finalized-energy/export-csv-yearly-finalized-energy';
+    static ExportPdfYearlyFinalizedEnergy: string = 'yearly-finalized-energy/export-pdf-yearly-finalized-energy';
+    static ExportExcelYearlyFinalizedEnergy: string = 'yearly-finalized-energy/export-excel-yearly-finalized-energy';
+
+    // Báo cáo thông số vận hành 30 phút
+    static GetOperatingParameterReport: string = 'report/operating-parameter-report';
+    static GetOperatingParameterChart: string = 'report/operating-parameter-chart';
+    static ExportCsvOperatingParameter: string = 'report/export-csv-operating-parameter';
+    static ExportPdfOperatingParameter: string = 'report/export-pdf-operating-parameter';
+    static ExportExcelOperatingParameter: string = 'report/export-excel-operating-parameter';
+
+    // Báo cáo sản lượng điện
+    static GetEnergyConsumptionReport: string = 'report/energy-consumption-report';
+    static ExportCsvEnergyConsumption: string = 'report/export-csv-energy-consumption';
+    static ExportPdfEnergyConsumption: string = 'report/export-pdf-energy-consumption';
+    static ExportExcelEnergyConsumption: string = 'report/export-excel-energy-consumption';
   };
 
   static Export = class {

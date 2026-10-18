@@ -299,51 +299,6 @@ export default class Constants {
         [
           new MenuItem(
             [],
-            MenuKeys.LoadCurve,
-            null,
-            'Đồ thị phụ tải',
-            'Đồ thị phụ tải',
-            [
-              Constants.Role.Admin.value,
-              Constants.Role.SuperAdmin.value,
-              Constants.Role.Staff.value,
-              Constants.Role.Customer.value,
-            ],
-            ROUTE_PATH.LOAD_CURVE,
-            MenuKeys.Report
-          ),
-          new MenuItem(
-            [],
-            MenuKeys.ElectricityConsumption,
-            null,
-            'Sản lượng tiêu thụ',
-            'Sản lượng tiêu thụ',
-            [
-              Constants.Role.Admin.value,
-              Constants.Role.SuperAdmin.value,
-              Constants.Role.Staff.value,
-              Constants.Role.Customer.value,
-            ],
-            ROUTE_PATH.ELECTRICITY_CONSUMPTION,
-            MenuKeys.Report
-          ),
-          new MenuItem(
-            [],
-            MenuKeys.TotalOutputMeasurementPoints,
-            null,
-            'Tổng sản lượng các điểm đo',
-            'Tổng sản lượng các điểm đo',
-            [
-              Constants.Role.Admin.value,
-              Constants.Role.SuperAdmin.value,
-              Constants.Role.Staff.value,
-              Constants.Role.Customer.value,
-            ],
-            ROUTE_PATH.TOTAL_OUTPUT_MEASUREMENT_POINTS,
-            MenuKeys.Report
-          ),
-          new MenuItem(
-            [],
             MenuKeys.OperatingParameter,
             null,
             'Thông số vận hành',
@@ -370,6 +325,51 @@ export default class Constants {
               Constants.Role.Customer.value,
             ],
             ROUTE_PATH.FINALIZED_ENERGY_REPORT,
+            MenuKeys.Report
+          ),
+          new MenuItem(
+            [],
+            MenuKeys.ElectricityConsumption,
+            null,
+            'Sản lượng điện',
+            'Sản lượng điện',
+            [
+              Constants.Role.Admin.value,
+              Constants.Role.SuperAdmin.value,
+              Constants.Role.Staff.value,
+              Constants.Role.Customer.value,
+            ],
+            ROUTE_PATH.ELECTRICITY_CONSUMPTION,
+            MenuKeys.Report
+          ),
+          new MenuItem(
+            [],
+            MenuKeys.LoadCurve,
+            null,
+            'Đồ thị phụ tải',
+            'Đồ thị phụ tải',
+            [
+              Constants.Role.Admin.value,
+              Constants.Role.SuperAdmin.value,
+              Constants.Role.Staff.value,
+              Constants.Role.Customer.value,
+            ],
+            ROUTE_PATH.LOAD_CURVE,
+            MenuKeys.Report
+          ),
+          new MenuItem(
+            [],
+            MenuKeys.TotalOutputMeasurementPoints,
+            null,
+            'Tổng sản lượng các điểm đo',
+            'Tổng sản lượng các điểm đo',
+            [
+              Constants.Role.Admin.value,
+              Constants.Role.SuperAdmin.value,
+              Constants.Role.Staff.value,
+              Constants.Role.Customer.value,
+            ],
+            ROUTE_PATH.TOTAL_OUTPUT_MEASUREMENT_POINTS,
             MenuKeys.Report
           ),
         ]

@@ -58,4 +58,28 @@ export interface IReportsInterface {
     params: GetListDailyDailyFinalizedEnergyReportRequest,
     cancellationToken: CancelToken
   ): Promise<RequestResponse>;
+
+  getYearlyFinalizedEnergyReport(
+    endpoint: string,
+    params: any,
+    cancellationToken: CancelToken
+  ): Promise<RequestResponse>;
+
+  getOperatingParameterReport(
+    endpoint: string,
+    params: any,
+    cancellationToken: CancelToken
+  ): Promise<RequestResponse>;
+
+  getOperatingParameterChart(
+    endpoint: string,
+    params: any,
+    cancellationToken: CancelToken
+  ): Promise<RequestResponse>;
+
+  getEnergyConsumptionReport(
+    endpoint: string,
+    params: any,
+    cancellationToken: CancelToken
+  ): Promise<RequestResponse>;
 }

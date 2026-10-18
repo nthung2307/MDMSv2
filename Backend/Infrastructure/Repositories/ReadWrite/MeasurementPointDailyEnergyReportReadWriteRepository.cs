@@ -232,6 +232,237 @@ public class MeasurementPointDailyEnergyReportReadWriteRepository : RestfulRepos
         return csvBytes;
     }
 
+    public Task<byte[]> GenerateExcel(DailyFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
+    {
+        return GenerateCsv(request, cancellationToken);
+    }
+
+    public async Task<byte[]> GenerateYearlyCsv(YearlyFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
+    {
+        var startLocal = new DateTimeOffset(request.Year, 1, 1, 0, 0, 0, TimeSpan.FromHours(7));
+        var endLocal = new DateTimeOffset(request.Year + 1, 1, 2, 23, 59, 59, TimeSpan.FromHours(7));
+        var startTime = startLocal.UtcDateTime;
+        var endTime = endLocal.UtcDateTime;
+
+        var allDailyRecords = await _measurementPointDailyEnergyReport.AsNoTracking()
+            .Where(m => m.MeasurementPoint.CustomerId == request.CustomerId)
+            .Where(m => m.MeasurementPointId == request.MeasurementPointId)
+            .Where(m => m.CreatedTime >= startTime && m.CreatedTime <= endTime)
+            .OrderBy(m => m.CreatedTime)
+            .ToListAsync(cancellationToken);
+
+        var targetMonths = new List<(int Year, int Month)>();
+        for (int m = 1; m <= 12; m++)
+        {
+            targetMonths.Add((request.Year, m));
+        }
+        targetMonths.Add((request.Year + 1, 1));
+
+        var yearlyRecords = new List<MeasurementPointDailyEnergyReportEntity>();
+        foreach (var (y, m) in targetMonths)
+        {
+            var record = allDailyRecords.FirstOrDefault(r =>
+            {
+                if (!r.CreatedTime.HasValue) return false;
+                var local = r.CreatedTime.Value.ToOffset(TimeSpan.FromHours(7));
+                return local.Year == y && local.Month == m && local.Day == 1;
+            }) ?? allDailyRecords.FirstOrDefault(r =>
+            {
+                if (!r.CreatedTime.HasValue) return false;
+                var local = r.CreatedTime.Value.ToOffset(TimeSpan.FromHours(7));
+                return local.Year == y && local.Month == m;
+            });
+
+            if (record != null)
+            {
+                yearlyRecords.Add(record);
+            }
+        }
+
+        using var memoryStream = new MemoryStream();
+        await using var streamWriter = new StreamWriter(memoryStream, new UTF8Encoding(true));
+        await using var csvWriter = new CsvWriter(streamWriter, CultureInfo.InvariantCulture);
+
+        csvWriter.WriteField("Thời gian (0:00)");
+        csvWriter.WriteField("");
+        csvWriter.WriteField("");
+        csvWriter.WriteField("Kênh giao (kWh)");
+        csvWriter.WriteField("");
+        csvWriter.WriteField("");
+        csvWriter.WriteField("");
+        csvWriter.WriteField("");
+        csvWriter.WriteField("Kênh nhận (kWh)");
+        csvWriter.WriteField("");
+        csvWriter.WriteField("");
+        await csvWriter.NextRecordAsync();
+
+        csvWriter.WriteField("");
+        csvWriter.WriteField("Tổng");
+        csvWriter.WriteField("Biểu 1 (BT)");
+        csvWriter.WriteField("Biểu 2 (CD)");
+        csvWriter.WriteField("Biểu 3 (TD)");
+        csvWriter.WriteField("VC (kVArh)");
+        csvWriter.WriteField("Tổng");
+        csvWriter.WriteField("Biểu 1 (BT)");
+        csvWriter.WriteField("Biểu 2 (CD)");
+        csvWriter.WriteField("Biểu 3 (TD)");
+        csvWriter.WriteField("VC (kVArh)");
+        await csvWriter.NextRecordAsync();
+
+        foreach (var report in yearlyRecords)
+        {
+            csvWriter.WriteField(report.CreatedTime?.ToOffset(TimeSpan.FromHours(7)).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) ?? string.Empty);
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhGiao));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhNhan));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan));
+            await csvWriter.NextRecordAsync();
+        }
+
+        await streamWriter.FlushAsync(cancellationToken);
+        return memoryStream.ToArray();
+    }
+
+    public Task<byte[]> GenerateYearlyExcel(YearlyFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
+    {
+        return GenerateYearlyCsv(request, cancellationToken);
+    }
+
+    public async Task<byte[]> GenerateYearlyPdf(YearlyFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
+    {
+        var startLocal = new DateTimeOffset(request.Year, 1, 1, 0, 0, 0, TimeSpan.FromHours(7));
+        var endLocal = new DateTimeOffset(request.Year + 1, 1, 2, 23, 59, 59, TimeSpan.FromHours(7));
+        var startTime = startLocal.UtcDateTime;
+        var endTime = endLocal.UtcDateTime;
+
+        var allDailyRecords = await _measurementPointDailyEnergyReport.AsNoTracking()
+            .Include(m => m.MeasurementPoint)
+            .Where(m => m.MeasurementPoint.CustomerId == request.CustomerId)
+            .Where(m => m.MeasurementPointId == request.MeasurementPointId)
+            .Where(m => m.CreatedTime >= startTime && m.CreatedTime <= endTime)
+            .OrderBy(m => m.CreatedTime)
+            .ToListAsync(cancellationToken);
+
+        var targetMonths = new List<(int Year, int Month)>();
+        for (int m = 1; m <= 12; m++)
+        {
+            targetMonths.Add((request.Year, m));
+        }
+        targetMonths.Add((request.Year + 1, 1));
+
+        var yearlyRecords = new List<MeasurementPointDailyEnergyReportEntity>();
+        foreach (var (y, m) in targetMonths)
+        {
+            var record = allDailyRecords.FirstOrDefault(r =>
+            {
+                if (!r.CreatedTime.HasValue) return false;
+                var local = r.CreatedTime.Value.ToOffset(TimeSpan.FromHours(7));
+                return local.Year == y && local.Month == m && local.Day == 1;
+            }) ?? allDailyRecords.FirstOrDefault(r =>
+            {
+                if (!r.CreatedTime.HasValue) return false;
+                var local = r.CreatedTime.Value.ToOffset(TimeSpan.FromHours(7));
+                return local.Year == y && local.Month == m;
+            });
+
+            if (record != null)
+            {
+                yearlyRecords.Add(record);
+            }
+        }
+
+        var pointCode = yearlyRecords.FirstOrDefault()?.MeasurementPoint?.Code ?? request.MeasurementPointId.ToString();
+
+        var document = Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4.Landscape());
+                page.Margin(20);
+
+                page.Header().Column(col =>
+                {
+                    col.Item().Text("HỆ THỐNG QUẢN LÝ DỮ LIỆU ĐO ĐẾM MDMS")
+                        .FontFamily(Fonts.Arial).FontSize(14).Bold().FontColor(Colors.Blue.Darken2);
+                    col.Item().Text($"BÁO CÁO CHỈ SỐ ĐIỆN HÀNG NĂM (0:00 ĐẦU MỖI THÁNG) - NĂM {request.Year} - ĐIỂM ĐO: {pointCode}")
+                        .FontFamily(Fonts.Arial).FontSize(12).SemiBold();
+                });
+
+                page.Content().PaddingTop(10).Table(table =>
+                {
+                    table.ColumnsDefinition(columns =>
+                    {
+                        columns.ConstantColumn(100);
+                        columns.RelativeColumn(1.2f);
+                        columns.RelativeColumn(1.2f);
+                        columns.RelativeColumn(1.2f);
+                        columns.RelativeColumn(1.2f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1.2f);
+                        columns.RelativeColumn(1.2f);
+                        columns.RelativeColumn(1.2f);
+                        columns.RelativeColumn(1.2f);
+                        columns.RelativeColumn(1f);
+                    });
+
+                    table.Header(header =>
+                    {
+                        header.Cell().RowSpan(2).Border(1).Background("#dcdcdc").BorderColor(Colors.Black).Padding(3).AlignCenter().AlignMiddle().Text("Thời gian (0:00)").FontFamily(Fonts.Arial).FontSize(9).Bold();
+                        header.Cell().ColumnSpan(5).Border(1).Background("#dcdcdc").BorderColor(Colors.Black).Padding(3).AlignCenter().AlignMiddle().Text("Kênh giao (kWh)").FontFamily(Fonts.Arial).FontSize(9).Bold();
+                        header.Cell().ColumnSpan(5).Border(1).Background("#dcdcdc").BorderColor(Colors.Black).Padding(3).AlignCenter().AlignMiddle().Text("Kênh nhận (kWh)").FontFamily(Fonts.Arial).FontSize(9).Bold();
+
+                        header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).Padding(2).AlignCenter().Text("Tổng").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).Padding(2).AlignCenter().Text("Biểu 1 (BT)").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).Padding(2).AlignCenter().Text("Biểu 2 (CD)").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).Padding(2).AlignCenter().Text("Biểu 3 (TD)").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).Padding(2).AlignCenter().Text("VC (kVArh)").FontFamily(Fonts.Arial).FontSize(8).Bold();
+
+                        header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).Padding(2).AlignCenter().Text("Tổng").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).Padding(2).AlignCenter().Text("Biểu 1 (BT)").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).Padding(2).AlignCenter().Text("Biểu 2 (CD)").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).Padding(2).AlignCenter().Text("Biểu 3 (TD)").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).Padding(2).AlignCenter().Text("VC (kVArh)").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                    });
+
+                    foreach (var report in yearlyRecords)
+                    {
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignCenter().Text(report.CreatedTime?.ToOffset(TimeSpan.FromHours(7)).ToString("dd/MM/yyyy HH:mm") ?? "").FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhGiao)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhNhan)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan)).FontFamily(Fonts.Arial).FontSize(8);
+                    }
+                });
+
+                page.Footer().Row(row =>
+                {
+                    row.RelativeItem().Text($"Thời gian xuất: {DateTime.Now:HH:mm:ss dd/MM/yyyy}").FontFamily(Fonts.Arial).FontSize(8);
+                    row.RelativeItem().AlignRight().Text(text =>
+                    {
+                        text.Span("Trang ").FontFamily(Fonts.Arial).FontSize(8);
+                        text.CurrentPageNumber().FontFamily(Fonts.Arial).FontSize(8);
+                        text.Span(" / ").FontFamily(Fonts.Arial).FontSize(8);
+                        text.TotalPages().FontFamily(Fonts.Arial).FontSize(8);
+                    });
+                });
+            });
+        });
+
+        return document.GeneratePdf();
+    }
+
     private string FormatValue(string? value)
     {
         if (value == null) return "N/A";

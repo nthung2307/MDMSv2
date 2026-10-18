@@ -1,13 +1,16 @@
-import { Card } from 'antd';
+import { Button, Card, DatePicker, Radio, Segmented } from 'antd';
 import dayjs from 'dayjs';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { FiShare } from 'react-icons/fi';
+import { useEffect, useMemo, useState } from 'react';
+import { FiBarChart2, FiShare, FiTable } from 'react-icons/fi';
 import { IoBackspaceOutline } from 'react-icons/io5';
 
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
-import Constants from '@/core/application/common/constants.ts';
 import { GetListCustomerRequest } from '@/core/application/dto/customer/request/GetListCustomerRequest.ts';
 import { GetListMeasurementPointsRequest } from '@/core/application/dto/measurement-point/requests/GetListMeasurementPointsRequest.ts';
+import {
+  GetOperatingParameterReportRequest,
+  OperatingParameterItem,
+} from '@/core/application/dto/reports/requests/GetOperatingParameterReportRequest.ts';
 import { ButtonCommonCustomizable } from '@/infrastructure/common/components/button/button-common-customizable.tsx';
 import { BreadcrumbUI } from '@/infrastructure/common/components/controls/BreadcrumbUI.tsx';
 import DialogExportForm from '@/infrastructure/common/components/dialog-export/dialog-export';
@@ -17,36 +20,42 @@ import useDebounce from '@/infrastructure/common/libs/hooks/useDebounce.hook.tsx
 import { useStateDataForm } from '@/infrastructure/common/libs/hooks/useStateDataForm.hook.tsx';
 import useGetListCustomerForReportHook from '@/infrastructure/repository/customer/hooks/useGetCustomerListForReport.hook.tsx';
 import useGetListMeasurementPointsForReportHook from '@/infrastructure/repository/measurement-point/hooks/useGetListMeasurementPointsForReport.hook.tsx';
+import useGetOperatingParameterReportHook from '@/infrastructure/repository/reports/hooks/useGetOperatingParameterReport.hook.ts';
 import { _t } from '@/infrastructure/utils/translation.ts';
-import ChartFilter, { FilterStateValue } from '@/pages/reports/components/chart-filter.tsx';
-import ChartSwitcher from '@/pages/reports/electricity-consumption/components/chart-switcher.tsx';
-import PMaxContainer from '@/pages/reports/operating-parameter/components/active-power';
-import CurrentChart from '@/pages/reports/operating-parameter/components/current-chart';
-import QMaxContainer from '@/pages/reports/operating-parameter/components/reactive-power';
-import VoltageChart from '@/pages/reports/operating-parameter/components/voltage-chart';
+import OperatingParameterChart from '@/pages/reports/operating-parameter/components/operating-parameter-chart.tsx';
+import OperatingParameterTable from '@/pages/reports/operating-parameter/components/operating-parameter-table.tsx';
+
+const { RangePicker } = DatePicker;
 
 const OperatingParameter = () => {
-  const chartRef = useRef(null);
+  const [activeTab, setActiveTab] = useState<'table' | 'chart'>('table');
+  const [dateMode, setDateMode] = useState<'single' | 'range'>('single');
+  const [singleDate, setSingleDate] = useState<dayjs.Dayjs>(dayjs());
+  const [rangeDate, setRangeDate] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
+    dayjs().startOf('day'),
+    dayjs().endOf('day'),
+  ]);
+
+  const [tableData, setTableData] = useState<OperatingParameterItem[]>([]);
+  const [tableLoading, setTableLoading] = useState<boolean>(false);
   const [isShowExport, setIsShowExport] = useState<boolean>(false);
+
   const [getListCustomerRequest] = useGetListCustomerForReportHook();
   const [getListMeasurementPointRequest] = useGetListMeasurementPointsForReportHook();
+  const [getOperatingParameterReport] = useGetOperatingParameterReportHook();
+
   const [dataForm, setDataForm] = useStateDataForm({});
   const [showClearSearch, setShowClearSearch] = useState(false);
   const [listMeasurementPoint, setListMeasurementPoint] = useState<any>([]);
   const [listCustomer, setListCustomer] = useState<any>([]);
-  const [filterData, setFilterData] = useState<FilterStateValue>({
-    chartType: Constants.Reports.Type.OperatingParameter.DienApTrungBinh3Pha.value,
-    radioValue: Constants.Reports.Type.OperatingParameter.DienApTrungBinh3Pha.value,
-    date: dayjs().toISOString(),
-    previousPeriod: false,
-  });
-  const [chartTimeSelector, setChartTimeSelector] = useState<any>([]);
   const [searchData, setSearchData] = useState<{ customerCode: string; monitorPoint: string }>({
     customerCode: '',
     monitorPoint: '',
   });
+
   const debouncedCustomerCodeSearch = useDebounce(searchData?.customerCode, 300);
   const debouncedMeasurementPointSearch = useDebounce(searchData?.monitorPoint, 300);
+
   const getListCustomerAsync = async () => {
     const params = new GetListCustomerRequest({
       pageSize: 10,
@@ -64,12 +73,10 @@ const OperatingParameter = () => {
     await getListCustomerRequest(
       params as any,
       (res) => {
-        const customers = res?.data?.data?.map((it: any) => {
-          return {
-            value: it?.id,
-            label: it?.customerCode,
-          };
-        });
+        const customers = res?.data?.data?.map((it: any) => ({
+          value: it?.id,
+          label: it?.customerCode,
+        }));
         setListCustomer(customers);
       },
       () => {},
@@ -89,12 +96,10 @@ const OperatingParameter = () => {
     await getListMeasurementPointRequest(
       params,
       (res) => {
-        const measurementPoints = res?.data?.data?.map((it: any) => {
-          return {
-            value: it?.id,
-            label: it?.code,
-          };
-        });
+        const measurementPoints = res?.data?.data?.map((it: any) => ({
+          value: it?.id,
+          label: it?.code,
+        }));
         setListMeasurementPoint(measurementPoints);
       },
       () => {},
@@ -106,43 +111,56 @@ const OperatingParameter = () => {
     setSearchData({ ...searchData, [key]: data });
   };
 
-  const loadChartTypeArray = useMemo(() => {
-    return Object.values(Constants.Reports.Type.OperatingParameter).map((type) => ({
-      label: type.label,
-      value: type.value,
-    }));
-  }, []);
-
-  const chartsList = useMemo(() => {
-    return [
-      {
-        type: Constants.Reports.Type.OperatingParameter.DienApTrungBinh3Pha.value,
-        chartComponent: VoltageChart,
-      },
-      {
-        type: Constants.Reports.Type.OperatingParameter.DongDienTrungBinh3Pha.value,
-        chartComponent: CurrentChart,
-      },
-      {
-        type: Constants.Reports.Type.OperatingParameter.P.value,
-        chartComponent: PMaxContainer,
-      },
-      {
-        type: Constants.Reports.Type.OperatingParameter.Q.value,
-        chartComponent: QMaxContainer,
-      },
-    ];
-  }, []);
-
   const clearSearch = () => {
     setDataForm({ customerCode: '', monitorPoint: '' });
     setSearchData({ customerCode: '', monitorPoint: '' });
     setListMeasurementPoint([]);
     setShowClearSearch(false);
+    setTableData([]);
   };
 
   const fileNameBuilder = () => {
-    return `${filterData?.chartType}_${listCustomer?.find((customer: any) => customer.value === dataForm?.customerCode)?.label}_${listMeasurementPoint?.find((measurementPoint: any) => measurementPoint.value === dataForm?.monitorPoint)?.label}`;
+    const customer = listCustomer?.find((c: any) => c.value === dataForm?.customerCode)?.label || '';
+    const point = listMeasurementPoint?.find((p: any) => p.value === dataForm?.monitorPoint)?.label || '';
+    return `Thong_so_van_hanh_${customer}_${point}`;
+  };
+
+  const fetchTableData = async () => {
+    if (!dataForm?.customerCode || !dataForm?.monitorPoint) {
+      setTableData([]);
+      return;
+    }
+
+    const startTime =
+      dateMode === 'single'
+        ? singleDate.startOf('day').toISOString()
+        : rangeDate[0].startOf('day').toISOString();
+    const endTime =
+      dateMode === 'single'
+        ? singleDate.endOf('day').toISOString()
+        : rangeDate[1].endOf('day').toISOString();
+
+    const params: GetOperatingParameterReportRequest = {
+      customerId: Number(dataForm.customerCode),
+      measurementPointId: Number(dataForm.monitorPoint),
+      startTime,
+      endTime,
+      pageSize: 500,
+    };
+
+    setTableLoading(true);
+    await getOperatingParameterReport(
+      params,
+      (res: any) => {
+        setTableData(res?.data?.data || []);
+        setTableLoading(false);
+      },
+      () => {
+        setTableData([]);
+        setTableLoading(false);
+      },
+      setTableLoading
+    );
   };
 
   useEffect(() => {
@@ -151,7 +169,6 @@ const OperatingParameter = () => {
 
   useEffect(() => {
     if (dataForm?.customerCode) {
-      setDataForm({ ...dataForm, monitorPoint: '' });
       getListMeasurementPointAsync({
         pageSize: 10,
         searchByFields: [
@@ -164,43 +181,52 @@ const OperatingParameter = () => {
       });
     } else {
       setListMeasurementPoint([]);
-      setDataForm({ ...dataForm, monitorPoint: '' });
+      setDataForm((prev: any) => ({ ...prev, monitorPoint: '' }));
     }
   }, [debouncedMeasurementPointSearch, dataForm?.customerCode]);
 
   useEffect(() => {
-    // Update clear button visibility based on dataForm's current state
     setShowClearSearch(!!dataForm?.customerCode || !!dataForm?.monitorPoint);
   }, [dataForm]);
 
   useEffect(() => {
-    if (!filterData?.chartType) {
-      setChartTimeSelector(Constants.Reports.TimeSelector.OperatingParameter[0].value);
-    } else {
-      const chartType = filterData?.chartType;
-      switch (chartType) {
-        case Constants.Reports.Type.OperatingParameter.DienApTrungBinh3Pha.value:
-          return setChartTimeSelector(Constants.Reports.TimeSelector.OperatingParameter);
-        case Constants.Reports.Type.OperatingParameter.DongDienTrungBinh3Pha.value:
-          return setChartTimeSelector(Constants.Reports.TimeSelector.OperatingParameter);
-        case Constants.Reports.Type.OperatingParameter.P.value:
-          return setChartTimeSelector(Constants.Reports.TimeSelector.OperatingParameter);
-        case Constants.Reports.Type.OperatingParameter.Q.value:
-          return setChartTimeSelector(Constants.Reports.TimeSelector.OperatingParameter);
-        default:
-          return setChartTimeSelector([]);
-      }
+    if (dataForm?.customerCode && dataForm?.monitorPoint) {
+      fetchTableData();
     }
-  }, [filterData?.chartType]);
+  }, [dataForm?.customerCode, dataForm?.monitorPoint, dateMode, singleDate, rangeDate]);
+
+  const exportRequestBody = useMemo(() => {
+    const startTime =
+      dateMode === 'single'
+        ? singleDate.startOf('day').toISOString()
+        : rangeDate[0].startOf('day').toISOString();
+    const endTime =
+      dateMode === 'single'
+        ? singleDate.endOf('day').toISOString()
+        : rangeDate[1].endOf('day').toISOString();
+
+    return {
+      customerId: Number(dataForm?.customerCode),
+      measurementPointId: Number(dataForm?.monitorPoint),
+      startTime,
+      endTime,
+      pageSize: 1000,
+    };
+  }, [dataForm?.customerCode, dataForm?.monitorPoint, dateMode, singleDate, rangeDate]);
+
+  const currentVoltageUnit = useMemo(() => {
+    const item = tableData.find((d) => d.dienApPhaAUnit);
+    return item?.dienApPhaAUnit || 'kV';
+  }, [tableData]);
 
   return (
     <div>
-      <PageTitle title={'Báo cáo'} />
+      <PageTitle title={'Thông số vận hành'} />
       <div className='flex justify-between items-center'>
         <BreadcrumbUI
           items={[
             { name: 'Báo cáo', link: ROUTE_PATH.REPORTS },
-            { name: 'Biểu đồ thông số vận hành' },
+            { name: 'Thông số vận hành' },
           ]}
         />
         <div className='flex gap-5'>
@@ -211,99 +237,168 @@ const OperatingParameter = () => {
             onClick={() => {
               setIsShowExport(true);
             }}
-            disabled={!(filterData && dataForm.customerCode && dataForm.monitorPoint)}
+            disabled={!(dataForm.customerCode && dataForm.monitorPoint)}
             icon={<FiShare size={20} />}
           />
         </div>
       </div>
+
       <Card className='mt-5 shadow-custom'>
         <div>
-          <div className={'mb-5'}>
-            <div className='flex gap-3 items-center'>
-              <div className='basis-1/2 flex items-center gap-3'>
-                <div className='basis-1/2'>
-                  <InputSelectCommon
-                    isLabel={false}
-                    label={''}
-                    dataAttribute={dataForm?.customerCode}
-                    attribute={'customerCode'}
-                    setData={setDataForm}
-                    isRequired={false}
-                    placeholder={'Nhập mã khách hàng'}
-                    listDataItem={listCustomer}
-                    onSearch={(value) => {
-                      onSearch('customerCode', value);
-                    }}
-                    showSearch={true}
-                    allowClear={true}
-                  />
-                </div>
-                <div className='basis-1/2'>
-                  <InputSelectCommon
-                    isLabel={false}
-                    label={''}
-                    attribute={'monitorPoint'}
-                    dataAttribute={dataForm?.monitorPoint}
-                    setData={setDataForm}
-                    isRequired={false}
-                    placeholder={'Nhập mã điểm đo'}
-                    onSearch={(value) => {
-                      onSearch('monitorPoint', value);
-                    }}
-                    listDataItem={listMeasurementPoint}
-                    showSearch={true}
-                    allowClear={true}
-                    disabled={!dataForm?.customerCode}
-                  />
-                </div>
+          {/* Customer & Measurement Point Selection */}
+          <div className='flex gap-3 items-center mb-5'>
+            <div className='basis-1/2 flex items-center gap-3'>
+              <div className='basis-1/2'>
+                <InputSelectCommon
+                  isLabel={false}
+                  label={''}
+                  dataAttribute={dataForm?.customerCode}
+                  attribute={'customerCode'}
+                  setData={setDataForm}
+                  isRequired={false}
+                  placeholder={'Nhập mã khách hàng'}
+                  listDataItem={listCustomer}
+                  onSearch={(value) => {
+                    onSearch('customerCode', value);
+                  }}
+                  showSearch={true}
+                  allowClear={true}
+                />
               </div>
-              {showClearSearch && (
-                <div>
-                  <ButtonCommonCustomizable
-                    title={_t('')}
-                    classButton='text-button-variant'
-                    tooltipText='Xoá tất cả'
-                    icon={<IoBackspaceOutline size={25} />}
-                    onClick={() => {
-                      clearSearch();
-                    }}
-                    variant={'text'}
-                  />
-                </div>
-              )}
+              <div className='basis-1/2'>
+                <InputSelectCommon
+                  isLabel={false}
+                  label={''}
+                  attribute={'monitorPoint'}
+                  dataAttribute={dataForm?.monitorPoint}
+                  setData={setDataForm}
+                  isRequired={false}
+                  placeholder={'Nhập mã điểm đo'}
+                  onSearch={(value) => {
+                    onSearch('monitorPoint', value);
+                  }}
+                  listDataItem={listMeasurementPoint}
+                  showSearch={true}
+                  allowClear={true}
+                  disabled={!dataForm?.customerCode}
+                />
+              </div>
             </div>
-            <div className={'mt-5'}>
-              <ChartFilter
-                radioOptions={chartTimeSelector}
-                chartTypeOptions={loadChartTypeArray}
-                setFilterData={setFilterData}
-                isPreviousPeriod={false}
-              />
-            </div>
-          </div>
-          <div ref={chartRef}>
-            {filterData?.chartType && (
-              <ChartSwitcher
-                chartType={filterData?.chartType}
-                chartList={chartsList}
-                filterData={filterData}
-                dataForm={dataForm}
-              />
+            {showClearSearch && (
+              <div>
+                <ButtonCommonCustomizable
+                  title={_t('')}
+                  classButton='text-button-variant'
+                  tooltipText='Xoá tất cả'
+                  icon={<IoBackspaceOutline size={25} />}
+                  onClick={clearSearch}
+                  variant={'text'}
+                />
+              </div>
             )}
           </div>
+
+          {/* Mode Switcher: Table vs Chart & Unified Time Controls */}
+          <div className='flex flex-wrap justify-between items-center gap-4 mb-5 pb-3 border-b'>
+            <Segmented
+              options={[
+                {
+                  label: (
+                    <div className='flex items-center gap-2 px-3 py-1 font-medium'>
+                      <FiTable />
+                      <span>Bảng dữ liệu</span>
+                    </div>
+                  ),
+                  value: 'table',
+                },
+                {
+                  label: (
+                    <div className='flex items-center gap-2 px-3 py-1 font-medium'>
+                      <FiBarChart2 />
+                      <span>Biểu đồ</span>
+                    </div>
+                  ),
+                  value: 'chart',
+                },
+              ]}
+              value={activeTab}
+              onChange={(val) => setActiveTab(val as 'table' | 'chart')}
+            />
+
+            <div className='flex items-center gap-3'>
+              <Radio.Group
+                value={dateMode}
+                onChange={(e) => setDateMode(e.target.value)}
+                buttonStyle='solid'
+              >
+                <Radio.Button value='single'>Hàng ngày</Radio.Button>
+                <Radio.Button value='range'>Khoảng thời gian</Radio.Button>
+              </Radio.Group>
+
+              {dateMode === 'single' ? (
+                <DatePicker
+                  value={singleDate}
+                  onChange={(d) => d && setSingleDate(d)}
+                  format='DD/MM/YYYY'
+                  allowClear={false}
+                />
+              ) : (
+                <RangePicker
+                  value={rangeDate}
+                  onChange={(dates) => {
+                    if (dates && dates[0] && dates[1]) {
+                      setRangeDate([dates[0], dates[1]]);
+                    }
+                  }}
+                  format='DD/MM/YYYY'
+                  allowClear={false}
+                />
+              )}
+
+              <Button type='primary' onClick={fetchTableData} loading={tableLoading}>
+                Truy vấn
+              </Button>
+            </div>
+          </div>
+
+          {/* Tab 1: Table Content */}
+          {activeTab === 'table' && (
+            <div>
+              <OperatingParameterTable
+                data={tableData}
+                loading={tableLoading}
+                voltageUnit={currentVoltageUnit}
+              />
+            </div>
+          )}
+
+          {/* Tab 2: Chart Content bound directly to tableData */}
+          {activeTab === 'chart' && (
+            <div>
+              <OperatingParameterChart
+                data={tableData}
+                loading={tableLoading}
+                voltageUnit={currentVoltageUnit}
+              />
+            </div>
+          )}
         </div>
       </Card>
+
       <DialogExportForm
         open={isShowExport}
         handleCancel={() => {
           setIsShowExport(false);
         }}
-        title='Thông số vận hành'
-        onlyPDF={true}
-        chartRef={chartRef.current}
+        title='Báo cáo thông số vận hành'
+        onlyPDF={false}
+        chartRef={null}
         listHeader={[]}
         fileNameCsv={fileNameBuilder()}
-        typeExportAll={''}
+        typeExportAll={'report'}
+        subTypeExportAll={'operating-parameter'}
+        requestBody={exportRequestBody}
+        onlyExportAll={true}
       />
     </div>
   );

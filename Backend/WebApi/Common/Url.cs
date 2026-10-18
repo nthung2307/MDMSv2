@@ -57,10 +57,29 @@ public static class Url
             public const string ListFinalizedOutputElectricity = "Report/List-Finalized-Output-Electricity";
             public const string HalfHourFinalizedEnergyReport = "Report/Half-Hour-Finalized-Energy-Report";
             public const string DailyFinalizedEnergyReport = "Report/Daily-Finalized-Energy-Report";
+            public const string YearlyFinalizedEnergyReport = "Report/Yearly-Finalized-Energy-Report";
             public const string ExportCsvHalfHourFinalizedEnergy = "Half-Hour-Finalized-Energy/Export-Csv-Half-Hour-Finalized-Energy";
             public const string ExportPdfHalfHourFinalizedEnergy = "Half-Hour-Finalized-Energy/Export-Pdf-Half-Hour-Finalized-Energy";
+            public const string ExportExcelHalfHourFinalizedEnergy = "Half-Hour-Finalized-Energy/Export-Excel-Half-Hour-Finalized-Energy";
             public const string ExportCsvDailyFinalizedEnergy = "Daily-Finalized-Energy/Export-Csv-Daily-Finalized-Energy";
             public const string ExportPdfDailyFinalizedEnergy = "Daily-Finalized-Energy/Export-Pdf-Daily-Finalized-Energy";
+            public const string ExportExcelDailyFinalizedEnergy = "Daily-Finalized-Energy/Export-Excel-Daily-Finalized-Energy";
+            public const string ExportCsvYearlyFinalizedEnergy = "Yearly-Finalized-Energy/Export-Csv-Yearly-Finalized-Energy";
+            public const string ExportPdfYearlyFinalizedEnergy = "Yearly-Finalized-Energy/Export-Pdf-Yearly-Finalized-Energy";
+            public const string ExportExcelYearlyFinalizedEnergy = "Yearly-Finalized-Energy/Export-Excel-Yearly-Finalized-Energy";
+
+            // Báo cáo thông số vận hành 30 phút
+            public const string OperatingParameterReport = "Report/Operating-Parameter-Report";
+            public const string OperatingParameterChart = "Report/Operating-Parameter-Chart";
+            public const string ExportCsvOperatingParameter = "Report/Export-Csv-Operating-Parameter";
+            public const string ExportPdfOperatingParameter = "Report/Export-Pdf-Operating-Parameter";
+            public const string ExportExcelOperatingParameter = "Report/Export-Excel-Operating-Parameter";
+
+            // Báo cáo sản lượng điện
+            public const string EnergyConsumptionReport = "Report/Energy-Consumption-Report";
+            public const string ExportCsvEnergyConsumption = "Report/Export-Csv-Energy-Consumption";
+            public const string ExportPdfEnergyConsumption = "Report/Export-Pdf-Energy-Consumption";
+            public const string ExportExcelEnergyConsumption = "Report/Export-Excel-Energy-Consumption";
         }
 
         public static class Auth

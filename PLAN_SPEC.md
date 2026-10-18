@@ -551,3 +551,210 @@ Khi một điểm đo có nhiều email nhận phiếu báo (tối đa 3 email: 
 - [x] **Task 11.3**: [Frontend/Config] Cân bằng tỷ lệ độ rộng cột cho tab "Thời gian" (50% - 50%) và các tab khác (45% - 30% - 25%).
 - [x] **Task 11.4**: [QA & Review] Thẩm định giao diện, kiểm thử tính toàn vẹn dữ liệu và cập nhật [CHANGELOG_DEV.md](file:///e:/sources/MDMSv2/CHANGELOG_DEV.md), [TEST_REPORT.md](file:///e:/sources/MDMSv2/TEST_REPORT.md), [CODE_REVIEW.md](file:///e:/sources/MDMSv2/CODE_REVIEW.md).
 
+---
+
+## 23. ĐẶC TẢ KỸ THUẬT: HIỆU CHỈNH & NÂNG CẤP HỆ THỐNG BÁO CÁO TOÀN DIỆN MDMS (PHASE 11)
+
+### 23.1. Phân Tích Yêu Cầu Nghiệp Vụ Đo Đếm (7 Nhóm Báo Cáo Cốt Lõi)
+
+Hệ thống MDMSv2 cần đáp ứng tiêu chuẩn quản lý đo đếm năng lượng và thông số vận hành lưới điện theo quy định của EVN/Bộ Công Thương:
+
+1. **Báo cáo Thông số Vận hành (Operating Parameters Report)**:
+   - **Đại lượng đo lường**:
+     * Điện áp 3 pha: $U_a, U_b, U_c$ (đơn vị: `V` hoặc `kV`).
+     * Dòng điện 3 pha: $I_a, I_b, I_c$ (đơn vị: `A`).
+     * Công suất tác dụng tổng 3 pha: $P_{\text{total}}$ (đơn vị: `kW`).
+     * Công suất phản kháng tổng 3 pha: $Q_{\text{total}}$ (đơn vị: `kVAr`).
+     * Hệ số công suất: $PF$ (hệ số $\cos\varphi$, không thứ nguyên).
+     * Tần số lưới điện: $F$ (đơn vị: `Hz`).
+   - **Chu kỳ & Thời gian**: Chu kỳ 30 phút (48 mốc/ngày: 00:00, 00:30, 01:00, ..., 23:30, 00:00).
+   - **Chế độ lọc**:
+     * Xem theo 1 ngày cụ thể (`Date`).
+     * Hoặc xem theo Khoảng thời gian tùy chọn (`FromDate` đến `ToDate`).
+
+2. **Báo cáo Chỉ số Điện Chu kỳ 30 Phút Hàng Ngày (30-Minute Energy Index Report)**:
+   - **Đại lượng**: Giá trị chỉ số điện năng tích lũy (Cumulative Energy Index) tại từng mốc 30 phút trong ngày.
+   - **Chiều giao (Export / Delivery - kWh, kVArh)**:
+     * Biểu 1 (Bình thường - BT).
+     * Biểu 2 (Cao điểm - CD).
+     * Biểu 3 (Thấp điểm - TD).
+     * Biểu tổng tác dụng (AP Tổng).
+     * Biểu tổng phản kháng (AQ Tổng).
+   - **Chiều nhận (Import / Receive - kWh, kVArh)**:
+     * Đầy đủ 5 biểu: Biểu 1 (BT), Biểu 2 (CD), Biểu 3 (TD), AP Tổng, AQ Tổng.
+
+3. **Báo cáo Chỉ số Điện Hàng Tháng (Monthly Daily-Freeze Energy Index Report)**:
+   - **Đại lượng**: Giá trị chỉ số điện năng chốt vào đúng **thời điểm 0:00 hàng ngày** trong tháng (từ ngày 01 đến ngày cuối tháng: 28/29/30/31).
+   - **Phạm vi dữ liệu**: Đầy đủ cả Chiều giao và Chiều nhận, toàn bộ các biểu giá (BT, CD, TD) và biểu tổng (AP Tổng, AQ Tổng).
+
+4. **Báo cáo Chỉ số Điện Hàng Năm (Yearly Monthly-Freeze Energy Index Report)**:
+   - **Đại lượng**: Giá trị chỉ số điện năng chốt vào đúng **thời điểm 0:00 ngày đầu mỗi tháng** trong năm (01/01, 01/02, ..., 01/12, và 01/01 năm kế tiếp để phục vụ đối soát trọn vẹn tháng 12).
+   - **Phạm vi dữ liệu**: Đầy đủ 2 chiều (giao/nhận) và 10 cột biểu giá (BT, CD, TD, Tổng, Phản kháng).
+
+5. **Báo cáo Sản lượng Điện Chu kỳ 30 Phút Hàng Ngày (30-Minute Energy Consumption Report)**:
+   - **Đại lượng**: Điện năng tiêu thụ trong từng chu kỳ 30 phút:
+     $$\Delta E_{30\min}^{(i)} = \left( \text{Index}_{t_i} - \text{Index}_{t_{i-1}} \right) \times \text{MultiplierFactor}$$
+   - **Phạm vi**: Cả Chiều giao và Chiều nhận (đầy đủ các biểu BT, CD, TD, Tổng, Phản kháng).
+   - **Dòng tổng kết**: Dòng "Tổng cộng trong ngày" tính tổng sản lượng 48 chu kỳ của ngày.
+
+6. **Báo cáo Sản lượng Điện Hàng Tháng (Monthly Daily-Consumption Report)**:
+   - **Đại lượng**: Điện năng tiêu thụ từng ngày trong tháng, tính theo công thức:
+     $$\Delta E_{\text{ngày } T} = \left( \text{Index}_{0:00\text{ ngày } T+1} - \text{Index}_{0:00\text{ ngày } T} \right) \times \text{MultiplierFactor}$$
+     *(Tương đương: Chỉ số 0h hôm nay - Chỉ số 0h hôm qua)*.
+   - **Phạm vi**: 2 chiều giao/nhận, đầy đủ các biểu giá (BT, CD, TD, AP Tổng, AQ Tổng) cho từng ngày trong tháng.
+   - **Dòng tổng kết**: Dòng "Tổng cộng tháng" tổng hợp sản lượng toàn bộ các ngày trong tháng.
+
+7. **Báo cáo Sản lượng Điện Hàng Năm (Yearly Monthly-Consumption Report)**:
+   - **Đại lượng**: Điện năng tiêu thụ từng tháng trong năm, tính theo công thức:
+     $$\Delta E_{\text{tháng } M} = \left( \text{Index}_{0:00\text{ ngày 01/(}M+1\text{)}} - \text{Index}_{0:00\text{ ngày 01/}M} \right) \times \text{MultiplierFactor}$$
+     *(Tương đương: Chỉ số đầu tháng này - Chỉ số đầu tháng trước)*.
+   - **Phạm vi**: 2 chiều giao/nhận, đầy đủ các biểu giá cho 12 tháng trong năm.
+   - **Dòng tổng kết**: Dòng "Tổng cộng cả năm" tổng hợp sản lượng 12 tháng.
+
+---
+### 23.2. Quy Chuẩn Nguồn Dữ Liệu Chỉ Số & Phân Định Trách Nhiệm
+
+Theo phản hồi và thống nhất định hướng từ Quản trị viên:
+1. **Toàn bộ các Báo cáo (từ Báo cáo 1 đến 7) CHỈ SỬ DỤNG BỘ GHI CHỈ SỐ TỔNG**:
+   - Sử dụng thống nhất bộ tham số tích lũy: `CHI_SO_TICH_LUY_DIEN_NANG_...` (chiều giao, chiều nhận, các biểu giá BT, CD, TD, AP Tổng, AQ Tổng).
+   - Tuyệt đối không trộn lẫn hoặc đưa bộ chỉ số chốt vào các báo cáo chung này, đảm bảo tính nhất quán và đơn giản hóa bộ lọc cho người vận hành.
+2. **Bộ Chỉ số Chốt (Billing Freeze)**:
+   - Dành riêng cho **tác vụ GCS (Ghi chỉ số) số** và quản lý kỳ chốt hóa đơn, sẽ được triển khai trong phân hệ GCS ở giai đoạn tiếp theo.
+   - Nếu trong tương lai phát sinh nhu cầu, hệ thống sẽ xây dựng một chuyên trang báo cáo riêng biệt cho Bộ chỉ số chốt.
+
+---
+
+### 23.3. Bổ Sung Đồ Thị Cột & Tính Năng So Sánh Mốc Trước Gần Nhất (Previous Period Comparison)
+
+Đối với toàn bộ **3 Báo cáo Sản Lượng Điện** (Chu kỳ 30 phút, Hàng tháng, Hàng năm), bên cạnh Bảng số liệu chi tiết (Grid Table), hệ thống trang bị:
+1. **Đồ thị cột trực quan (Bar Chart)**:
+   - Sử dụng `Chart.js` (`react-chartjs-2`) kết hợp bảng dữ liệu.
+   - Thể hiện trực quan xu hướng tiêu thụ điện năng theo từng chu kỳ/ngày/tháng.
+2. **Tính năng So sánh với Mốc trước gần nhất (Previous Period Benchmark)**:
+   - **Báo cáo Sản lượng 30 phút**:
+     * So sánh sản lượng chu kỳ 30 phút của Ngày hiện tại với **cùng chu kỳ 30 phút của Ngày hôm trước** ($D$ vs $D-1$).
+     * Thể hiện bằng dạng cột nhóm đôi (Grouped Bar Chart: Cột "Hôm nay" và Cột "Hôm qua").
+   - **Báo cáo Sản lượng Hàng tháng**:
+     * So sánh sản lượng từng ngày trong tháng với **ngày hôm trước liền kề** (Day-on-Day: $T$ vs $T-1$) hoặc **cùng ngày của tháng trước** ($M$ vs $M-1$).
+     * Bảng số liệu và đồ thị bổ sung chỉ số chênh lệch ($\Delta \text{ kWh}$) và tỷ lệ tăng/giảm ($\% \text{ thay đổi}$).
+   - **Báo cáo Sản lượng Hàng năm**:
+     * So sánh sản lượng từng tháng với **tháng trước liền kề** (Month-on-Month) hoặc **cùng kỳ năm trước** (Year-on-Year: Năm nay vs Năm trước).
+     * Đồ thị cột thể hiện rõ nét tương quan biến động tiêu thụ giữa hai kỳ.
+
+---
+
+### 23.4. Đề Xuất Các Giải Pháp Kiến Trúc & Công Nghệ Bổ Sung Phù Hợp
+
+Nhằm tối ưu hóa hiệu năng, tính toàn vẹn dữ liệu và trải nghiệm người dùng vận hành hệ thống MDMS, chúng tôi đề xuất 6 nhóm giải pháp kỹ thuật:
+
+#### Giải pháp 1: Tái Cấu Trúc Menu Báo Cáo Trực Quan & Tập Trung (Report UX Redesign)
+Thay vì bố trí dàn trải 5 menu con rời rạc như hiện tại, cấu trúc lại menu `Báo cáo` thành **3 phân hệ nghiệp vụ chuẩn mực**:
+1. **Báo cáo Thông số Vận hành** (`/reports/operating-parameters`):
+   - Hỗ trợ chọn chu kỳ 30 phút theo 1 ngày hoặc khoảng ngày.
+   - Tích hợp 2 chế độ hiển thị: **Bảng dữ liệu chi tiết (Grid)** và **Biểu đồ trực quan (Multi-axis Line Chart)** cho $U, I, P, Q, PF, F$.
+2. **Báo cáo Chỉ số Điện** (`/reports/energy-indices`):
+   - Tích hợp giao diện Tab chuyển đổi nhanh:
+     * *Tab 1: Chu kỳ 30 phút* (theo ngày / khoảng ngày).
+     * *Tab 2: Hàng tháng* (Chỉ số chốt 0:00 hàng ngày).
+     * *Tab 3: Hàng năm* (Chỉ số chốt 0:00 ngày đầu mỗi tháng).
+   - Nguồn dữ liệu duy nhất: **Bộ chỉ số tổng tích lũy**.
+3. **Báo cáo Sản lượng Điện** (`/reports/energy-consumption`):
+   - Tích hợp 3 Tab tương ứng:
+     * *Tab 1: Chu kỳ 30 phút* (Sản lượng từng nửa giờ + Cột Bar so sánh ngày hôm trước).
+     * *Tab 2: Hàng tháng* (Sản lượng từng ngày trong tháng + Cột Bar so sánh + Dòng Tổng cộng).
+     * *Tab 3: Hàng năm* (Sản lượng 12 tháng + Cột Bar so sánh năm trước + Dòng Tổng cộng).
+4. Bảo lưu 2 công cụ phân tích phụ tải chuyên sâu: **Đồ thị phụ tải (Load Curve Analysis)** và **Tổng sản lượng các điểm đo**.
+
+#### Giải pháp 2: Kiến Trúc Lưu Trữ Dữ Liệu Nửa Giờ Tối Ưu (Half-Hour Snapshot & Partitioning)
+- **Tạo Entity mới**: `MeasurementPointHalfHourOperatingReportEntity` lưu trữ snapshot 30 phút cho thông số vận hành ($U_a, U_b, U_c, I_a, I_b, I_c, P, Q, PF, F$).
+- **Điều chỉnh Hangfire Job**:
+  * Tích hợp job `GenerateOperatingReportHalfHour` chạy cùng nhịp với `GenerateEnergyReportHalfHour` (vào phút thứ 05 và 35 hàng giờ).
+  * Áp dụng cơ chế **Smart Lookback 30-60 phút** để tự động lấp đầy các thông số nếu thời điểm truyền tin từ công tơ lệch vài phút.
+- **Đánh Composite Index**:
+  * `(MeasurementPointId, CreatedTime)` trên toàn bộ các bảng nửa giờ và hàng ngày để đảm bảo tốc độ lọc phạm vi ngày luôn dưới `30ms`.
+
+#### Giải pháp 3: Xử Lý Ngoại Lệ Đo Đếm Công Nghiệp (Edge Cases Handling)
+- **Xử lý Quay Vòng Công Tơ (Meter Rollover / Scale Reset)**:
+  * Khi chỉ số hôm nay nhỏ hơn chỉ số hôm qua do công tơ chạm trần (ví dụ: $999999.99 \rightarrow 000000.00$):
+  * Công thức tự động điều chỉnh: $\Delta = (\text{MaxCapacity} - \text{Index}_{\text{prev}}) + \text{Index}_{\text{curr}}$, đảm bảo không phát sinh sản lượng âm.
+- **Xử lý Thay Thế Công Tơ (Meter Replacement Event)**:
+  * Khi điểm đo có cờ `IsNewChange` hoặc phát sinh thay công tơ: Tự động ngắt quãng tính sản lượng dựa trên chỉ số tháo của công tơ cũ và chỉ số treo của công tơ mới.
+- **Bù Dữ Liệu Khi Mất Tín Hiệu (Smart Interpolation / Estimated Flags)**:
+  * Nếu điểm đo mất kết nối tại đúng mốc 0:00 hoặc mốc 30 phút: Hệ thống tự động đánh dấu cờ `Quality = Estimated` và hỗ trợ tính toán bù chỉ số theo mức tiêu thụ trung bình của chu kỳ liền kề.
+
+#### Giải pháp 4: Tính Toán Sản Lượng Năng Động & Kỳ So Sánh Có Caching (Dynamic In-Memory Caching)
+- Sản lượng ngày và tháng được tính toán động (On-the-fly) từ bảng chỉ số 0:00 hàng ngày (`MeasurementPointDailyEnergyReportEntity`) và bảng nửa giờ.
+- Khi người dùng bật tùy chọn "So sánh với kỳ trước", backend đồng thời tải dữ liệu kỳ đối chuẩn (kỳ trước liền kề / cùng kỳ năm trước) và tính toán độ chênh lệch.
+- Áp dụng `IMemoryCache` cho các kỳ báo cáo quá khứ (dữ liệu tháng/năm cũ đã đóng băng và không thay đổi), giảm 95% tải truy vấn xuống cơ sở dữ liệu.
+
+#### Giải pháp 5: Tự Động Nhân Hệ Số Nhân (`MultiplierFactor`)
+- Mỗi điểm đo có hệ số nhân TU/TI riêng biệt (`measurementpoints.MultiplierFactor`).
+- Khi tính sản lượng, hệ thống luôn tự động nhân `MultiplierFactor` để người dùng nhận được giá trị sản lượng điện năng thương phẩm thực tế mà không cần tính tay.
+
+#### Giải pháp 6: Chuẩn Hóa Xuất Báo Cáo Đa Định Dạng (Excel, CSV UTF-8 BOM, PDF)
+- **Xuất Excel (.xlsx)**:
+  * Thiết kế bảng biểu 2 tầng tiêu chuẩn ngành điện lực: Cột Thời gian, Khối Kênh giao (Tổng, BT, CD, TD, VC), Khối Kênh nhận (Tổng, BT, CD, TD, VC), Cột Kỳ so sánh và Tỷ lệ tăng giảm (nếu bật so sánh).
+  * Định dạng số có dấu phân cách hàng nghìn (`#,##0.00`), căn phải chuẩn xác, dòng Tổng cộng in đậm kèm công thức `=SUM(...)`.
+- **Xuất CSV**: Tự động chèn UTF-8 BOM (`\uFEFF`) để mở trực tiếp trên Microsoft Excel không bị lỗi phông tiếng Việt.
+- **Xuất PDF**: Trình bày theo biểu mẫu biên bản giao nhận chỉ số và sản lượng đo đếm điện năng chính thức kèm đồ thị trực quan.
+
+---
+
+## 24. DANH SÁCH CÔNG VIỆC PHASE 11 (TASK BREAKDOWN FOR MDMS-CODER)
+
+### Nhóm 1: Backend (.NET 8 Clean Architecture)
+- [x] **Task 12.1**: [Backend/Domain] Tạo Entity `MeasurementPointHalfHourOperatingReportEntity.cs` lưu trữ thông số vận hành 30 phút ($U_a, U_b, U_c, I_a, I_b, I_c, P, Q, PF, F$). Bổ sung cấu hình EF Core trong `AppDbContext`.
+- [x] **Task 12.2**: [Backend/Application] Thiết kế DTOs cho 7 nhóm báo cáo chuẩn bộ chỉ số tổng:
+  * `OperatingParameterReportRequest.cs` & `OperatingParameterReportResponse.cs` (chu kỳ 30 phút, lọc ngày hoặc khoảng ngày).
+  * `YearlyFinalizedEnergyReportRequest.cs` (báo cáo chỉ số điện hàng năm lúc 0h ngày đầu tháng từ bộ chỉ số tổng).
+  * `EnergyConsumptionReportRequest.cs` & `EnergyConsumptionReportResponse.cs` (hỗ trợ chu kỳ 30 phút, hàng tháng, hàng năm có tính hệ số nhân, xử lý rollover và dữ liệu kỳ so sánh `PreviousPeriodData`).
+- [x] **Task 12.3**: [Backend/Infrastructure] Cập nhật `BackgroundJobService.cs`:
+  * Bổ sung job `GenerateOperatingReportHalfHour` lưu trữ snapshot thông số vận hành nửa giờ với Smart Lookback. Đăng ký Recurring Job trong `Program.cs`.
+  * Tối ưu `GenerateEnergyReportHalfHour` và `GenerateEnergyReportDaily` bảo đảm tính toán đầy đủ mốc 30 phút và 0:00 hàng ngày từ bộ chỉ số tổng.
+- [x] **Task 12.4**: [Backend/Infrastructure] Hiện thực hóa Repository và Service tính toán:
+  * `MeasurementPointHalfHourOperatingReportReadOnlyRepository.cs` & `MeasurementPointHalfHourOperatingReportReadWriteRepository.cs`: Truy vấn và lưu trữ thông số vận hành 30 phút theo ngày hoặc khoảng ngày.
+  * `MeasurementPointDailyEnergyReportReadOnlyRepository.cs`: Bổ sung `GetYearlyFinalizedEnergyReportsAsync` truy vấn chỉ số điện 0:00 ngày 1 các tháng 1-12 và tháng 1 năm sau từ nguồn chỉ số tổng.
+  * `EnergyConsumptionReportReadOnlyRepository.cs`: Tính toán sản lượng theo công thức chuẩn ($\text{Index}_T - \text{Index}_{T-1}$), tự động nhân hệ số nhân `MultiplierFactor`, tính dữ liệu kỳ trước liền kề để so sánh và xử lý chống số âm do quay vòng công tơ.
+  * Hiện thực hóa logic xuất file CSV UTF-8 BOM và PDF cho cả 7 loại báo cáo.
+- [x] **Task 12.5**: [Backend/WebApi] Cập nhật `ReportController.cs` và khai báo route trong `Url.cs` cho toàn bộ các endpoints báo cáo mới.
+
+### Nhóm 2: Frontend (React 18 + TypeScript + Ant Design 5)
+- [x] **Task 13.1**: [Frontend/Core] Khai báo routes mới trong `appRouters.ts` (`YEARLY_FINALIZED_ENERGY_REPORT`) và cấu hình Menu trong `constants.ts`:
+  * Tổ chức lại menu `Báo cáo`: "Thông số vận hành", "Chỉ số điện", "Sản lượng điện", cùng "Đồ thị phụ tải" và "Tổng sản lượng".
+- [x] **Task 13.2**: [Frontend/Services] Định nghĩa interfaces và services gọi API báo cáo trong `reports.service.ts` kèm custom hooks (`useGetOperatingParameterReportHook`, `useGetYearlyFinalizedEnergyReportHook`, `useGetEnergyConsumptionReportHook`).
+- [x] **Task 13.3**: [Frontend/OperatingParameters] Nâng cấp màn hình Báo cáo Thông số Vận hành:
+  * Hỗ trợ bộ lọc chu kỳ 30 phút theo 1 ngày hoặc theo khoảng ngày (`RangePicker`).
+  * Bảng dữ liệu `OperatingParameterTable` hiển thị chi tiết $U_a, U_b, U_c, I_a, I_b, I_c, P, Q, PF, F$.
+  * Tab chuyển đổi giữa Bảng dữ liệu và Đồ thị trực quan.
+  * Xuất file CSV và PDF.
+- [x] **Task 13.4**: [Frontend/EnergyIndex] Xây dựng trang Báo cáo Chỉ số Điện:
+  * 3 Màn hình liên kết mượt mà: "Chu kỳ 30 phút" (`half-hour-finalized-energy-report`), "Hàng tháng (0:00 hàng ngày)" (`daily-finalized-energy-report`), "Hàng năm (0:00 đầu mỗi tháng)" (`yearly-finalized-energy-report`).
+  * Bảng số liệu chuẩn 2 tầng (Kênh giao / Kênh nhận, 5 biểu giá) lấy thuần nhất từ bộ chỉ số tổng.
+  * Tích hợp xuất file CSV và PDF.
+- [x] **Task 13.5**: [Frontend/EnergyConsumption] Xây dựng trang Báo cáo Sản lượng Điện tích hợp Đồ thị Cột & So sánh kỳ trước:
+  * 3 Chế độ chu kỳ: "Chu kỳ 30 phút", "Hàng tháng (hôm nay - hôm qua)", "Hàng năm (tháng này - tháng trước)".
+  * Bảng số liệu `EnergyConsumptionTable` hiển thị sản lượng thực tế (đã nhân hệ số nhân), kèm dòng "Tổng cộng" in đậm nổi bật ở chân trang.
+  * Tích hợp **Đồ thị cột (Bar Chart)** (`EnergyConsumptionChart` / `Chart.js`) trực quan hóa sản lượng kênh Giao/Nhận.
+  * Switch **"So sánh với kỳ trước gần nhất"** ($D$ vs $D-1$, $T$ vs $T-1$, $Y$ vs $Y-1$) hiển thị song song cột kỳ này vs kỳ trước kèm giá trị và % chênh lệch tăng/giảm.
+- [x] **Task 13.6**: [Frontend/Export] Tích hợp modal xuất file đa định dạng: Tải CSV UTF-8 BOM (.csv) và PDF (.pdf) đồng bộ trên tất cả các tab báo cáo.
+- [x] **Task 13.7**: [QA & Review] Biên dịch thành công 100% Backend (.NET 8: 0 Errors) và Frontend (Vite + TypeScript: 0 Errors).
+
+---
+
+## 25. TỔNG KẾT BÀN GIAO & KẾT QUẢ NGHIỆM THU
+1. **Toàn bộ 7 loại báo cáo theo yêu cầu đã hoàn tất đầy đủ**:
+   - **Báo cáo 1**: Báo cáo thông số vận hành ($U_a, U_b, U_c, I_a, I_b, I_c, P, Q, PF, F$) chu kỳ 30 phút, lọc 1 ngày hoặc khoảng thời gian.
+   - **Báo cáo 2**: Báo cáo chỉ số điện chiều nhận, chiều giao hàng ngày chu kỳ 30 phút (5 biểu giá).
+   - **Báo cáo 3**: Báo cáo chỉ số điện chiều nhận, chiều giao hàng tháng (lấy chỉ số 0:00 hàng ngày, 5 biểu giá).
+   - **Báo cáo 4**: Báo cáo chỉ số điện chiều nhận, chiều giao hàng năm (lấy chỉ số 0:00 ngày đầu mỗi tháng 01/01 đến 01/12 và 01/01 năm sau, 5 biểu giá).
+   - **Báo cáo 5**: Báo cáo sản lượng điện chu kỳ 30 phút (kèm Bar Chart & so sánh $D$ vs $D-1$).
+   - **Báo cáo 6**: Báo cáo sản lượng điện hàng tháng (chỉ số hôm nay - chỉ số hôm qua, kèm Bar Chart & so sánh $T$ vs $T-1$).
+   - **Báo cáo 7**: Báo cáo sản lượng điện hàng năm (chỉ số đầu tháng này - đầu tháng trước, kèm Bar Chart & so sánh $Y$ vs $Y-1$).
+2. **Tuân thủ tuyệt đối quy định nghiệp vụ**:
+   - Chỉ sử dụng Bộ chỉ số tổng (`CHI_SO_TICH_LUY_...`) cho các báo cáo này.
+   - Báo cáo sản lượng tự động nhân hệ số nhân `MultiplierFactor`, chống số âm khi quay vòng công tơ, có đồ thị cột và so sánh kỳ trước.
+3. **Biên dịch & Kiểm định**:
+   - Backend `dotnet build Backend/WebApi/WebApi.csproj`: **0 Error(s)**.
+   - Frontend `npm run build:dev` (`tsc && vite build`): **0 Error(s)**.
+
+

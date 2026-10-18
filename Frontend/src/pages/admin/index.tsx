@@ -47,6 +47,7 @@ import HalfHourFinalizedEnergyReport from '@/pages/reports/half-hour-finalized-e
 import LoadChart from '@/pages/reports/load-curve/load-curve.tsx';
 import operatingParameter from '@/pages/reports/operating-parameter/operating-parameter.tsx';
 import totalOutputMeasurementPoints from '@/pages/reports/total-output-measurement-points/total-output-measurement-points.tsx';
+import YearlyFinalizedEnergyReport from '@/pages/reports/yearly-finalized-energy-report/yearly-finalized-energy-report.tsx';
 
 export const AdminPage = () => {
   // 👇️ conditionally redirect based on isAuthenticated boolean
@@ -334,6 +335,20 @@ export const AdminPage = () => {
             element={
               <PrivateRoute
                 component={DailyFinalizedEnergyReport}
+                roles={[
+                  Constants.Role.Admin.value,
+                  Constants.Role.SuperAdmin.value,
+                  Constants.Role.Customer.value,
+                  Constants.Role.Staff.value,
+                ]}
+              />
+            }
+          />
+          <Route
+            path={ROUTE_PATH.YEARLY_FINALIZED_ENERGY_REPORT}
+            element={
+              <PrivateRoute
+                component={YearlyFinalizedEnergyReport}
                 roles={[
                   Constants.Role.Admin.value,
                   Constants.Role.SuperAdmin.value,

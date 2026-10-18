@@ -100,7 +100,6 @@ const TableEvent = (props: Props) => {
           },
         };
       }}
-      loading={loading}
     />
   );
 };

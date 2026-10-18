@@ -246,4 +246,112 @@ export class ReportsService implements IReportsInterface {
       throw e;
     }
   }
+
+  public async getYearlyFinalizedEnergyReport(
+    endpoint: string,
+    params: any,
+    cancellationToken: CancelToken
+  ): Promise<RequestResponse> {
+    try {
+      const result = await new RequestService().makePostRequestAsync(
+        endpoint,
+        params,
+        cancellationToken
+      );
+      if (result.status === 200) {
+        return result as SuccessResponse;
+      }
+      if (result.status === 202) {
+        return result as FailureResponse;
+      }
+      if (result.status === 400) {
+        return result as InvalidModelStateResponse;
+      }
+      throw new NetworkException('No http status code handler');
+    } catch (e) {
+      this.loggerService.error(e);
+      throw e;
+    }
+  }
+
+  public async getOperatingParameterReport(
+    endpoint: string,
+    params: any,
+    cancellationToken: CancelToken
+  ): Promise<RequestResponse> {
+    try {
+      const result = await new RequestService().makePostRequestAsync(
+        endpoint,
+        params,
+        cancellationToken
+      );
+      if (result.status === 200) {
+        return result as SuccessResponse;
+      }
+      if (result.status === 202) {
+        return result as FailureResponse;
+      }
+      if (result.status === 400) {
+        return result as InvalidModelStateResponse;
+      }
+      throw new NetworkException('No http status code handler');
+    } catch (e) {
+      this.loggerService.error(e);
+      throw e;
+    }
+  }
+
+  public async getOperatingParameterChart(
+    endpoint: string,
+    params: any,
+    cancellationToken: CancelToken
+  ): Promise<RequestResponse> {
+    try {
+      const result = await new RequestService().makePostRequestAsync(
+        endpoint,
+        params,
+        cancellationToken
+      );
+      if (result.status === 200) {
+        return result as SuccessResponse;
+      }
+      if (result.status === 202) {
+        return result as FailureResponse;
+      }
+      if (result.status === 400) {
+        return result as InvalidModelStateResponse;
+      }
+      throw new NetworkException('No http status code handler');
+    } catch (e) {
+      this.loggerService.error(e);
+      throw e;
+    }
+  }
+
+  public async getEnergyConsumptionReport(
+    endpoint: string,
+    params: any,
+    cancellationToken: CancelToken
+  ): Promise<RequestResponse> {
+    try {
+      const result = await new RequestService().makePostRequestAsync(
+        endpoint,
+        params,
+        cancellationToken
+      );
+      if (result.status === 200) {
+        return result as SuccessResponse;
+      }
+      if (result.status === 202) {
+        return result as FailureResponse;
+      }
+      if (result.status === 400) {
+        return result as InvalidModelStateResponse;
+      }
+      throw new NetworkException('No http status code handler');
+    } catch (e) {
+      this.loggerService.error(e);
+      throw e;
+    }
+  }
 }

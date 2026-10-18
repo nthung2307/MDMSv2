@@ -407,6 +407,11 @@ RecurringJob.AddOrUpdate<BackgroundJobService>(
     job => job.GenerateEnergyReportHalfHour(CancellationToken.None),
     "5,35 * * * *"
 );
+RecurringJob.AddOrUpdate<BackgroundJobService>(
+    "GenerateOperatingReportHalfHour",
+    job => job.GenerateOperatingReportHalfHour(CancellationToken.None),
+    "5,35 * * * *"
+);
 //
 // RecurringJob.AddOrUpdate<BackgroundJobArchiveDataService>(
 //     "ArchiveDataMeasurementPointMonitoring",
@@ -425,6 +430,46 @@ app.MapHub<ListNotificationHub>("/listnotificationhub");
 app.MapHub<DetailNotificationHub>("/detailnotificationhub");
 app.MapHub<DetailNotificationDateTimeHub>("/detailnotificationdatetimehub");
 app.MapHub<NotificationEventHub>("/notificationeventhub");
+
+try
+{
+    var dbFactory = app.Services.GetRequiredService<IDbContextFactory<AppReadWriteDbContext>>();
+    using var db = dbFactory.CreateDbContext();
+    await db.Database.ExecuteSqlRawAsync(@"
+CREATE TABLE IF NOT EXISTS `MeasurementPointHalfHourOperatingReports` (
+  `Id` bigint NOT NULL,
+  `MeasurementPointId` bigint NOT NULL,
+  `CreatedTime` datetime(6) DEFAULT NULL,
+  `DienApPhaA` double DEFAULT NULL,
+  `DienApPhaAUnit` longtext,
+  `DienApPhaB` double DEFAULT NULL,
+  `DienApPhaBUnit` longtext,
+  `DienApPhaC` double DEFAULT NULL,
+  `DienApPhaCUnit` longtext,
+  `DongDienPhaA` double DEFAULT NULL,
+  `DongDienPhaAUnit` longtext,
+  `DongDienPhaB` double DEFAULT NULL,
+  `DongDienPhaBUnit` longtext,
+  `DongDienPhaC` double DEFAULT NULL,
+  `DongDienPhaCUnit` longtext,
+  `CongSuatTacDungTong3Pha` double DEFAULT NULL,
+  `CongSuatTacDungTong3PhaUnit` longtext,
+  `CongSuatPhanKhangTong3Pha` double DEFAULT NULL,
+  `CongSuatPhanKhangTong3PhaUnit` longtext,
+  `HeSoCongSuatPF` double DEFAULT NULL,
+  `TanSoHeThong` double DEFAULT NULL,
+  `TanSoHeThongUnit` longtext,
+  PRIMARY KEY (`Id`),
+  KEY `IX_MeasurementPointHalfHourOperatingReports_MeasurementPointId` (`MeasurementPointId`),
+  KEY `IX_MeasurementPointHalfHourOperatingReports_CreatedTime` (`CreatedTime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+");
+    app.Logger.LogInformation("Đã kiểm tra và đảm bảo bảng MeasurementPointHalfHourOperatingReports tồn tại.");
+}
+catch (Exception ex)
+{
+    app.Logger.LogWarning(ex, "Không thể tự động tạo bảng MeasurementPointHalfHourOperatingReports khi khởi động.");
+}
 
 try
 {

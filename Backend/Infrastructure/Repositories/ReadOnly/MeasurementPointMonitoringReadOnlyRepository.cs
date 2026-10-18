@@ -1737,4 +1737,146 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
 
         return result;
     }
+
+    public async Task<List<MeasurementPointOperatingReportDto>> GetListMeasurementOperatingReportWithLookbackAsync(int lookbackMinutes, CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        var primaryWindowStart = now.AddMinutes(-10);
+        var lookbackStart = now.AddMinutes(-lookbackMinutes);
+
+        var activePoints = await _measurementPointsEntities
+            .AsNoTracking()
+            .Where(x => !x.Deleted && x.Status == "ACTIVE")
+            .Select(x => new { x.Id, x.Code })
+            .ToListAsync(cancellationToken);
+
+        if (!activePoints.Any())
+        {
+            return new List<MeasurementPointOperatingReportDto>();
+        }
+
+        var activePointIds = activePoints.Select(x => x.Id).ToList();
+
+        var primaryEntities = await _measurementPointMonitoringEntities
+            .AsNoTracking()
+            .Where(x => activePointIds.Contains(x.MeasurementPointsId) && x.CreatedTime >= primaryWindowStart && x.CreatedTime <= now && x.Value != null && x.Value != "")
+            .Include(x => x.TagName)
+            .OrderByDescending(x => x.CreatedTime)
+            .ToListAsync(cancellationToken);
+
+        var primaryGrouped = new Dictionary<(long PointId, string TagDesc), MeasurementPointMonitoringEntity>();
+        foreach (var entity in primaryEntities)
+        {
+            var key = (entity.MeasurementPointsId, entity.TagNameDescription ?? "");
+            if (!primaryGrouped.ContainsKey(key))
+            {
+                primaryGrouped[key] = entity;
+            }
+        }
+
+        var requiredTags = new HashSet<string>
+        {
+            ListDataMeasurementPoint.DienApPhaA,
+            ListDataMeasurementPoint.DienApPhaB,
+            ListDataMeasurementPoint.DienApPhaC,
+            ListDataMeasurementPoint.DongDienPhaA,
+            ListDataMeasurementPoint.DongDienPhaB,
+            ListDataMeasurementPoint.DongDienPhaC,
+            ListDataMeasurementPoint.CongSuatTacDungTong3Pha,
+            ListDataMeasurementPoint.CongSuatPhanKhangTong3Pha,
+            ListDataMeasurementPoint.HeSoCongSuatPFTrungBinh3Pha,
+            ListDataMeasurementPoint.TanSoHeThong
+        };
+
+        var pointsNeedingLookback = activePoints
+            .Where(p => requiredTags.Any(tag => !primaryGrouped.ContainsKey((p.Id, tag))))
+            .Select(p => p.Id)
+            .ToList();
+
+        var lookbackGrouped = new Dictionary<(long PointId, string TagDesc), MeasurementPointMonitoringEntity>();
+        if (pointsNeedingLookback.Any())
+        {
+            var lookbackEntities = await _measurementPointMonitoringEntities
+                .AsNoTracking()
+                .Where(x => pointsNeedingLookback.Contains(x.MeasurementPointsId)
+                         && x.CreatedTime >= lookbackStart && x.CreatedTime <= now
+                         && x.Value != null && x.Value != "")
+                .Include(x => x.TagName)
+                .OrderByDescending(x => x.CreatedTime)
+                .ToListAsync(cancellationToken);
+
+            foreach (var entity in lookbackEntities)
+            {
+                var key = (entity.MeasurementPointsId, entity.TagNameDescription ?? "");
+                if (!lookbackGrouped.ContainsKey(key))
+                {
+                    lookbackGrouped[key] = entity;
+                }
+            }
+        }
+
+        (double? Value, string Unit) ParseTagValue(long pointId, string tagDesc, string defaultUnit)
+        {
+            MeasurementPointMonitoringEntity? entity = null;
+            if (primaryGrouped.TryGetValue((pointId, tagDesc), out var primary) && !string.IsNullOrWhiteSpace(primary.Value))
+            {
+                entity = primary;
+            }
+            else if (lookbackGrouped.TryGetValue((pointId, tagDesc), out var lookback) && !string.IsNullOrWhiteSpace(lookback.Value))
+            {
+                entity = lookback;
+            }
+
+            if (entity != null && double.TryParse(entity.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var num))
+            {
+                return (num, entity.TagName?.Unit ?? defaultUnit);
+            }
+
+            return (null, defaultUnit);
+        }
+
+        var result = new List<MeasurementPointOperatingReportDto>();
+        foreach (var point in activePoints)
+        {
+            var ua = ParseTagValue(point.Id, ListDataMeasurementPoint.DienApPhaA, "V");
+            var ub = ParseTagValue(point.Id, ListDataMeasurementPoint.DienApPhaB, "V");
+            var uc = ParseTagValue(point.Id, ListDataMeasurementPoint.DienApPhaC, "V");
+
+            var ia = ParseTagValue(point.Id, ListDataMeasurementPoint.DongDienPhaA, "A");
+            var ib = ParseTagValue(point.Id, ListDataMeasurementPoint.DongDienPhaB, "A");
+            var ic = ParseTagValue(point.Id, ListDataMeasurementPoint.DongDienPhaC, "A");
+
+            var p = ParseTagValue(point.Id, ListDataMeasurementPoint.CongSuatTacDungTong3Pha, "kW");
+            var q = ParseTagValue(point.Id, ListDataMeasurementPoint.CongSuatPhanKhangTong3Pha, "kVAr");
+            var pf = ParseTagValue(point.Id, ListDataMeasurementPoint.HeSoCongSuatPFTrungBinh3Pha, "");
+            var f = ParseTagValue(point.Id, ListDataMeasurementPoint.TanSoHeThong, "Hz");
+
+            result.Add(new MeasurementPointOperatingReportDto
+            {
+                MeasurementPointId = point.Id,
+                CreatedTime = now,
+                DienApPhaA = ua.Value,
+                DienApPhaAUnit = ua.Unit,
+                DienApPhaB = ub.Value,
+                DienApPhaBUnit = ub.Unit,
+                DienApPhaC = uc.Value,
+                DienApPhaCUnit = uc.Unit,
+                DongDienPhaA = ia.Value,
+                DongDienPhaAUnit = ia.Unit,
+                DongDienPhaB = ib.Value,
+                DongDienPhaBUnit = ib.Unit,
+                DongDienPhaC = ic.Value,
+                DongDienPhaCUnit = ic.Unit,
+                CongSuatTacDungTong3Pha = p.Value,
+                CongSuatTacDungTong3PhaUnit = p.Unit,
+                CongSuatPhanKhangTong3Pha = q.Value,
+                CongSuatPhanKhangTong3PhaUnit = q.Unit,
+                HeSoCongSuatPF = pf.Value,
+                TanSoHeThong = f.Value,
+                TanSoHeThongUnit = f.Unit
+            });
+        }
+
+        return result;
+    }
 }

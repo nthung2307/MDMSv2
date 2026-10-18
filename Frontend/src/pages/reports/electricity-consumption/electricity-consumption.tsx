@@ -1,13 +1,17 @@
-import { Card } from 'antd';
+import { Button, Card, DatePicker, Segmented, Switch } from 'antd';
 import dayjs from 'dayjs';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { FiShare } from 'react-icons/fi';
+import { useEffect, useMemo, useState } from 'react';
+import { FiBarChart2, FiShare, FiTable } from 'react-icons/fi';
 import { IoBackspaceOutline } from 'react-icons/io5';
 
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
-import Constants from '@/core/application/common/constants.ts';
 import { GetListCustomerRequest } from '@/core/application/dto/customer/request/GetListCustomerRequest.ts';
 import { GetListMeasurementPointsRequest } from '@/core/application/dto/measurement-point/requests/GetListMeasurementPointsRequest.ts';
+import {
+  EnergyConsumptionItem,
+  EnergyConsumptionReportResponse,
+  GetEnergyConsumptionReportRequest,
+} from '@/core/application/dto/reports/requests/GetEnergyConsumptionReportRequest.ts';
 import { ButtonCommonCustomizable } from '@/infrastructure/common/components/button/button-common-customizable.tsx';
 import { BreadcrumbUI } from '@/infrastructure/common/components/controls/BreadcrumbUI.tsx';
 import DialogExportForm from '@/infrastructure/common/components/dialog-export/dialog-export';
@@ -17,37 +21,40 @@ import useDebounce from '@/infrastructure/common/libs/hooks/useDebounce.hook.tsx
 import { useStateDataForm } from '@/infrastructure/common/libs/hooks/useStateDataForm.hook.tsx';
 import useGetListCustomerForReportHook from '@/infrastructure/repository/customer/hooks/useGetCustomerListForReport.hook.tsx';
 import useGetListMeasurementPointsForReportHook from '@/infrastructure/repository/measurement-point/hooks/useGetListMeasurementPointsForReport.hook.tsx';
+import useGetEnergyConsumptionReportHook from '@/infrastructure/repository/reports/hooks/useGetEnergyConsumptionReport.hook.ts';
 import { _t } from '@/infrastructure/utils/translation.ts';
-import ChartFilter, { FilterStateValue } from '@/pages/reports/components/chart-filter.tsx';
-import ActivePowerOutputChart from '@/pages/reports/electricity-consumption/components/active-power-output';
-import ActivePowerOutputHourly from '@/pages/reports/electricity-consumption/components/active-power-output-hourly';
-import ChartSwitcher from '@/pages/reports/electricity-consumption/components/chart-switcher.tsx';
-import FinalizedActivePowerOutput from '@/pages/reports/electricity-consumption/components/finalized-active-power-output';
-import FinalizedActivePowerOutputHourly from '@/pages/reports/electricity-consumption/components/finalized-active-power-output-hourly';
-import ReactivePowerOutput from '@/pages/reports/electricity-consumption/components/reactive-power-output';
+import EnergyConsumptionChart from '@/pages/reports/electricity-consumption/components/energy-consumption-chart.tsx';
+import EnergyConsumptionTable from '@/pages/reports/electricity-consumption/components/energy-consumption-table.tsx';
 
 const ElectricityConsumption = () => {
-  const chartRef = useRef(null);
+  const [cycleType, setCycleType] = useState<'HALF_HOUR' | 'MONTHLY' | 'YEARLY'>('HALF_HOUR');
+  const [viewMode, setViewMode] = useState<'table' | 'chart'>('table');
+  const [compareWithPrevious, setCompareWithPrevious] = useState<boolean>(true);
+
+  const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs>(dayjs());
+  const [selectedMonth, setSelectedMonth] = useState<dayjs.Dayjs>(dayjs());
+  const [selectedYear, setSelectedYear] = useState<dayjs.Dayjs>(dayjs());
+
+  const [reportData, setReportData] = useState<EnergyConsumptionReportResponse | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
   const [isShowExport, setIsShowExport] = useState<boolean>(false);
+
   const [getListCustomerRequest] = useGetListCustomerForReportHook();
   const [getListMeasurementPointRequest] = useGetListMeasurementPointsForReportHook();
+  const [getEnergyConsumptionReport] = useGetEnergyConsumptionReportHook();
+
   const [dataForm, setDataForm] = useStateDataForm({});
   const [showClearSearch, setShowClearSearch] = useState(false);
   const [listMeasurementPoint, setListMeasurementPoint] = useState<any>([]);
   const [listCustomer, setListCustomer] = useState<any>([]);
-  const [filterData, setFilterData] = useState<FilterStateValue>({
-    chartType: Constants.Reports.Type.ElectricityConsumption.TongSanLuongPTieuThu.value,
-    radioValue: Constants.Reports.TimeSelector.ElectricityConsumption.TongSanLuongPTieuThu[0].value,
-    date: dayjs().toISOString(),
-    previousPeriod: false,
-  });
-  const [chartTimeSelector, setChartTimeSelector] = useState<any>([]);
+
   const [searchData, setSearchData] = useState<{ customerCode: string; monitorPoint: string }>({
     customerCode: '',
     monitorPoint: '',
   });
   const debouncedCustomerCodeSearch = useDebounce(searchData?.customerCode, 300);
   const debouncedMeasurementPointSearch = useDebounce(searchData?.monitorPoint, 300);
+
   const getListCustomerAsync = async () => {
     const params = new GetListCustomerRequest({
       pageSize: 10,
@@ -65,12 +72,10 @@ const ElectricityConsumption = () => {
     await getListCustomerRequest(
       params as any,
       (res) => {
-        const customers = res?.data?.data?.map((it: any) => {
-          return {
-            value: it?.id,
-            label: it?.customerCode,
-          };
-        });
+        const customers = res?.data?.data?.map((it: any) => ({
+          value: it?.id,
+          label: it?.customerCode,
+        }));
         setListCustomer(customers);
       },
       () => {},
@@ -90,12 +95,10 @@ const ElectricityConsumption = () => {
     await getListMeasurementPointRequest(
       params,
       (res) => {
-        const measurementPoints = res?.data?.data?.map((it: any) => {
-          return {
-            value: it?.id,
-            label: it?.code,
-          };
-        });
+        const measurementPoints = res?.data?.data?.map((it: any) => ({
+          value: it?.id,
+          label: it?.code,
+        }));
         setListMeasurementPoint(measurementPoints);
       },
       () => {},
@@ -107,43 +110,48 @@ const ElectricityConsumption = () => {
     setSearchData({ ...searchData, [key]: data });
   };
 
-  const loadChartTypeArray = useMemo(() => {
-    return Object.values(Constants.Reports.Type.ElectricityConsumption).map((type) => ({
-      label: type.label,
-      value: type.value,
-    }));
-  }, []);
-
-  const chartsList = useMemo(() => {
-    return [
-      {
-        type: Constants.Reports.Type.ElectricityConsumption.TongSanLuongPTieuThu.value,
-        chartComponent: ActivePowerOutputChart, // Pass the component function itself
-      },
-      {
-        type: Constants.Reports.Type.ElectricityConsumption.SanLuongPTieuThu.value,
-        chartComponent: ActivePowerOutputHourly, // Pass the component function itself
-      },
-      {
-        type: Constants.Reports.Type.ElectricityConsumption.TongSanLuongQChot.value,
-        chartComponent: ReactivePowerOutput, // Pass the component function itself
-      },
-      {
-        type: Constants.Reports.Type.ElectricityConsumption.SanLuongPChot.value,
-        chartComponent: FinalizedActivePowerOutputHourly, // Pass the component function itself
-      },
-      {
-        type: Constants.Reports.Type.ElectricityConsumption.TongSanLuongPChot.value,
-        chartComponent: FinalizedActivePowerOutput, // Pass the component function itself
-      },
-    ];
-  }, []);
-
   const clearSearch = () => {
     setDataForm({ customerCode: '', monitorPoint: '' });
     setSearchData({ customerCode: '', monitorPoint: '' });
     setListMeasurementPoint([]);
     setShowClearSearch(false);
+    setReportData(null);
+  };
+
+  const fetchReportData = async () => {
+    if (!dataForm?.customerCode || !dataForm?.monitorPoint) {
+      setReportData(null);
+      return;
+    }
+
+    const params: GetEnergyConsumptionReportRequest = {
+      customerId: Number(dataForm.customerCode),
+      measurementPointId: Number(dataForm.monitorPoint),
+      cycleType,
+      date: cycleType === 'HALF_HOUR' ? selectedDate.format('YYYY-MM-DD') : undefined,
+      month: cycleType === 'MONTHLY' ? selectedMonth.month() + 1 : undefined,
+      year:
+        cycleType === 'YEARLY'
+          ? selectedYear.year()
+          : cycleType === 'MONTHLY'
+            ? selectedMonth.year()
+            : selectedDate.year(),
+      compareWithPrevious,
+    };
+
+    setLoading(true);
+    await getEnergyConsumptionReport(
+      params,
+      (res: any) => {
+        setReportData(res?.data || null);
+        setLoading(false);
+      },
+      () => {
+        setReportData(null);
+        setLoading(false);
+      },
+      setLoading
+    );
   };
 
   useEffect(() => {
@@ -170,54 +178,76 @@ const ElectricityConsumption = () => {
   }, [debouncedMeasurementPointSearch, dataForm?.customerCode]);
 
   useEffect(() => {
-    // Update clear button visibility based on dataForm's current state
     setShowClearSearch(!!dataForm?.customerCode || !!dataForm?.monitorPoint);
   }, [dataForm]);
 
   useEffect(() => {
-    if (!filterData?.chartType) {
-      setChartTimeSelector(
-        Constants.Reports.TimeSelector.ElectricityConsumption.TongSanLuongPTieuThu
-      );
-    } else {
-      const chartType = filterData?.chartType;
-      switch (chartType) {
-        case Constants.Reports.Type.ElectricityConsumption.TongSanLuongPTieuThu.value:
-          return setChartTimeSelector(
-            Constants.Reports.TimeSelector.ElectricityConsumption.TongSanLuongPTieuThu
-          );
-        case Constants.Reports.Type.ElectricityConsumption.SanLuongPTieuThu.value:
-          return setChartTimeSelector(
-            Constants.Reports.TimeSelector.ElectricityConsumption.SanLuongPTieuThu
-          );
-        case Constants.Reports.Type.ElectricityConsumption.TongSanLuongQChot.value:
-          return setChartTimeSelector(
-            Constants.Reports.TimeSelector.ElectricityConsumption.TongSanLuongQChot
-          );
-        case Constants.Reports.Type.ElectricityConsumption.SanLuongPChot.value:
-          return setChartTimeSelector(
-            Constants.Reports.TimeSelector.ElectricityConsumption.SanLuongPChot
-          );
-        case Constants.Reports.Type.ElectricityConsumption.TongSanLuongPChot.value:
-          return setChartTimeSelector(
-            Constants.Reports.TimeSelector.ElectricityConsumption.TongSanLuongPChot
-          );
-        default:
-          return setChartTimeSelector([]);
-      }
+    if (dataForm?.customerCode && dataForm?.monitorPoint) {
+      fetchReportData();
     }
-  }, [filterData?.chartType]);
+  }, [
+    dataForm?.customerCode,
+    dataForm?.monitorPoint,
+    cycleType,
+    selectedDate,
+    selectedMonth,
+    selectedYear,
+    compareWithPrevious,
+  ]);
 
   const fileNameBuilder = () => {
-    return `${filterData?.chartType}_${listCustomer?.find((customer: any) => customer.value === dataForm?.customerCode)?.label}_${listMeasurementPoint?.find((measurementPoint: any) => measurementPoint.value === dataForm?.monitorPoint)?.label}`;
+    const customer = listCustomer?.find((c: any) => c.value === dataForm?.customerCode)?.label || '';
+    const point = listMeasurementPoint?.find((p: any) => p.value === dataForm?.monitorPoint)?.label || '';
+    return `Bao_cao_san_luong_${cycleType}_${customer}_${point}`;
   };
+
+  const chartTitle = useMemo(() => {
+    switch (cycleType) {
+      case 'HALF_HOUR':
+        return `Đồ thị sản lượng chu kỳ 30 phút ngày ${selectedDate.format('DD/MM/YYYY')}`;
+      case 'MONTHLY':
+        return `Đồ thị sản lượng hàng ngày tháng ${selectedMonth.format('MM/YYYY')}`;
+      case 'YEARLY':
+        return `Đồ thị sản lượng hàng tháng năm ${selectedYear.format('YYYY')}`;
+      default:
+        return 'Đồ thị sản lượng điện';
+    }
+  }, [cycleType, selectedDate, selectedMonth, selectedYear]);
+
+  const exportRequestBody = useMemo(() => {
+    return {
+      customerId: Number(dataForm?.customerCode),
+      measurementPointId: Number(dataForm?.monitorPoint),
+      cycleType,
+      date: cycleType === 'HALF_HOUR' ? selectedDate.format('YYYY-MM-DD') : undefined,
+      month: cycleType === 'MONTHLY' ? selectedMonth.month() + 1 : undefined,
+      year:
+        cycleType === 'YEARLY'
+          ? selectedYear.year()
+          : cycleType === 'MONTHLY'
+            ? selectedMonth.year()
+            : selectedDate.year(),
+      compareWithPrevious,
+    };
+  }, [
+    dataForm?.customerCode,
+    dataForm?.monitorPoint,
+    cycleType,
+    selectedDate,
+    selectedMonth,
+    selectedYear,
+    compareWithPrevious,
+  ]);
 
   return (
     <div>
-      <PageTitle title={'Báo cáo'} />
+      <PageTitle title={'Báo cáo sản lượng điện'} />
       <div className='flex justify-between items-center'>
         <BreadcrumbUI
-          items={[{ name: 'Báo cáo', link: ROUTE_PATH.REPORTS }, { name: 'Biểu đồ sản lượng' }]}
+          items={[
+            { name: 'Báo cáo', link: ROUTE_PATH.REPORTS },
+            { name: 'Sản lượng điện' },
+          ]}
         />
         <div className='flex gap-5'>
           <ButtonCommonCustomizable
@@ -227,14 +257,16 @@ const ElectricityConsumption = () => {
             onClick={() => {
               setIsShowExport(true);
             }}
-            disabled={!(filterData && dataForm.customerCode && dataForm.monitorPoint)}
+            disabled={!(dataForm.customerCode && dataForm.monitorPoint)}
             icon={<FiShare size={20} />}
           />
         </div>
       </div>
+
       <Card className='mt-5 shadow-custom'>
         <div>
-          <div className='flex gap-3 items-center'>
+          {/* Customer & Measurement Point selector */}
+          <div className='flex gap-3 items-center mb-5'>
             <div className='basis-1/2 flex items-center gap-3'>
               <div className='basis-1/2'>
                 <InputSelectCommon
@@ -279,57 +311,148 @@ const ElectricityConsumption = () => {
                   classButton='text-button-variant'
                   tooltipText='Xoá tất cả'
                   icon={<IoBackspaceOutline size={25} />}
-                  onClick={() => {
-                    clearSearch();
-                  }}
+                  onClick={clearSearch}
                   variant={'text'}
                 />
               </div>
             )}
           </div>
-          <div className={'mt-5'}>
-            <ChartFilter
-              radioOptions={chartTimeSelector}
-              chartTypeOptions={loadChartTypeArray}
-              setFilterData={(value) => {
-                if (
-                  value?.chartType === filterData?.chartType &&
-                  value?.date === filterData?.date &&
-                  value?.radioValue === filterData?.radioValue &&
-                  value?.previousPeriod === filterData?.previousPeriod
-                ) {
-                  return;
-                }
-                setFilterData(value);
-              }}
-            />
-          </div>
-          <div ref={chartRef} className={'mt-10'}>
-            {filterData?.chartType && (
-              <ChartSwitcher
-                chartType={filterData?.chartType}
-                chartList={chartsList}
-                filterData={filterData}
-                dataForm={dataForm}
+
+          {/* Report Cycle Navigation Buttons */}
+          <div className='mb-4 flex flex-wrap gap-3 items-center justify-between pb-3 border-b'>
+            <div className='flex gap-3 items-center'>
+              <Button
+                type={cycleType === 'HALF_HOUR' ? 'primary' : 'default'}
+                onClick={() => setCycleType('HALF_HOUR')}
+              >
+                Chu kỳ 30 phút
+              </Button>
+              <Button
+                type={cycleType === 'MONTHLY' ? 'primary' : 'default'}
+                onClick={() => setCycleType('MONTHLY')}
+              >
+                Hàng tháng (0h hôm nay - 0h hôm qua)
+              </Button>
+              <Button
+                type={cycleType === 'YEARLY' ? 'primary' : 'default'}
+                onClick={() => setCycleType('YEARLY')}
+              >
+                Hàng năm (đầu tháng này - đầu tháng trước)
+              </Button>
+
+              {/* Date Filter based on cycle */}
+              {cycleType === 'HALF_HOUR' && (
+                <DatePicker
+                  value={selectedDate}
+                  onChange={(d) => d && setSelectedDate(d)}
+                  format='DD/MM/YYYY'
+                  allowClear={false}
+                />
+              )}
+              {cycleType === 'MONTHLY' && (
+                <DatePicker
+                  picker='month'
+                  value={selectedMonth}
+                  onChange={(m) => m && setSelectedMonth(m)}
+                  format='MM/YYYY'
+                  allowClear={false}
+                />
+              )}
+              {cycleType === 'YEARLY' && (
+                <DatePicker
+                  picker='year'
+                  value={selectedYear}
+                  onChange={(y) => y && setSelectedYear(y)}
+                  format='YYYY'
+                  allowClear={false}
+                />
+              )}
+            </div>
+
+            {/* Compare Switch & View Mode Segmented */}
+            <div className='flex items-center gap-4'>
+              <div className='flex items-center gap-2'>
+                <Switch
+                  checked={compareWithPrevious}
+                  onChange={(checked) => setCompareWithPrevious(checked)}
+                  id='compare-switch'
+                />
+                <label htmlFor='compare-switch' className='text-sm text-gray-700 font-medium cursor-pointer'>
+                  So sánh kỳ trước gần nhất
+                </label>
+              </div>
+
+              <Segmented
+                options={[
+                  {
+                    label: (
+                      <div className='flex items-center gap-2 px-2 py-1 font-medium'>
+                        <FiTable />
+                        <span>Bảng số liệu</span>
+                      </div>
+                    ),
+                    value: 'table',
+                  },
+                  {
+                    label: (
+                      <div className='flex items-center gap-2 px-2 py-1 font-medium'>
+                        <FiBarChart2 />
+                        <span>Đồ thị cột</span>
+                      </div>
+                    ),
+                    value: 'chart',
+                  },
+                ]}
+                value={viewMode}
+                onChange={(val) => setViewMode(val as 'table' | 'chart')}
               />
-            )}
+            </div>
           </div>
+
+          {/* View Content */}
+          {viewMode === 'table' ? (
+            <EnergyConsumptionTable
+              data={reportData?.items || []}
+              total={reportData?.total}
+              loading={loading}
+              compareWithPrevious={compareWithPrevious}
+            />
+          ) : (
+            <EnergyConsumptionChart
+              chartData={
+                reportData?.chart || {
+                  labels: [],
+                  currentPeriodGiao: [],
+                  previousPeriodGiao: [],
+                  currentPeriodNhan: [],
+                  previousPeriodNhan: [],
+                }
+              }
+              title={chartTitle}
+              compareWithPrevious={compareWithPrevious}
+            />
+          )}
         </div>
       </Card>
+
       <DialogExportForm
         open={isShowExport}
         handleCancel={() => {
           setIsShowExport(false);
         }}
-        title='Sản lượng tiêu thụ'
-        onlyPDF={true}
-        chartRef={chartRef.current}
+        title='Báo cáo sản lượng điện'
+        onlyPDF={false}
+        chartRef={null}
         listHeader={[]}
         fileNameCsv={fileNameBuilder()}
-        typeExportAll={''}
+        typeExportAll={'report'}
+        subTypeExportAll={'energy-consumption'}
+        requestBody={exportRequestBody}
+        onlyExportAll={true}
       />
     </div>
   );
 };
 
 export default ElectricityConsumption;
+

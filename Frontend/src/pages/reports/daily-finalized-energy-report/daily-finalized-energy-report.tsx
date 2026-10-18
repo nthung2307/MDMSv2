@@ -322,9 +322,12 @@ const DailyFinalizedEnergyReport = () => {
         </div>
         <div className='mb-4 flex gap-3 items-center'>
           <Button onClick={() => navigate(ROUTE_PATH.HALF_HOUR_FINALIZED_ENERGY_REPORT)}>
-            Khoảng thời gian
+            Chu kỳ 30 phút
           </Button>
-          <Button type='primary'>Hàng tháng</Button>
+          <Button type='primary'>Hàng tháng (0:00 hàng ngày)</Button>
+          <Button onClick={() => navigate(ROUTE_PATH.YEARLY_FINALIZED_ENERGY_REPORT)}>
+            Hàng năm (0:00 đầu mỗi tháng)
+          </Button>
           <DatePicker
             picker='month'
             format='MM/YYYY'

@@ -30,13 +30,17 @@ public class ReportController : ControllerBase
     private readonly ILoggerService _loggerService;
     private readonly IMeasurementPointHalfHourEnergyReportReadWriteRepository _halfHourEnergyReportReadWriteRepository;
     private readonly IMeasurementPointDailyEnergyReportReadWriteRepository _dailyEnergyReportReadWriteRepository;
+    private readonly IMeasurementPointHalfHourOperatingReportReadWriteRepository _operatingReportReadWriteRepository;
+    private readonly IEnergyConsumptionReportReadWriteRepository _consumptionReportReadWriteRepository;
 
     public ReportController(IMapper mapper,
         IMediator mediator,
         IHttpContextAccessorService httpContextAccessorService,
         ILoggerService loggerService,
         IMeasurementPointHalfHourEnergyReportReadWriteRepository halfHourEnergyReportReadWriteRepository,
-        IMeasurementPointDailyEnergyReportReadWriteRepository dailyEnergyReportReadWriteRepository)
+        IMeasurementPointDailyEnergyReportReadWriteRepository dailyEnergyReportReadWriteRepository,
+        IMeasurementPointHalfHourOperatingReportReadWriteRepository operatingReportReadWriteRepository,
+        IEnergyConsumptionReportReadWriteRepository consumptionReportReadWriteRepository)
     {
         _mapper = mapper;
         _mediator = mediator;
@@ -44,6 +48,8 @@ public class ReportController : ControllerBase
         _loggerService = loggerService;
         _halfHourEnergyReportReadWriteRepository = halfHourEnergyReportReadWriteRepository;
         _dailyEnergyReportReadWriteRepository = dailyEnergyReportReadWriteRepository;
+        _operatingReportReadWriteRepository = operatingReportReadWriteRepository;
+        _consumptionReportReadWriteRepository = consumptionReportReadWriteRepository;
     }
 
     [HttpPost]
@@ -291,4 +297,278 @@ public class ReportController : ControllerBase
             throw;
         }
     }
+
+    [HttpPost]
+    [Route(Common.Url.Default.Report.ExportExcelHalfHourFinalizedEnergy)]
+    public async Task<IActionResult> ExportExcelHalfHourEnergyReportAsync(HalfHourFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var data = await _halfHourEnergyReportReadWriteRepository.GenerateCsv(request, cancellationToken);
+            return File(data, "text/csv", $"Export-HalfHour-Report-{DateTime.Now.ToString("s")}.csv");
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(ExportExcelHalfHourEnergyReportAsync));
+            throw;
+        }
+    }
+
+    [HttpPost]
+    [Route(Common.Url.Default.Report.ExportExcelDailyFinalizedEnergy)]
+    public async Task<IActionResult> ExportExcelDailyEnergyReportAsync(DailyFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var data = await _dailyEnergyReportReadWriteRepository.GenerateExcel(request, cancellationToken);
+            return File(data, "text/csv", $"Export-Daily-Report-{DateTime.Now.ToString("s")}.csv");
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(ExportExcelDailyEnergyReportAsync));
+            throw;
+        }
+    }
+
+    #region Báo cáo Chỉ số Điện Hàng Năm (0:00 đầu mỗi tháng)
+    [HttpPost]
+    [Route(Common.Url.Default.Report.YearlyFinalizedEnergyReport)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
+    public async Task<RequestResult<CursorPaginationResponse<FinalizedEnergyReportResponse>>> GetListYearlyFinalizedEnergyReportAsync(
+        YearlyFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var query = new YearlyFinalizedEnergyReportQuery()
+            {
+                Request = request,
+                Tracker = _httpContextAccessorService.Tracker()
+            };
+            var result = await _mediator.Send(query, cancellationToken);
+            return RequestResult<CursorPaginationResponse<FinalizedEnergyReportResponse>>.Succeed(result);
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(GetListYearlyFinalizedEnergyReportAsync));
+            throw;
+        }
+    }
+
+    [HttpPost]
+    [Route(Common.Url.Default.Report.ExportCsvYearlyFinalizedEnergy)]
+    public async Task<IActionResult> ExportCsvYearlyEnergyReportAsync(YearlyFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var csvData = await _dailyEnergyReportReadWriteRepository.GenerateYearlyCsv(request, cancellationToken);
+            return File(csvData, "text/csv", $"Export-Yearly-Report-{DateTime.Now.ToString("s")}.csv");
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(ExportCsvYearlyEnergyReportAsync));
+            throw;
+        }
+    }
+
+    [HttpPost]
+    [Route(Common.Url.Default.Report.ExportExcelYearlyFinalizedEnergy)]
+    public async Task<IActionResult> ExportExcelYearlyEnergyReportAsync(YearlyFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var excelData = await _dailyEnergyReportReadWriteRepository.GenerateYearlyExcel(request, cancellationToken);
+            return File(excelData, "text/csv", $"Export-Yearly-Report-{DateTime.Now.ToString("s")}.csv");
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(ExportExcelYearlyEnergyReportAsync));
+            throw;
+        }
+    }
+
+    [HttpPost]
+    [Route(Common.Url.Default.Report.ExportPdfYearlyFinalizedEnergy)]
+    public async Task<IActionResult> ExportPdfYearlyEnergyReportAsync(YearlyFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var pdfData = await _dailyEnergyReportReadWriteRepository.GenerateYearlyPdf(request, cancellationToken);
+            return File(pdfData, "application/pdf", $"Export-Yearly-Report-{DateTime.Now.ToString("s")}.pdf");
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(ExportPdfYearlyEnergyReportAsync));
+            throw;
+        }
+    }
+    #endregion
+
+    #region Báo cáo Thông số Vận hành 30 Phút
+    [HttpPost]
+    [Route(Common.Url.Default.Report.OperatingParameterReport)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
+    public async Task<RequestResult<CursorPaginationResponse<OperatingParameterReportResponse>>> GetOperatingParameterReportAsync(
+        OperatingParameterReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var query = new OperatingParameterReportQuery()
+            {
+                Request = request,
+                Tracker = _httpContextAccessorService.Tracker()
+            };
+            var result = await _mediator.Send(query, cancellationToken);
+            return RequestResult<CursorPaginationResponse<OperatingParameterReportResponse>>.Succeed(result);
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(GetOperatingParameterReportAsync));
+            throw;
+        }
+    }
+
+    [HttpPost]
+    [Route(Common.Url.Default.Report.OperatingParameterChart)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
+    public async Task<RequestResult<List<OperatingParameterReportResponse>>> GetOperatingParameterChartAsync(
+        OperatingParameterReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var query = new OperatingParameterReportListQuery()
+            {
+                Request = request,
+                Tracker = _httpContextAccessorService.Tracker()
+            };
+            var result = await _mediator.Send(query, cancellationToken);
+            return RequestResult<List<OperatingParameterReportResponse>>.Succeed(result);
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(GetOperatingParameterChartAsync));
+            throw;
+        }
+    }
+
+    [HttpPost]
+    [Route(Common.Url.Default.Report.ExportCsvOperatingParameter)]
+    public async Task<IActionResult> ExportCsvOperatingParameterAsync(OperatingParameterReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var data = await _operatingReportReadWriteRepository.GenerateCsv(request, cancellationToken);
+            return File(data, "text/csv", $"Export-Operating-Parameter-{DateTime.Now.ToString("s")}.csv");
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(ExportCsvOperatingParameterAsync));
+            throw;
+        }
+    }
+
+    [HttpPost]
+    [Route(Common.Url.Default.Report.ExportExcelOperatingParameter)]
+    public async Task<IActionResult> ExportExcelOperatingParameterAsync(OperatingParameterReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var data = await _operatingReportReadWriteRepository.GenerateExcel(request, cancellationToken);
+            return File(data, "text/csv", $"Export-Operating-Parameter-{DateTime.Now.ToString("s")}.csv");
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(ExportExcelOperatingParameterAsync));
+            throw;
+        }
+    }
+
+    [HttpPost]
+    [Route(Common.Url.Default.Report.ExportPdfOperatingParameter)]
+    public async Task<IActionResult> ExportPdfOperatingParameterAsync(OperatingParameterReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var data = await _operatingReportReadWriteRepository.GeneratePdf(request, cancellationToken);
+            return File(data, "application/pdf", $"Export-Operating-Parameter-{DateTime.Now.ToString("s")}.pdf");
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(ExportPdfOperatingParameterAsync));
+            throw;
+        }
+    }
+    #endregion
+
+    #region Báo cáo Sản lượng Điện (30 phút, Tháng, Năm)
+    [HttpPost]
+    [Route(Common.Url.Default.Report.EnergyConsumptionReport)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
+    public async Task<RequestResult<EnergyConsumptionReportResponse>> GetEnergyConsumptionReportAsync(
+        EnergyConsumptionReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var query = new EnergyConsumptionReportQuery()
+            {
+                Request = request,
+                Tracker = _httpContextAccessorService.Tracker()
+            };
+            var result = await _mediator.Send(query, cancellationToken);
+            return RequestResult<EnergyConsumptionReportResponse>.Succeed(result);
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(GetEnergyConsumptionReportAsync));
+            throw;
+        }
+    }
+
+    [HttpPost]
+    [Route(Common.Url.Default.Report.ExportCsvEnergyConsumption)]
+    public async Task<IActionResult> ExportCsvEnergyConsumptionAsync(EnergyConsumptionReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var data = await _consumptionReportReadWriteRepository.GenerateCsv(request, cancellationToken);
+            return File(data, "text/csv", $"Export-Energy-Consumption-{DateTime.Now.ToString("s")}.csv");
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(ExportCsvEnergyConsumptionAsync));
+            throw;
+        }
+    }
+
+    [HttpPost]
+    [Route(Common.Url.Default.Report.ExportExcelEnergyConsumption)]
+    public async Task<IActionResult> ExportExcelEnergyConsumptionAsync(EnergyConsumptionReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var data = await _consumptionReportReadWriteRepository.GenerateExcel(request, cancellationToken);
+            return File(data, "text/csv", $"Export-Energy-Consumption-{DateTime.Now.ToString("s")}.csv");
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(ExportExcelEnergyConsumptionAsync));
+            throw;
+        }
+    }
+
+    [HttpPost]
+    [Route(Common.Url.Default.Report.ExportPdfEnergyConsumption)]
+    public async Task<IActionResult> ExportPdfEnergyConsumptionAsync(EnergyConsumptionReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var data = await _consumptionReportReadWriteRepository.GeneratePdf(request, cancellationToken);
+            return File(data, "application/pdf", $"Export-Energy-Consumption-{DateTime.Now.ToString("s")}.pdf");
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(ExportPdfEnergyConsumptionAsync));
+            throw;
+        }
+    }
+    #endregion
 }

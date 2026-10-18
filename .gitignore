@@ -96,6 +96,8 @@ $RECYCLE.BIN/
 *.swp
 *.bak
 *.log
+scratch/
+scratch
 
 # --------------------------------------------------------------------
 # 6. IDEs & Editors

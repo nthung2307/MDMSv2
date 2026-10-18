@@ -15,24 +15,31 @@ public class ReportQueryHandler :
     IRequestHandler<FinalizedOutputElectricityChartQuery, FinalizedOutputElectricityChartResponse?>,
     IRequestHandler<ListFinalizedOutputElectricityQuery, List<ListFinalizedOutputElectricityResponse>>,
     IRequestHandler<HalfHourFinalizedEnergyReportQuery, CursorPaginationResponse<FinalizedEnergyReportResponse>>,
-    IRequestHandler<DailyFinalizedEnergyReportQuery, CursorPaginationResponse<FinalizedEnergyReportResponse>>
+    IRequestHandler<DailyFinalizedEnergyReportQuery, CursorPaginationResponse<FinalizedEnergyReportResponse>>,
+    IRequestHandler<YearlyFinalizedEnergyReportQuery, CursorPaginationResponse<FinalizedEnergyReportResponse>>,
+    IRequestHandler<OperatingParameterReportQuery, CursorPaginationResponse<OperatingParameterReportResponse>>,
+    IRequestHandler<OperatingParameterReportListQuery, List<OperatingParameterReportResponse>>,
+    IRequestHandler<EnergyConsumptionReportQuery, EnergyConsumptionReportResponse>
 {
     private readonly IMeasurementPointMonitoringHourlyReadOnlyRepository _measurementPointMonitoringHourlyReadOnlyRepository;
-
     private readonly IMeasurementPointHalfHourEnergyReportReadOnlyRepository _measurementPointHalfHourEnergyReportReadOnlyRepository;
-
-    private readonly IMeasurementPointDailyEnergyReportReadOnlyRepository
-        _measurementPointDailyEnergyReportReadOnlyRepository;
+    private readonly IMeasurementPointDailyEnergyReportReadOnlyRepository _measurementPointDailyEnergyReportReadOnlyRepository;
+    private readonly IMeasurementPointHalfHourOperatingReportReadOnlyRepository _measurementPointHalfHourOperatingReportReadOnlyRepository;
+    private readonly IEnergyConsumptionReportReadOnlyRepository _energyConsumptionReportReadOnlyRepository;
 
     public ReportQueryHandler(
         IMeasurementPointMonitoringHourlyReadOnlyRepository measurementPointMonitoringHourlyReadOnlyRepository,
         IMeasurementPointHalfHourEnergyReportReadOnlyRepository measurementPointHalfHourEnergyReportReadOnlyRepository,
-        IMeasurementPointDailyEnergyReportReadOnlyRepository measurementPointDailyEnergyReportReadOnlyRepository
+        IMeasurementPointDailyEnergyReportReadOnlyRepository measurementPointDailyEnergyReportReadOnlyRepository,
+        IMeasurementPointHalfHourOperatingReportReadOnlyRepository measurementPointHalfHourOperatingReportReadOnlyRepository,
+        IEnergyConsumptionReportReadOnlyRepository energyConsumptionReportReadOnlyRepository
         )
     {
         _measurementPointMonitoringHourlyReadOnlyRepository = measurementPointMonitoringHourlyReadOnlyRepository;
         _measurementPointHalfHourEnergyReportReadOnlyRepository = measurementPointHalfHourEnergyReportReadOnlyRepository;
         _measurementPointDailyEnergyReportReadOnlyRepository = measurementPointDailyEnergyReportReadOnlyRepository;
+        _measurementPointHalfHourOperatingReportReadOnlyRepository = measurementPointHalfHourOperatingReportReadOnlyRepository;
+        _energyConsumptionReportReadOnlyRepository = energyConsumptionReportReadOnlyRepository;
     }
     public async Task<LoadChartResponse?> Handle(GetReportLoadChartQuery request, CancellationToken cancellationToken)
     {
@@ -74,5 +81,29 @@ public class ReportQueryHandler :
         CancellationToken cancellationToken)
     {
         return await _measurementPointDailyEnergyReportReadOnlyRepository.GetFinalizedEnergyReportsAsync(request.Request, cancellationToken);
+    }
+
+    public async Task<CursorPaginationResponse<FinalizedEnergyReportResponse>> Handle(YearlyFinalizedEnergyReportQuery request,
+        CancellationToken cancellationToken)
+    {
+        return await _measurementPointDailyEnergyReportReadOnlyRepository.GetYearlyFinalizedEnergyReportsAsync(request.Request, cancellationToken);
+    }
+
+    public async Task<CursorPaginationResponse<OperatingParameterReportResponse>> Handle(OperatingParameterReportQuery request,
+        CancellationToken cancellationToken)
+    {
+        return await _measurementPointHalfHourOperatingReportReadOnlyRepository.GetOperatingParameterReportsAsync(request.Request, cancellationToken);
+    }
+
+    public async Task<List<OperatingParameterReportResponse>> Handle(OperatingParameterReportListQuery request,
+        CancellationToken cancellationToken)
+    {
+        return await _measurementPointHalfHourOperatingReportReadOnlyRepository.GetAllOperatingParameterReportsAsync(request.Request, cancellationToken);
+    }
+
+    public async Task<EnergyConsumptionReportResponse> Handle(EnergyConsumptionReportQuery request,
+        CancellationToken cancellationToken)
+    {
+        return await _energyConsumptionReportReadOnlyRepository.GetEnergyConsumptionReportAsync(request.Request, cancellationToken);
     }
 }

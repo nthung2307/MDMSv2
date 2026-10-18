@@ -77,7 +77,7 @@ namespace Application.Common
             public const string PeriodicEnergyStatement = "PeriodicEnergyStatement";
             public const string MeasurementPointHalfHourEnergyReport = "MeasurementPointHalfHourEnergyReports";
             public const string MeasurementPointDailyEnergyReport = "MeasurementPointDailyEnergyReports";
-            
+            public const string MeasurementPointHalfHourOperatingReport = "MeasurementPointHalfHourOperatingReports";
         }
 
         public static class SystemConfig

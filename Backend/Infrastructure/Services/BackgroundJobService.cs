@@ -19,6 +19,7 @@ public class BackgroundJobService
     private readonly IMeasurementPointMonitoringReadWriteByDateTimeRepository _measurementPointMonitoringReadWriteByDateTimeRepository;
     private readonly IMeasurementPointDailyEnergyReportReadWriteRepository _measurementPointDailyEnergyReportReadWriteRepository;
     private readonly IMeasurementPointHalfHourEnergyReportReadWriteRepository _measurementPointHalfHourEnergyReportReadWriteRepository;
+    private readonly IMeasurementPointHalfHourOperatingReportReadWriteRepository _measurementPointHalfHourOperatingReportReadWriteRepository;
     private readonly IMapper _mapper;
     private readonly ILogger<BackgroundJobService>? _logger;
 
@@ -30,6 +31,7 @@ public class BackgroundJobService
         IMeasurementPointMonitoringReadWriteByDateTimeRepository measurementPointMonitoringReadWriteByDateTimeRepository,
         IMeasurementPointDailyEnergyReportReadWriteRepository measurementPointDailyEnergyReportReadWriteRepository,
         IMeasurementPointHalfHourEnergyReportReadWriteRepository measurementPointHalfHourEnergyReportReadWriteRepository,
+        IMeasurementPointHalfHourOperatingReportReadWriteRepository measurementPointHalfHourOperatingReportReadWriteRepository,
         IMapper mapper,
         ILogger<BackgroundJobService>? logger = null)
     {
@@ -40,6 +42,7 @@ public class BackgroundJobService
         _measurementPointMonitoringReadWriteByDateTimeRepository = measurementPointMonitoringReadWriteByDateTimeRepository;
         _measurementPointDailyEnergyReportReadWriteRepository = measurementPointDailyEnergyReportReadWriteRepository;
         _measurementPointHalfHourEnergyReportReadWriteRepository = measurementPointHalfHourEnergyReportReadWriteRepository;
+        _measurementPointHalfHourOperatingReportReadWriteRepository = measurementPointHalfHourOperatingReportReadWriteRepository;
         _mapper = mapper;
         _logger = logger;
     }
@@ -127,6 +130,24 @@ public class BackgroundJobService
 
         await _measurementPointHalfHourEnergyReportReadWriteRepository.SaveChangesAsync(cancellationToken);
         _logger?.LogInformation("Đã hoàn tất lưu báo cáo đo đếm nửa giờ cho {Count} điểm đo.", reportDtos.Count);
+        return new DateTime();
+    }
+
+    public async Task<DateTime> GenerateOperatingReportHalfHour(CancellationToken cancellationToken)
+    {
+        _logger?.LogInformation("Bắt đầu sinh báo cáo thông số vận hành nửa giờ với Smart Lookback (60 phút)...");
+        var reportDtos = await _measurementPointMonitoringReadOnlyRepository.GetListMeasurementOperatingReportWithLookbackAsync(60, cancellationToken);
+        var createdTime = DateTimeOffset.UtcNow.AddMinutes(-5);
+        foreach (var dto in reportDtos)
+        {
+            var entity = _mapper.Map<MeasurementPointHalfHourOperatingReportEntity>(dto);
+            entity.Id = await _snowflakeIdService.GenerateId(cancellationToken);
+            entity.CreatedTime = createdTime;
+            await _measurementPointHalfHourOperatingReportReadWriteRepository.AddAsync(entity, cancellationToken);
+        }
+
+        await _measurementPointHalfHourOperatingReportReadWriteRepository.SaveChangesAsync(cancellationToken);
+        _logger?.LogInformation("Đã hoàn tất lưu báo cáo thông số vận hành nửa giờ cho {Count} điểm đo.", reportDtos.Count);
         return new DateTime();
     }
 }
