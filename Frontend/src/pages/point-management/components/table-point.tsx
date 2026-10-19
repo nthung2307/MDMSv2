@@ -116,6 +116,7 @@ const TablePointManagement = (props: Props) => {
       dataSource={dataTable}
       pagination={false}
       loading={loading}
+      rowClassName={() => 'whitespace-nowrap cursor-pointer'}
       scroll={{ x: 'max-content', y: window.innerHeight * 0.66 }}
     />
   );

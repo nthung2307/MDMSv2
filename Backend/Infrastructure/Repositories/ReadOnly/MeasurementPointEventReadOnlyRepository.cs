@@ -35,10 +35,26 @@ public class MeasurementPointEventReadOnlyRepository : RestfulRepository<Measure
 
     public async Task<CursorPaginationResponse<MeasurementPointEventDto>> GetListMeasurementPointsEventAsync(GetListMeasurementPointEventRequest request, CancellationToken cancellationToken)
     {
+        var threeMonthsAgo = DateTime.UtcNow.AddMonths(-3);
         var entity = _measurementPointsEventEntities
-            .AsNoTracking();
+            .AsNoTracking()
+            .Where(x => x.CreatedTime >= threeMonthsAgo);
+
         if (request.StartDate != null && request.EndDate != null)
-            entity = entity.Where(x => x.CreatedTime >= request.StartDate && x.CreatedTime <= request.EndDate);
+        {
+            var filterStart = request.StartDate.Value < threeMonthsAgo ? threeMonthsAgo : request.StartDate.Value;
+            entity = entity.Where(x => x.CreatedTime >= filterStart && x.CreatedTime <= request.EndDate);
+        }
+        else if (request.StartDate != null)
+        {
+            var filterStart = request.StartDate.Value < threeMonthsAgo ? threeMonthsAgo : request.StartDate.Value;
+            entity = entity.Where(x => x.CreatedTime >= filterStart);
+        }
+        else if (request.EndDate != null)
+        {
+            entity = entity.Where(x => x.CreatedTime <= request.EndDate);
+        }
+
         if(request.MeasurementPointCode != null)
             entity = entity.Where(x => x.MeasurementPoint.Code.Contains(request.MeasurementPointCode));
         var result = await entity
@@ -51,13 +67,16 @@ public class MeasurementPointEventReadOnlyRepository : RestfulRepository<Measure
             Data = result.Data,
             HasNext = result.HasNext,
             HasPrevious = result.HasPrevious,
+            TotalCount = result.TotalCount,
         };
     }
 
     public async Task<byte[]> ExportPdfMeasurementPointsEventAsync(CancellationToken cancellationToken)
     {
+        var threeMonthsAgo = DateTime.UtcNow.AddMonths(-3);
         var entity = _measurementPointsEventEntities
-            .AsNoTracking();
+            .AsNoTracking()
+            .Where(x => x.CreatedTime >= threeMonthsAgo);
         var result = await entity
             .Include(x => x.MeasurementPoint)
             .ThenInclude(x => x.Customer)

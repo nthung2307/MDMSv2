@@ -47,6 +47,7 @@ public class GcsReadOnlyRepository : RestfulRepository<GcsEntity, AppReadOnlyDbC
             Data = result.Data,
             HasNext = result.HasNext,
             HasPrevious = result.HasPrevious,
+            TotalCount = result.TotalCount,
         };
     }
 

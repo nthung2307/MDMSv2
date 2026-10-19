@@ -13,23 +13,35 @@ public class EnergyConsumptionItemResponse
     public DateTimeOffset? CreatedTime { get; set; }
     public double MultiplierFactor { get; set; } = 1.0;
 
+    public bool IsSuspected { get; set; }
+
     // Chiều giao (kWh / kVArh)
-    public double SanLuongTacDungTongKenhGiao { get; set; }
-    public double SanLuongTacDungBTKenhGiao { get; set; }
-    public double SanLuongTacDungCDKenhGiao { get; set; }
-    public double SanLuongTacDungTDKenhGiao { get; set; }
-    public double SanLuongPhanKhangTongKenhGiao { get; set; }
+    public double? SanLuongTacDungTongKenhGiao { get; set; }
+    public double? SanLuongTacDungBTKenhGiao { get; set; }
+    public double? SanLuongTacDungCDKenhGiao { get; set; }
+    public double? SanLuongTacDungTDKenhGiao { get; set; }
+    public double? SanLuongPhanKhangTongKenhGiao { get; set; }
 
     // Chiều nhận (kWh / kVArh)
-    public double SanLuongTacDungTongKenhNhan { get; set; }
-    public double SanLuongTacDungBTKenhNhan { get; set; }
-    public double SanLuongTacDungCDKenhNhan { get; set; }
-    public double SanLuongTacDungTDKenhNhan { get; set; }
-    public double SanLuongPhanKhangTongKenhNhan { get; set; }
+    public double? SanLuongTacDungTongKenhNhan { get; set; }
+    public double? SanLuongTacDungBTKenhNhan { get; set; }
+    public double? SanLuongTacDungCDKenhNhan { get; set; }
+    public double? SanLuongTacDungTDKenhNhan { get; set; }
+    public double? SanLuongPhanKhangTongKenhNhan { get; set; }
 
     // So sánh với mốc trước gần nhất
     public double? PreviousSanLuongTacDungTongKenhGiao { get; set; }
+    public double? PreviousSanLuongTacDungBTKenhGiao { get; set; }
+    public double? PreviousSanLuongTacDungCDKenhGiao { get; set; }
+    public double? PreviousSanLuongTacDungTDKenhGiao { get; set; }
+    public double? PreviousSanLuongPhanKhangTongKenhGiao { get; set; }
+
     public double? PreviousSanLuongTacDungTongKenhNhan { get; set; }
+    public double? PreviousSanLuongTacDungBTKenhNhan { get; set; }
+    public double? PreviousSanLuongTacDungCDKenhNhan { get; set; }
+    public double? PreviousSanLuongTacDungTDKenhNhan { get; set; }
+    public double? PreviousSanLuongPhanKhangTongKenhNhan { get; set; }
+
     public double? DeltaKenhGiao { get; set; }
     public double? DeltaPercentageKenhGiao { get; set; }
     public double? DeltaKenhNhan { get; set; }

@@ -82,4 +82,11 @@ export interface IReportsInterface {
     params: any,
     cancellationToken: CancelToken
   ): Promise<RequestResponse>;
+
+  getActivePointsEnergyReport(
+    endpoint: string,
+    params: any,
+    cancellationToken: CancelToken
+  ): Promise<RequestResponse>;
 }
+

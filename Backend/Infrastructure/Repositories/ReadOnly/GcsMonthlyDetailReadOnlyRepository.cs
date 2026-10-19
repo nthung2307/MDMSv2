@@ -67,6 +67,7 @@ public class GcsMonthlyDetailReadOnlyRepository : RestfulRepository<GcsMonthlyDe
             Data = result.Data,
             HasNext = result.HasNext,
             HasPrevious = result.HasPrevious,
+            TotalCount = result.TotalCount,
         };
     }
     public async Task<byte[]> ExportPdfGcsMonthlyDetailAsync(long gcsCutOffId, CancellationToken cancellationToken)

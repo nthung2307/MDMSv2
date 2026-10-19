@@ -43,6 +43,7 @@ public static class QueryableWithAndExtensions
         IQueryable<TSourceEntity> finalQuery;
         var hasNext = false;
         var hasPrevious = false;
+        var totalCount = await queryable.CountAsync(cancellationToken);
 
         // Handle before: going to previous page in default DESC order
         if (cursorPaginationWithAndRequest.Before != null)
@@ -113,6 +114,7 @@ public static class QueryableWithAndExtensions
         {
             HasNext = hasNext,
             HasPrevious = hasPrevious,
+            TotalCount = totalCount,
             Data = result
         };
     }
@@ -296,6 +298,7 @@ public static class QueryableWithAndExtensions
         IQueryable<TSourceEntity> finalQuery;
         var hasNext = false;
         var hasPrevious = false;
+        var totalCount = await queryable.CountAsync(cancellationToken);
 
         // Handle before: going to previous page in default ASC order
         if (cursorPaginationWithAndRequest.Before != null)
@@ -366,6 +369,7 @@ public static class QueryableWithAndExtensions
         {
             HasNext = hasNext,
             HasPrevious = hasPrevious,
+            TotalCount = totalCount,
             Data = result
         };
     }

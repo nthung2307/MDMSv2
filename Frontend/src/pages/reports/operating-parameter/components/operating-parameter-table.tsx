@@ -110,11 +110,11 @@ export const OperatingParameterTable: React.FC<OperatingParameterTableProps> = (
       ],
     },
     {
-      title: 'Công suất tác dụng',
+      title: 'Công suất tác dụng (kW)',
       align: 'center',
       children: [
         {
-          title: 'P tổng (kW)',
+          title: 'Pt',
           dataIndex: 'congSuatTacDungTong3Pha',
           key: 'congSuatTacDungTong3Pha',
           width: '11%',
@@ -124,11 +124,11 @@ export const OperatingParameterTable: React.FC<OperatingParameterTableProps> = (
       ],
     },
     {
-      title: 'Công suất phản kháng',
+      title: 'Công suất phản kháng (kVAr)',
       align: 'center',
       children: [
         {
-          title: 'Q tổng (kVAr)',
+          title: 'Qt',
           dataIndex: 'congSuatPhanKhangTong3Pha',
           key: 'congSuatPhanKhangTong3Pha',
           width: '11%',
@@ -166,10 +166,11 @@ export const OperatingParameterTable: React.FC<OperatingParameterTableProps> = (
         size='small'
         className='w-full'
         pagination={{
-          pageSize: 48,
+          defaultPageSize: 48,
           showSizeChanger: true,
           pageSizeOptions: ['24', '48', '96', '192'],
           showTotal: (total) => `Tổng số: ${total} bản ghi`,
+          position: ['bottomRight'],
         }}
         scroll={{ x: '100%' }}
       />

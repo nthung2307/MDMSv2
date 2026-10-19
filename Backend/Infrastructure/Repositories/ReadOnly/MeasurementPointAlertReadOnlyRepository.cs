@@ -52,6 +52,7 @@ public class MeasurementPointAlertReadOnlyRepository : RestfulRepository<Measure
             Data = result.Data,
             HasNext = result.HasNext,
             HasPrevious = result.HasPrevious,
+            TotalCount = result.TotalCount,
         };
     }
 
@@ -219,6 +220,7 @@ public class MeasurementPointAlertReadOnlyRepository : RestfulRepository<Measure
             Data = result.Data,
             HasNext = result.HasNext,
             HasPrevious = result.HasPrevious,
+            TotalCount = result.TotalCount,
         };
     }
 

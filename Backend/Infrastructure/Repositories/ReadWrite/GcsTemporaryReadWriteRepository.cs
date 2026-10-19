@@ -48,6 +48,7 @@ namespace Infrastructure.Repositories.ReadWrite
                 Data = result.Data,
                 HasNext = result.HasNext,
                 HasPrevious = result.HasPrevious,
+                TotalCount = result.TotalCount,
             };
         }
 

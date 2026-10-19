@@ -31,6 +31,13 @@ public class EnergyConsumptionReportReadWriteRepository :
         _pointSet = context.Set<MeasurementPointsEntity>();
     }
 
+    private static string FormatVal(double? val, CultureInfo culture, string format = "N3", bool isSuspected = false)
+    {
+        if (!val.HasValue) return "-";
+        var str = val.Value.ToString(format, culture);
+        return isSuspected ? $"{str}*" : str;
+    }
+
     public async Task<byte[]> GenerateCsv(EnergyConsumptionReportRequest request, CancellationToken cancellationToken)
     {
         var data = await _readOnlyRepo.GetEnergyConsumptionReportAsync(request, cancellationToken);
@@ -87,17 +94,17 @@ public class EnergyConsumptionReportReadWriteRepository :
         foreach (var item in data.Items)
         {
             csvWriter.WriteField(item.TimeLabel);
-            csvWriter.WriteField(item.SanLuongTacDungTongKenhGiao.ToString("N3", viCulture));
-            csvWriter.WriteField(item.SanLuongTacDungBTKenhGiao.ToString("N3", viCulture));
-            csvWriter.WriteField(item.SanLuongTacDungCDKenhGiao.ToString("N3", viCulture));
-            csvWriter.WriteField(item.SanLuongTacDungTDKenhGiao.ToString("N3", viCulture));
-            csvWriter.WriteField(item.SanLuongPhanKhangTongKenhGiao.ToString("N3", viCulture));
+            csvWriter.WriteField(FormatVal(item.SanLuongTacDungTongKenhGiao, viCulture, "N3", item.IsSuspected));
+            csvWriter.WriteField(FormatVal(item.SanLuongTacDungBTKenhGiao, viCulture, "N3", item.IsSuspected));
+            csvWriter.WriteField(FormatVal(item.SanLuongTacDungCDKenhGiao, viCulture, "N3", item.IsSuspected));
+            csvWriter.WriteField(FormatVal(item.SanLuongTacDungTDKenhGiao, viCulture, "N3", item.IsSuspected));
+            csvWriter.WriteField(FormatVal(item.SanLuongPhanKhangTongKenhGiao, viCulture, "N3", item.IsSuspected));
 
-            csvWriter.WriteField(item.SanLuongTacDungTongKenhNhan.ToString("N3", viCulture));
-            csvWriter.WriteField(item.SanLuongTacDungBTKenhNhan.ToString("N3", viCulture));
-            csvWriter.WriteField(item.SanLuongTacDungCDKenhNhan.ToString("N3", viCulture));
-            csvWriter.WriteField(item.SanLuongTacDungTDKenhNhan.ToString("N3", viCulture));
-            csvWriter.WriteField(item.SanLuongPhanKhangTongKenhNhan.ToString("N3", viCulture));
+            csvWriter.WriteField(FormatVal(item.SanLuongTacDungTongKenhNhan, viCulture, "N3", item.IsSuspected));
+            csvWriter.WriteField(FormatVal(item.SanLuongTacDungBTKenhNhan, viCulture, "N3", item.IsSuspected));
+            csvWriter.WriteField(FormatVal(item.SanLuongTacDungCDKenhNhan, viCulture, "N3", item.IsSuspected));
+            csvWriter.WriteField(FormatVal(item.SanLuongTacDungTDKenhNhan, viCulture, "N3", item.IsSuspected));
+            csvWriter.WriteField(FormatVal(item.SanLuongPhanKhangTongKenhNhan, viCulture, "N3", item.IsSuspected));
 
             if (request.CompareWithPrevious)
             {
@@ -113,17 +120,17 @@ public class EnergyConsumptionReportReadWriteRepository :
         if (data.Total != null)
         {
             csvWriter.WriteField(data.Total.TimeLabel);
-            csvWriter.WriteField(data.Total.SanLuongTacDungTongKenhGiao.ToString("N3", viCulture));
-            csvWriter.WriteField(data.Total.SanLuongTacDungBTKenhGiao.ToString("N3", viCulture));
-            csvWriter.WriteField(data.Total.SanLuongTacDungCDKenhGiao.ToString("N3", viCulture));
-            csvWriter.WriteField(data.Total.SanLuongTacDungTDKenhGiao.ToString("N3", viCulture));
-            csvWriter.WriteField(data.Total.SanLuongPhanKhangTongKenhGiao.ToString("N3", viCulture));
+            csvWriter.WriteField(FormatVal(data.Total.SanLuongTacDungTongKenhGiao, viCulture, "N3"));
+            csvWriter.WriteField(FormatVal(data.Total.SanLuongTacDungBTKenhGiao, viCulture, "N3"));
+            csvWriter.WriteField(FormatVal(data.Total.SanLuongTacDungCDKenhGiao, viCulture, "N3"));
+            csvWriter.WriteField(FormatVal(data.Total.SanLuongTacDungTDKenhGiao, viCulture, "N3"));
+            csvWriter.WriteField(FormatVal(data.Total.SanLuongPhanKhangTongKenhGiao, viCulture, "N3"));
 
-            csvWriter.WriteField(data.Total.SanLuongTacDungTongKenhNhan.ToString("N3", viCulture));
-            csvWriter.WriteField(data.Total.SanLuongTacDungBTKenhNhan.ToString("N3", viCulture));
-            csvWriter.WriteField(data.Total.SanLuongTacDungCDKenhNhan.ToString("N3", viCulture));
-            csvWriter.WriteField(data.Total.SanLuongTacDungTDKenhNhan.ToString("N3", viCulture));
-            csvWriter.WriteField(data.Total.SanLuongPhanKhangTongKenhNhan.ToString("N3", viCulture));
+            csvWriter.WriteField(FormatVal(data.Total.SanLuongTacDungTongKenhNhan, viCulture, "N3"));
+            csvWriter.WriteField(FormatVal(data.Total.SanLuongTacDungBTKenhNhan, viCulture, "N3"));
+            csvWriter.WriteField(FormatVal(data.Total.SanLuongTacDungCDKenhNhan, viCulture, "N3"));
+            csvWriter.WriteField(FormatVal(data.Total.SanLuongTacDungTDKenhNhan, viCulture, "N3"));
+            csvWriter.WriteField(FormatVal(data.Total.SanLuongPhanKhangTongKenhNhan, viCulture, "N3"));
 
             if (request.CompareWithPrevious)
             {
@@ -213,17 +220,17 @@ public class EnergyConsumptionReportReadWriteRepository :
                     foreach (var item in data.Items)
                     {
                         table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignCenter().Text(item.TimeLabel).FontFamily(Fonts.Arial).FontSize(7.5f);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(item.SanLuongTacDungTongKenhGiao.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(7.5f);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(item.SanLuongTacDungBTKenhGiao.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(7.5f);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(item.SanLuongTacDungCDKenhGiao.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(7.5f);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(item.SanLuongTacDungTDKenhGiao.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(7.5f);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(item.SanLuongPhanKhangTongKenhGiao.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(7.5f);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatVal(item.SanLuongTacDungTongKenhGiao, viCulture, "N2", item.IsSuspected)).FontFamily(Fonts.Arial).FontSize(7.5f);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatVal(item.SanLuongTacDungBTKenhGiao, viCulture, "N2", item.IsSuspected)).FontFamily(Fonts.Arial).FontSize(7.5f);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatVal(item.SanLuongTacDungCDKenhGiao, viCulture, "N2", item.IsSuspected)).FontFamily(Fonts.Arial).FontSize(7.5f);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatVal(item.SanLuongTacDungTDKenhGiao, viCulture, "N2", item.IsSuspected)).FontFamily(Fonts.Arial).FontSize(7.5f);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatVal(item.SanLuongPhanKhangTongKenhGiao, viCulture, "N2", item.IsSuspected)).FontFamily(Fonts.Arial).FontSize(7.5f);
 
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(item.SanLuongTacDungTongKenhNhan.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(7.5f);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(item.SanLuongTacDungBTKenhNhan.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(7.5f);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(item.SanLuongTacDungCDKenhNhan.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(7.5f);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(item.SanLuongTacDungTDKenhNhan.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(7.5f);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(item.SanLuongPhanKhangTongKenhNhan.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(7.5f);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatVal(item.SanLuongTacDungTongKenhNhan, viCulture, "N2", item.IsSuspected)).FontFamily(Fonts.Arial).FontSize(7.5f);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatVal(item.SanLuongTacDungBTKenhNhan, viCulture, "N2", item.IsSuspected)).FontFamily(Fonts.Arial).FontSize(7.5f);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatVal(item.SanLuongTacDungCDKenhNhan, viCulture, "N2", item.IsSuspected)).FontFamily(Fonts.Arial).FontSize(7.5f);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatVal(item.SanLuongTacDungTDKenhNhan, viCulture, "N2", item.IsSuspected)).FontFamily(Fonts.Arial).FontSize(7.5f);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatVal(item.SanLuongPhanKhangTongKenhNhan, viCulture, "N2", item.IsSuspected)).FontFamily(Fonts.Arial).FontSize(7.5f);
                     }
 
                     if (data.Total != null)
@@ -231,17 +238,17 @@ public class EnergyConsumptionReportReadWriteRepository :
                         static IContainer TotalCellStyle(IContainer c) => c.Background(Colors.Grey.Lighten3).Border(1).BorderColor(Colors.Black).Padding(2).AlignRight();
 
                         table.Cell().Background(Colors.Grey.Lighten3).Border(1).BorderColor(Colors.Black).Padding(2).AlignCenter().Text(data.Total.TimeLabel).FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        table.Cell().Element(TotalCellStyle).Text(data.Total.SanLuongTacDungTongKenhGiao.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        table.Cell().Element(TotalCellStyle).Text(data.Total.SanLuongTacDungBTKenhGiao.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        table.Cell().Element(TotalCellStyle).Text(data.Total.SanLuongTacDungCDKenhGiao.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        table.Cell().Element(TotalCellStyle).Text(data.Total.SanLuongTacDungTDKenhGiao.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        table.Cell().Element(TotalCellStyle).Text(data.Total.SanLuongPhanKhangTongKenhGiao.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        table.Cell().Element(TotalCellStyle).Text(FormatVal(data.Total.SanLuongTacDungTongKenhGiao, viCulture, "N2")).FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        table.Cell().Element(TotalCellStyle).Text(FormatVal(data.Total.SanLuongTacDungBTKenhGiao, viCulture, "N2")).FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        table.Cell().Element(TotalCellStyle).Text(FormatVal(data.Total.SanLuongTacDungCDKenhGiao, viCulture, "N2")).FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        table.Cell().Element(TotalCellStyle).Text(FormatVal(data.Total.SanLuongTacDungTDKenhGiao, viCulture, "N2")).FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        table.Cell().Element(TotalCellStyle).Text(FormatVal(data.Total.SanLuongPhanKhangTongKenhGiao, viCulture, "N2")).FontFamily(Fonts.Arial).FontSize(8).Bold();
 
-                        table.Cell().Element(TotalCellStyle).Text(data.Total.SanLuongTacDungTongKenhNhan.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        table.Cell().Element(TotalCellStyle).Text(data.Total.SanLuongTacDungBTKenhNhan.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        table.Cell().Element(TotalCellStyle).Text(data.Total.SanLuongTacDungCDKenhNhan.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        table.Cell().Element(TotalCellStyle).Text(data.Total.SanLuongTacDungTDKenhNhan.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        table.Cell().Element(TotalCellStyle).Text(data.Total.SanLuongPhanKhangTongKenhNhan.ToString("N2", viCulture)).FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        table.Cell().Element(TotalCellStyle).Text(FormatVal(data.Total.SanLuongTacDungTongKenhNhan, viCulture, "N2")).FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        table.Cell().Element(TotalCellStyle).Text(FormatVal(data.Total.SanLuongTacDungBTKenhNhan, viCulture, "N2")).FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        table.Cell().Element(TotalCellStyle).Text(FormatVal(data.Total.SanLuongTacDungCDKenhNhan, viCulture, "N2")).FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        table.Cell().Element(TotalCellStyle).Text(FormatVal(data.Total.SanLuongTacDungTDKenhNhan, viCulture, "N2")).FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        table.Cell().Element(TotalCellStyle).Text(FormatVal(data.Total.SanLuongPhanKhangTongKenhNhan, viCulture, "N2")).FontFamily(Fonts.Arial).FontSize(8).Bold();
                     }
                 });
 

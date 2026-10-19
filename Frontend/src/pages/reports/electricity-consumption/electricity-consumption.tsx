@@ -1,8 +1,9 @@
-import { Button, Card, DatePicker, Segmented, Switch } from 'antd';
+import { Button, Card, DatePicker, Radio, Segmented, Switch } from 'antd';
 import dayjs from 'dayjs';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FiBarChart2, FiShare, FiTable } from 'react-icons/fi';
-import { IoBackspaceOutline } from 'react-icons/io5';
+import { IoBackspaceOutline, IoSearch } from 'react-icons/io5';
+import { useSearchParams } from 'react-router-dom';
 
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
 import { GetListCustomerRequest } from '@/core/application/dto/customer/request/GetListCustomerRequest.ts';
@@ -17,6 +18,7 @@ import { BreadcrumbUI } from '@/infrastructure/common/components/controls/Breadc
 import DialogExportForm from '@/infrastructure/common/components/dialog-export/dialog-export';
 import InputSelectCommon from '@/infrastructure/common/components/input/input-select-common.tsx';
 import PageTitle from '@/infrastructure/common/components/title/page-title.tsx';
+import { notifyWarning } from '@/infrastructure/common/components/toast/toastMessage.tsx';
 import useDebounce from '@/infrastructure/common/libs/hooks/useDebounce.hook.tsx';
 import { useStateDataForm } from '@/infrastructure/common/libs/hooks/useStateDataForm.hook.tsx';
 import useGetListCustomerForReportHook from '@/infrastructure/repository/customer/hooks/useGetCustomerListForReport.hook.tsx';
@@ -27,8 +29,14 @@ import EnergyConsumptionChart from '@/pages/reports/electricity-consumption/comp
 import EnergyConsumptionTable from '@/pages/reports/electricity-consumption/components/energy-consumption-table.tsx';
 
 const ElectricityConsumption = () => {
-  const [cycleType, setCycleType] = useState<'HALF_HOUR' | 'MONTHLY' | 'YEARLY'>('HALF_HOUR');
-  const [viewMode, setViewMode] = useState<'table' | 'chart'>('table');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialCustomer = searchParams.get('customerCode') || searchParams.get('customerId') || '';
+  const initialPoint = searchParams.get('monitorPoint') || searchParams.get('measurementPointId') || '';
+  const initialView = (searchParams.get('view') as 'table' | 'chart') || 'table';
+  const initialCycle = (searchParams.get('cycle') as 'HALF_HOUR' | 'MONTHLY' | 'YEARLY') || 'HALF_HOUR';
+
+  const [cycleType, setCycleType] = useState<'HALF_HOUR' | 'MONTHLY' | 'YEARLY'>(initialCycle);
+  const [viewMode, setViewMode] = useState<'table' | 'chart'>(initialView);
   const [compareWithPrevious, setCompareWithPrevious] = useState<boolean>(true);
 
   const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs>(dayjs());
@@ -43,8 +51,11 @@ const ElectricityConsumption = () => {
   const [getListMeasurementPointRequest] = useGetListMeasurementPointsForReportHook();
   const [getEnergyConsumptionReport] = useGetEnergyConsumptionReportHook();
 
-  const [dataForm, setDataForm] = useStateDataForm({});
-  const [showClearSearch, setShowClearSearch] = useState(false);
+  const [dataForm, setDataForm] = useStateDataForm({
+    customerCode: initialCustomer,
+    monitorPoint: initialPoint,
+  });
+  const [showClearSearch, setShowClearSearch] = useState(!!initialCustomer || !!initialPoint);
   const [listMeasurementPoint, setListMeasurementPoint] = useState<any>([]);
   const [listCustomer, setListCustomer] = useState<any>([]);
 
@@ -158,22 +169,30 @@ const ElectricityConsumption = () => {
     getListCustomerAsync();
   }, [debouncedCustomerCodeSearch]);
 
+  const prevCustomerCodeRef = useRef<any>(initialCustomer || null);
+
   useEffect(() => {
     if (dataForm?.customerCode) {
-      setDataForm({ ...dataForm, monitorPoint: '' });
+      if (prevCustomerCodeRef.current !== dataForm.customerCode) {
+        prevCustomerCodeRef.current = dataForm.customerCode;
+        setDataForm((prev: any) => ({ ...prev, monitorPoint: '' }));
+      }
       getListMeasurementPointAsync({
-        pageSize: 10,
-        searchByFields: [
-          {
-            searchFieldName: 'code',
-            searchValue: debouncedMeasurementPointSearch || '',
-          },
-        ],
+        pageSize: 100,
+        searchByFields: debouncedMeasurementPointSearch
+          ? [
+              {
+                searchFieldName: 'code',
+                searchValue: debouncedMeasurementPointSearch,
+              },
+            ]
+          : [],
         customerId: dataForm?.customerCode,
       });
     } else {
+      prevCustomerCodeRef.current = null;
       setListMeasurementPoint([]);
-      setDataForm({ ...dataForm, monitorPoint: '' });
+      setDataForm((prev: any) => ({ ...prev, monitorPoint: '' }));
     }
   }, [debouncedMeasurementPointSearch, dataForm?.customerCode]);
 
@@ -181,6 +200,17 @@ const ElectricityConsumption = () => {
     setShowClearSearch(!!dataForm?.customerCode || !!dataForm?.monitorPoint);
   }, [dataForm]);
 
+  // Đồng bộ params lên URL để khi mở tab mới vẫn giữ nguyên khách hàng, điểm đo và chế độ xem
+  useEffect(() => {
+    const params: Record<string, string> = {};
+    if (dataForm?.customerCode) params.customerCode = String(dataForm.customerCode);
+    if (dataForm?.monitorPoint) params.monitorPoint = String(dataForm.monitorPoint);
+    if (viewMode && viewMode !== 'table') params.view = viewMode;
+    if (cycleType && cycleType !== 'HALF_HOUR') params.cycle = cycleType;
+    setSearchParams(params, { replace: true });
+  }, [dataForm?.customerCode, dataForm?.monitorPoint, viewMode, cycleType]);
+
+  // Tự động truy vấn khi chọn đầy đủ khách hàng và điểm đo
   useEffect(() => {
     if (dataForm?.customerCode && dataForm?.monitorPoint) {
       fetchReportData();
@@ -194,6 +224,14 @@ const ElectricityConsumption = () => {
     selectedYear,
     compareWithPrevious,
   ]);
+
+  const handleQuery = () => {
+    if (!dataForm?.customerCode || !dataForm?.monitorPoint) {
+      notifyWarning('', 'Vui lòng chọn khách hàng và điểm đo');
+      return;
+    }
+    fetchReportData();
+  };
 
   const fileNameBuilder = () => {
     const customer = listCustomer?.find((c: any) => c.value === dataForm?.customerCode)?.label || '';
@@ -318,27 +356,58 @@ const ElectricityConsumption = () => {
             )}
           </div>
 
-          {/* Report Cycle Navigation Buttons */}
-          <div className='mb-4 flex flex-wrap gap-3 items-center justify-between pb-3 border-b'>
-            <div className='flex gap-3 items-center'>
-              <Button
-                type={cycleType === 'HALF_HOUR' ? 'primary' : 'default'}
-                onClick={() => setCycleType('HALF_HOUR')}
+          {/* Report Toolbar: Lề trái (Bảng dữ liệu, Biểu đồ, So sánh) - Lề phải (Hàng ngày, Hàng tháng, Hàng năm, DatePicker, Truy vấn) */}
+          <div className='mb-4 flex flex-wrap gap-4 items-center justify-between pb-3 border-b'>
+            {/* Lề trái: Bảng dữ liệu / Biểu đồ, So sánh */}
+            <div className='flex items-center gap-4'>
+              <Segmented
+                options={[
+                  {
+                    label: (
+                      <div className='flex items-center gap-2 px-2 py-1 font-medium'>
+                        <FiTable />
+                        <span>Bảng dữ liệu</span>
+                      </div>
+                    ),
+                    value: 'table',
+                  },
+                  {
+                    label: (
+                      <div className='flex items-center gap-2 px-2 py-1 font-medium'>
+                        <FiBarChart2 />
+                        <span>Biểu đồ</span>
+                      </div>
+                    ),
+                    value: 'chart',
+                  },
+                ]}
+                value={viewMode}
+                onChange={(val) => setViewMode(val as 'table' | 'chart')}
+              />
+
+              <div className='flex items-center gap-2'>
+                <Switch
+                  checked={compareWithPrevious}
+                  onChange={(checked) => setCompareWithPrevious(checked)}
+                  id='compare-switch'
+                />
+                <label htmlFor='compare-switch' className='text-sm text-gray-700 font-medium cursor-pointer select-none'>
+                  So sánh
+                </label>
+              </div>
+            </div>
+
+            {/* Lề phải: Hàng ngày, Hàng tháng, Hàng năm, DatePicker, Truy vấn */}
+            <div className='flex flex-wrap items-center gap-3'>
+              <Radio.Group
+                value={cycleType}
+                onChange={(e) => setCycleType(e.target.value)}
+                buttonStyle='solid'
               >
-                Chu kỳ 30 phút
-              </Button>
-              <Button
-                type={cycleType === 'MONTHLY' ? 'primary' : 'default'}
-                onClick={() => setCycleType('MONTHLY')}
-              >
-                Hàng tháng (0h hôm nay - 0h hôm qua)
-              </Button>
-              <Button
-                type={cycleType === 'YEARLY' ? 'primary' : 'default'}
-                onClick={() => setCycleType('YEARLY')}
-              >
-                Hàng năm (đầu tháng này - đầu tháng trước)
-              </Button>
+                <Radio.Button value='HALF_HOUR'>Hàng ngày</Radio.Button>
+                <Radio.Button value='MONTHLY'>Hàng tháng</Radio.Button>
+                <Radio.Button value='YEARLY'>Hàng năm</Radio.Button>
+              </Radio.Group>
 
               {/* Date Filter based on cycle */}
               {cycleType === 'HALF_HOUR' && (
@@ -367,45 +436,15 @@ const ElectricityConsumption = () => {
                   allowClear={false}
                 />
               )}
-            </div>
 
-            {/* Compare Switch & View Mode Segmented */}
-            <div className='flex items-center gap-4'>
-              <div className='flex items-center gap-2'>
-                <Switch
-                  checked={compareWithPrevious}
-                  onChange={(checked) => setCompareWithPrevious(checked)}
-                  id='compare-switch'
-                />
-                <label htmlFor='compare-switch' className='text-sm text-gray-700 font-medium cursor-pointer'>
-                  So sánh kỳ trước gần nhất
-                </label>
-              </div>
-
-              <Segmented
-                options={[
-                  {
-                    label: (
-                      <div className='flex items-center gap-2 px-2 py-1 font-medium'>
-                        <FiTable />
-                        <span>Bảng số liệu</span>
-                      </div>
-                    ),
-                    value: 'table',
-                  },
-                  {
-                    label: (
-                      <div className='flex items-center gap-2 px-2 py-1 font-medium'>
-                        <FiBarChart2 />
-                        <span>Đồ thị cột</span>
-                      </div>
-                    ),
-                    value: 'chart',
-                  },
-                ]}
-                value={viewMode}
-                onChange={(val) => setViewMode(val as 'table' | 'chart')}
-              />
+              <Button
+                type='primary'
+                onClick={handleQuery}
+                loading={loading}
+                icon={<IoSearch size={16} />}
+              >
+                Truy vấn
+              </Button>
             </div>
           </div>
 
@@ -415,7 +454,6 @@ const ElectricityConsumption = () => {
               data={reportData?.items || []}
               total={reportData?.total}
               loading={loading}
-              compareWithPrevious={compareWithPrevious}
             />
           ) : (
             <EnergyConsumptionChart
@@ -428,6 +466,7 @@ const ElectricityConsumption = () => {
                   previousPeriodNhan: [],
                 }
               }
+              items={reportData?.items || []}
               title={chartTitle}
               compareWithPrevious={compareWithPrevious}
             />

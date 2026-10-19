@@ -1,4 +1,4 @@
-﻿using Application.DataTransferObjects.Requests.Report;
+using Application.DataTransferObjects.Requests.Report;
 using Application.DataTransferObjects.Responses.Report;
 using Domain.Entities;
 using Nobisoft.Core.Database.Repository;
@@ -9,4 +9,6 @@ public interface IMeasurementPointHalfHourEnergyReportReadWriteRepository : IRep
 {
     Task<byte[]> GeneratePdf(HalfHourFinalizedEnergyReportRequest request, CancellationToken cancellationToken);
     Task<byte[]> GenerateCsv(HalfHourFinalizedEnergyReportRequest request, CancellationToken cancellationToken);
+    Task<byte[]> GenerateActivePointsEnergyCsvAsync(ActivePointsEnergyReportRequest request, CancellationToken cancellationToken);
+    Task<byte[]> GenerateActivePointsEnergyExcelAsync(ActivePointsEnergyReportRequest request, CancellationToken cancellationToken);
 }

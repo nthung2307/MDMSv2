@@ -158,3 +158,29 @@ export interface DataPoint {
   value: number;
   unit: string;
 }
+
+export interface IActivePointsEnergyReportItem {
+  measurementPointId: number;
+  measurementPointCode: string;
+  measurementPointName?: string;
+  customerId: number;
+  customerCode: string;
+  customerName: string;
+  multiplierFactor: number;
+  createdTime?: string;
+
+  // Kênh Giao (Export)
+  chiSoTichLuyDienNangTacDungAPTongKenhGiao?: string | null;
+  chiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao?: string | null;
+  chiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao?: string | null;
+  chiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao?: string | null;
+  chiSoTichLuyDienNangPhanKhangAQTongKenhGiao?: string | null;
+
+  // Kênh Nhận (Import)
+  chiSoTichLuyDienNangTacDungAPTongKenhNhan?: string | null;
+  chiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan?: string | null;
+  chiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan?: string | null;
+  chiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan?: string | null;
+  chiSoTichLuyDienNangPhanKhangAQTongKenhNhan?: string | null;
+}
+

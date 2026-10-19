@@ -234,7 +234,7 @@ const GCSManagement = () => {
       </div>
       <Card className='mt-5 shadow-custom'>
         <div className={'mb-5 flex justify-between items-center'}>
-          <div className='flex items-center w-2/3 gap-2'>
+          <div className='flex items-center w-1/2 gap-2'>
             <div className='basis-4/5 flex items-center gap-2'>
               <div className='basis-1/2'>
                 <InputTextCommon
@@ -276,30 +276,6 @@ const GCSManagement = () => {
               ) : null}
             </div>
           </div>
-          <PaginationCommon
-            pageSize={size}
-            setSize={(newSize) => {
-              setSize(newSize);
-              setGetListGCSParamsRequest((prev) => {
-                const updatedParams = { ...prev, pageSize: newSize };
-                return deleteParams(updatedParams, ['before', 'after']);
-              });
-            }}
-            hasNext={data?.hasNext || false}
-            hasPrevious={data?.hasPrevious || false}
-            onClickPrevious={() => {
-              setGetListGCSParamsRequest((prev) => {
-                const updatedParams = { ...prev, before: firstRecordId };
-                return deleteParams(updatedParams, ['after']);
-              });
-            }}
-            onClickNext={() => {
-              setGetListGCSParamsRequest((prev) => {
-                const updatedParams = { ...prev, after: lastRecordId };
-                return deleteParams(updatedParams, ['before']);
-              });
-            }}
-          />
         </div>
         <TableCommon
           columns={columns}
@@ -307,6 +283,32 @@ const GCSManagement = () => {
           pagination={false}
           loading={loading}
           scroll={{ x: 'max-content', y: window.innerHeight * 0.66 }}
+        />
+        <PaginationCommon
+          pageSize={size}
+          total={data?.totalCount}
+          currentCount={tableDataSource?.length || 0}
+          setSize={(newSize) => {
+            setSize(newSize);
+            setGetListGCSParamsRequest((prev) => {
+              const updatedParams = { ...prev, pageSize: newSize };
+              return deleteParams(updatedParams, ['before', 'after']);
+            });
+          }}
+          hasNext={data?.hasNext || false}
+          hasPrevious={data?.hasPrevious || false}
+          onClickPrevious={() => {
+            setGetListGCSParamsRequest((prev) => {
+              const updatedParams = { ...prev, before: firstRecordId };
+              return deleteParams(updatedParams, ['after']);
+            });
+          }}
+          onClickNext={() => {
+            setGetListGCSParamsRequest((prev) => {
+              const updatedParams = { ...prev, after: lastRecordId };
+              return deleteParams(updatedParams, ['before']);
+            });
+          }}
         />
       </Card>
       {/* Dialog export file */}

@@ -113,6 +113,7 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
             Data = result.Data,
             HasNext = result.HasNext,
             HasPrevious = result.HasPrevious,
+            TotalCount = result.TotalCount,
         };
     }
 

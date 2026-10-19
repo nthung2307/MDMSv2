@@ -125,6 +125,52 @@ const OperatingParameter = () => {
     return `Thong_so_van_hanh_${customer}_${point}`;
   };
 
+  const normalizeOperatingHalfHourData = (
+    records: OperatingParameterItem[]
+  ): OperatingParameterItem[] => {
+    if (!records || !records.length) return [];
+
+    const slotMap = new Map<string, { record: OperatingParameterItem; diffMs: number }>();
+
+    for (const item of records) {
+      if (!item.createdTime) continue;
+      const d = dayjs(item.createdTime);
+      const minute = d.minute();
+
+      let rounded: dayjs.Dayjs | null = null;
+
+      if (minute >= 55) {
+        rounded = d.add(1, 'hour').minute(0).second(0).millisecond(0);
+      } else if (minute <= 5) {
+        rounded = d.minute(0).second(0).millisecond(0);
+      } else if (minute >= 25 && minute <= 35) {
+        rounded = d.minute(30).second(0).millisecond(0);
+      }
+
+      if (!rounded) continue;
+
+      const slotKey = rounded.toISOString();
+      const diffMs = Math.abs(d.diff(rounded));
+
+      if (!slotMap.has(slotKey) || diffMs < slotMap.get(slotKey)!.diffMs) {
+        slotMap.set(slotKey, {
+          record: {
+            ...item,
+            createdTime: rounded.toISOString(),
+          },
+          diffMs,
+        });
+      }
+    }
+
+    return Array.from(slotMap.values())
+      .map((v) => v.record)
+      .sort(
+        (a, b) =>
+          new Date(a.createdTime || 0).getTime() - new Date(b.createdTime || 0).getTime()
+      );
+  };
+
   const fetchTableData = async () => {
     if (!dataForm?.customerCode || !dataForm?.monitorPoint) {
       setTableData([]);
@@ -152,7 +198,8 @@ const OperatingParameter = () => {
     await getOperatingParameterReport(
       params,
       (res: any) => {
-        setTableData(res?.data?.data || []);
+        const raw = res?.data?.data || [];
+        setTableData(normalizeOperatingHalfHourData(raw));
         setTableLoading(false);
       },
       () => {

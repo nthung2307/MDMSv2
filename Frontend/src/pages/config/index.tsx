@@ -29,6 +29,7 @@ const Configuration = () => {
   const [paginationData, setPaginationData] = useState<{
     hasNext: boolean;
     hasPrevious: boolean;
+    totalCount?: number;
   }>({ hasNext: false, hasPrevious: false });
 
   const firstCustomerID = data?.[0]?.id;
@@ -89,6 +90,7 @@ const Configuration = () => {
         setPaginationData({
           hasNext: data?.hasNext || false,
           hasPrevious: data?.hasPrevious || false,
+          totalCount: data?.totalCount,
         });
       },
       () => {},
@@ -151,29 +153,31 @@ const Configuration = () => {
               ) : null}
             </div>
           </div>
-          <PaginationCommon
-            pageSize={size}
-            setSize={(newSize) => {
-              setSize(newSize);
-              setGetListMeasurementParamsRequest((prev) =>
-                deleteParams({ ...prev, pageSize: newSize }, ['before', 'after'])
-              );
-            }}
-            hasNext={paginationData?.hasNext}
-            hasPrevious={paginationData?.hasPrevious}
-            onClickPrevious={() => {
-              setGetListMeasurementParamsRequest((prev) =>
-                deleteParams({ ...prev, before: firstCustomerID }, ['after'])
-              );
-            }}
-            onClickNext={() => {
-              setGetListMeasurementParamsRequest((prev) =>
-                deleteParams({ ...prev, after: lastCustomerID }, ['before'])
-              );
-            }}
-          />
         </div>
         <TableConfigManagement dataSource={data ?? []} loading={loading} />
+        <PaginationCommon
+          pageSize={size}
+          total={paginationData?.totalCount}
+          currentCount={data?.length || 0}
+          setSize={(newSize) => {
+            setSize(newSize);
+            setGetListMeasurementParamsRequest((prev) =>
+              deleteParams({ ...prev, pageSize: newSize }, ['before', 'after'])
+            );
+          }}
+          hasNext={paginationData?.hasNext}
+          hasPrevious={paginationData?.hasPrevious}
+          onClickPrevious={() => {
+            setGetListMeasurementParamsRequest((prev) =>
+              deleteParams({ ...prev, before: firstCustomerID }, ['after'])
+            );
+          }}
+          onClickNext={() => {
+            setGetListMeasurementParamsRequest((prev) =>
+              deleteParams({ ...prev, after: lastCustomerID }, ['before'])
+            );
+          }}
+        />
       </Card>
     </div>
   );

@@ -37,6 +37,7 @@ const NoticeManagement = () => {
   const [paginationData, setPaginationData] = useState<{
     hasNext: boolean;
     hasPrevious: boolean;
+    totalCount?: number;
   }>({ hasNext: false, hasPrevious: false });
   const firstPointID = data?.[0]?.id;
   const lastPointID = data?.[data.length - 1]?.id;
@@ -94,6 +95,7 @@ const NoticeManagement = () => {
         setPaginationData({
           hasNext: data.hasNext,
           hasPrevious: data.hasPrevious,
+          totalCount: data.totalCount,
         });
       },
       () => {},
@@ -152,27 +154,6 @@ const NoticeManagement = () => {
                 handleClearSearch={handleClearSearch}
                 gcsId={gcsParams?.gcsId}
               />
-              <PaginationCommon
-                pageSize={size}
-                setSize={(newSize) => {
-                  setSize(newSize);
-                  setGetGCSCutOffCycleRequest((prev) =>
-                    deleteParams({ ...prev, pageSize: newSize }, ['before', 'after'])
-                  );
-                }}
-                hasNext={paginationData?.hasNext}
-                hasPrevious={paginationData?.hasPrevious}
-                onClickPrevious={() => {
-                  setGetGCSCutOffCycleRequest((prev) =>
-                    deleteParams({ ...prev, before: firstPointID }, ['after'])
-                  );
-                }}
-                onClickNext={() => {
-                  setGetGCSCutOffCycleRequest((prev) =>
-                    deleteParams({ ...prev, after: lastPointID }, ['before'])
-                  );
-                }}
-              />
             </div>
             <TableDetailGcs
               dataSource={data ?? []}
@@ -180,6 +161,29 @@ const NoticeManagement = () => {
               GCSName={GCSName}
               gcsId={gcsParams.gcsId}
               loading={loading}
+            />
+            <PaginationCommon
+              pageSize={size}
+              total={paginationData?.totalCount}
+              currentCount={data?.length || 0}
+              setSize={(newSize) => {
+                setSize(newSize);
+                setGetGCSCutOffCycleRequest((prev) =>
+                  deleteParams({ ...prev, pageSize: newSize }, ['before', 'after'])
+                );
+              }}
+              hasNext={paginationData?.hasNext}
+              hasPrevious={paginationData?.hasPrevious}
+              onClickPrevious={() => {
+                setGetGCSCutOffCycleRequest((prev) =>
+                  deleteParams({ ...prev, before: firstPointID }, ['after'])
+                );
+              }}
+              onClickNext={() => {
+                setGetGCSCutOffCycleRequest((prev) =>
+                  deleteParams({ ...prev, after: lastPointID }, ['before'])
+                );
+              }}
             />
           </Card>
         </div>

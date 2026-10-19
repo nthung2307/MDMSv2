@@ -48,6 +48,7 @@ const PointMonitoring = () => {
   const [paginationData, setPaginationData] = useState<{
     hasNext: boolean;
     hasPrevious: boolean;
+    totalCount?: number;
   }>({ hasNext: false, hasPrevious: false });
 
   const firstCustomerID = data?.[0]?.measurementPointsId;
@@ -95,6 +96,7 @@ const PointMonitoring = () => {
         setPaginationData({
           hasNext: data.hasNext,
           hasPrevious: data.hasPrevious,
+          totalCount: data.totalCount,
         });
       },
       () => {},
@@ -132,6 +134,7 @@ const PointMonitoring = () => {
         setPaginationData({
           hasNext: resData?.hasNext || false,
           hasPrevious: resData?.hasPrevious || false,
+          totalCount: resData?.totalCount,
         });
       },
       () => {},
@@ -284,32 +287,34 @@ const PointMonitoring = () => {
                 )}
               </div>
             </div>
-            <PaginationCommon
-              pageSize={size}
-              setSize={(newSize) => {
-                setSize(newSize);
-                setGetListMeasurementParamsRequest((prev) => {
-                  const updatedParams = { ...prev, pageSize: newSize };
-                  return deleteParams(updatedParams, ['before', 'after']);
-                });
-              }}
-              hasNext={paginationData?.hasNext}
-              hasPrevious={paginationData?.hasPrevious}
-              onClickPrevious={() => {
-                setGetListMeasurementParamsRequest((prev) => {
-                  const updatedParams = { ...prev, before: firstCustomerID };
-                  return deleteParams(updatedParams, ['after']);
-                });
-              }}
-              onClickNext={() => {
-                setGetListMeasurementParamsRequest((prev) => {
-                  const updatedParams = { ...prev, after: lastCustomerID };
-                  return deleteParams(updatedParams, ['before']);
-                });
-              }}
-            />
           </div>
           <TableSummary dataSource={data ?? []} loading={loading} />
+          <PaginationCommon
+            pageSize={size}
+            total={paginationData?.totalCount}
+            currentCount={data?.length || 0}
+            setSize={(newSize) => {
+              setSize(newSize);
+              setGetListMeasurementParamsRequest((prev) => {
+                const updatedParams = { ...prev, pageSize: newSize };
+                return deleteParams(updatedParams, ['before', 'after']);
+              });
+            }}
+            hasNext={paginationData?.hasNext}
+            hasPrevious={paginationData?.hasPrevious}
+            onClickPrevious={() => {
+              setGetListMeasurementParamsRequest((prev) => {
+                const updatedParams = { ...prev, before: firstCustomerID };
+                return deleteParams(updatedParams, ['after']);
+              });
+            }}
+            onClickNext={() => {
+              setGetListMeasurementParamsRequest((prev) => {
+                const updatedParams = { ...prev, after: lastCustomerID };
+                return deleteParams(updatedParams, ['before']);
+              });
+            }}
+          />
         </Card>
         {/* Dialog export file */}
         <DialogExportForm

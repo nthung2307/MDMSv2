@@ -24,6 +24,7 @@ export enum MenuKeys {
   OperatingParameter = 'operating-parameter',
   HalfHourFinalizedEnergyReport = 'half-hour-finalized-energy-report',
   DailyFinalizedEnergyReport = 'daily-finalized-energy-report',
+  ActivePointsEnergyReport = 'active-points-energy-report',
 
   // management
   ManagePoints = 'point-management',

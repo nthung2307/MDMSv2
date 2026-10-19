@@ -20,6 +20,7 @@ public class BackgroundJobService
     private readonly IMeasurementPointDailyEnergyReportReadWriteRepository _measurementPointDailyEnergyReportReadWriteRepository;
     private readonly IMeasurementPointHalfHourEnergyReportReadWriteRepository _measurementPointHalfHourEnergyReportReadWriteRepository;
     private readonly IMeasurementPointHalfHourOperatingReportReadWriteRepository _measurementPointHalfHourOperatingReportReadWriteRepository;
+    private readonly IMeasurementPointEventReadWriteRepository? _measurementPointEventReadWriteRepository;
     private readonly IMapper _mapper;
     private readonly ILogger<BackgroundJobService>? _logger;
 
@@ -33,7 +34,8 @@ public class BackgroundJobService
         IMeasurementPointHalfHourEnergyReportReadWriteRepository measurementPointHalfHourEnergyReportReadWriteRepository,
         IMeasurementPointHalfHourOperatingReportReadWriteRepository measurementPointHalfHourOperatingReportReadWriteRepository,
         IMapper mapper,
-        ILogger<BackgroundJobService>? logger = null)
+        ILogger<BackgroundJobService>? logger = null,
+        IMeasurementPointEventReadWriteRepository? measurementPointEventReadWriteRepository = null)
     {
         _measurementPointMonitoringReadOnlyRepository = measurementPointMonitoringReadOnlyRepository;
         _measurementPointMonitoringHourlyReadWriteRepository = measurementPointMonitoringHourlyReadWriteRepository;
@@ -45,6 +47,7 @@ public class BackgroundJobService
         _measurementPointHalfHourOperatingReportReadWriteRepository = measurementPointHalfHourOperatingReportReadWriteRepository;
         _mapper = mapper;
         _logger = logger;
+        _measurementPointEventReadWriteRepository = measurementPointEventReadWriteRepository;
     }
 
     public async Task<DateTime> GroupDataPerMeter(CancellationToken cancellationToken)
@@ -115,11 +118,19 @@ public class BackgroundJobService
         return new DateTime();
     }
     
+    private static DateTimeOffset GetNearestHalfHourSlot(DateTimeOffset time)
+    {
+        int minute = time.Minute;
+        int roundedMinute = minute < 15 ? 0 : (minute < 45 ? 30 : 0);
+        var baseTime = minute >= 45 ? time.AddHours(1) : time;
+        return new DateTimeOffset(baseTime.Year, baseTime.Month, baseTime.Day, baseTime.Hour, roundedMinute, 0, baseTime.Offset);
+    }
+
     public async Task<DateTime> GenerateEnergyReportHalfHour(CancellationToken cancellationToken)
     {
         _logger?.LogInformation("Bắt đầu sinh báo cáo đo đếm nửa giờ với Smart Lookback (60 phút)...");
         var reportDtos = await _measurementPointMonitoringReadOnlyRepository.GetListMeasurementEnergyReportWithLookbackAsync(60, cancellationToken);
-        var createdTime = DateTimeOffset.UtcNow.AddMinutes(-5);
+        var createdTime = GetNearestHalfHourSlot(DateTimeOffset.UtcNow.AddMinutes(-5));
         foreach (var dto in reportDtos)
         {
             var entity = _mapper.Map<MeasurementPointHalfHourEnergyReportEntity>(dto);
@@ -129,7 +140,7 @@ public class BackgroundJobService
         }
 
         await _measurementPointHalfHourEnergyReportReadWriteRepository.SaveChangesAsync(cancellationToken);
-        _logger?.LogInformation("Đã hoàn tất lưu báo cáo đo đếm nửa giờ cho {Count} điểm đo.", reportDtos.Count);
+        _logger?.LogInformation("Đã hoàn tất lưu báo cáo đo đếm nửa giờ cho {Count} điểm đo lúc {Slot}.", reportDtos.Count, createdTime);
         return new DateTime();
     }
 
@@ -137,7 +148,7 @@ public class BackgroundJobService
     {
         _logger?.LogInformation("Bắt đầu sinh báo cáo thông số vận hành nửa giờ với Smart Lookback (60 phút)...");
         var reportDtos = await _measurementPointMonitoringReadOnlyRepository.GetListMeasurementOperatingReportWithLookbackAsync(60, cancellationToken);
-        var createdTime = DateTimeOffset.UtcNow.AddMinutes(-5);
+        var createdTime = GetNearestHalfHourSlot(DateTimeOffset.UtcNow.AddMinutes(-5));
         foreach (var dto in reportDtos)
         {
             var entity = _mapper.Map<MeasurementPointHalfHourOperatingReportEntity>(dto);
@@ -149,5 +160,16 @@ public class BackgroundJobService
         await _measurementPointHalfHourOperatingReportReadWriteRepository.SaveChangesAsync(cancellationToken);
         _logger?.LogInformation("Đã hoàn tất lưu báo cáo thông số vận hành nửa giờ cho {Count} điểm đo.", reportDtos.Count);
         return new DateTime();
+    }
+
+    public async Task<DateTime> CleanupOldEvents(CancellationToken cancellationToken)
+    {
+        if (_measurementPointEventReadWriteRepository != null)
+        {
+            _logger?.LogInformation("Bắt đầu dọn dẹp các sự kiện cũ hơn 3 tháng...");
+            var count = await _measurementPointEventReadWriteRepository.CleanupOldEventsAsync(3, cancellationToken);
+            _logger?.LogInformation("Đã xóa {Count} sự kiện cũ hơn 3 tháng để giải phóng dung lượng.", count);
+        }
+        return DateTime.UtcNow;
     }
 }

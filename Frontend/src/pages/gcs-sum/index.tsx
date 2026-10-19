@@ -68,6 +68,7 @@ const GCSSum = () => {
   const [paginationData, setPaginationData] = useState<{
     hasNext: boolean;
     hasPrevious: boolean;
+    totalCount?: number;
   }>({ hasNext: false, hasPrevious: false });
   const firstPointID = data?.[0]?.id;
   const lastPointID = data?.[data.length - 1]?.id;
@@ -241,6 +242,7 @@ const GCSSum = () => {
         setPaginationData({
           hasNext: data.hasNext,
           hasPrevious: data.hasPrevious,
+          totalCount: data.totalCount,
         });
       },
       () => {},
@@ -402,30 +404,6 @@ const GCSSum = () => {
                 handleClearSearch={handleClearSearch}
                 setRefreshState={setRefreshState}
               />
-              <PaginationCommon
-                pageSize={size}
-                hasNext={paginationData?.hasNext}
-                setSize={(newSize) => {
-                  setSize(newSize);
-                  setGetListDataGCSRequest((prev) => {
-                    const updatedParams = { ...prev, pageSize: newSize };
-                    return deleteParams(updatedParams, ['before', 'after']);
-                  });
-                }}
-                hasPrevious={paginationData?.hasPrevious}
-                onClickPrevious={() => {
-                  setGetListDataGCSRequest((prev) => {
-                    const updatedParams = { ...prev, before: firstPointID };
-                    return deleteParams(updatedParams, ['after']); // Remove 'after' parameter
-                  });
-                }}
-                onClickNext={() => {
-                  setGetListDataGCSRequest((prev) => {
-                    const updatedParams = { ...prev, after: lastPointID };
-                    return deleteParams(updatedParams, ['before']); // Remove 'before' parameter
-                  });
-                }}
-              />
             </div>
             <div ref={tableRef}>
               <TableGcs
@@ -434,6 +412,32 @@ const GCSSum = () => {
                 loading={loading}
               />
             </div>
+            <PaginationCommon
+              pageSize={size}
+              total={paginationData?.totalCount}
+              currentCount={data?.length || 0}
+              hasNext={paginationData?.hasNext}
+              setSize={(newSize) => {
+                setSize(newSize);
+                setGetListDataGCSRequest((prev) => {
+                  const updatedParams = { ...prev, pageSize: newSize };
+                  return deleteParams(updatedParams, ['before', 'after']);
+                });
+              }}
+              hasPrevious={paginationData?.hasPrevious}
+              onClickPrevious={() => {
+                setGetListDataGCSRequest((prev) => {
+                  const updatedParams = { ...prev, before: firstPointID };
+                  return deleteParams(updatedParams, ['after']); // Remove 'after' parameter
+                });
+              }}
+              onClickNext={() => {
+                setGetListDataGCSRequest((prev) => {
+                  const updatedParams = { ...prev, after: lastPointID };
+                  return deleteParams(updatedParams, ['before']); // Remove 'before' parameter
+                });
+              }}
+            />
           </Card>
         </div>
       ) : (

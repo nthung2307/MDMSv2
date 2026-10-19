@@ -571,4 +571,80 @@ public class ReportController : ControllerBase
         }
     }
     #endregion
+
+    #region Báo cáo Chỉ số điện tất cả điểm đo đang hoạt động tại 1 thời điểm
+    [HttpPost]
+    [Route(Common.Url.Default.Report.ActivePointsEnergyReport)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
+    public async Task<RequestResult<List<ActivePointsEnergyReportResponse>>> GetActivePointsEnergyReportAsync(
+        ActivePointsEnergyReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var query = new GetActivePointsEnergyReportQuery()
+            {
+                Request = request,
+                Tracker = _httpContextAccessorService.Tracker()
+            };
+            var result = await _mediator.Send(query, cancellationToken);
+            return RequestResult<List<ActivePointsEnergyReportResponse>>.Succeed(result);
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(GetActivePointsEnergyReportAsync));
+            throw;
+        }
+    }
+
+    [HttpPost]
+    [Route(Common.Url.Default.Report.ExportCsvActivePointsEnergy)]
+    public async Task<IActionResult> ExportCsvActivePointsEnergyAsync(
+        ActivePointsEnergyReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var data = await _halfHourEnergyReportReadWriteRepository.GenerateActivePointsEnergyCsvAsync(request, cancellationToken);
+            return File(data, "text/csv", $"Export-Active-Points-Energy-{DateTime.Now:yyyyMMddHHmmss}.csv");
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(ExportCsvActivePointsEnergyAsync));
+            throw;
+        }
+    }
+
+    [HttpPost]
+    [Route(Common.Url.Default.Report.ExportExcelActivePointsEnergy)]
+    public async Task<IActionResult> ExportExcelActivePointsEnergyAsync(
+        ActivePointsEnergyReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var data = await _halfHourEnergyReportReadWriteRepository.GenerateActivePointsEnergyExcelAsync(request, cancellationToken);
+            return File(data, "text/csv", $"Export-Active-Points-Energy-{DateTime.Now:yyyyMMddHHmmss}.csv");
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(ExportExcelActivePointsEnergyAsync));
+            throw;
+        }
+    }
+
+    [HttpPost]
+    [Route(Common.Url.Default.Report.ExportPdfActivePointsEnergy)]
+    public async Task<IActionResult> ExportPdfActivePointsEnergyAsync(
+        ActivePointsEnergyReportRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var data = await _halfHourEnergyReportReadWriteRepository.GenerateActivePointsEnergyCsvAsync(request, cancellationToken);
+            return File(data, "text/csv", $"Export-Active-Points-Energy-{DateTime.Now:yyyyMMddHHmmss}.csv");
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(ExportPdfActivePointsEnergyAsync));
+            throw;
+        }
+    }
+    #endregion
 }

@@ -1,4 +1,4 @@
-import { Table, Typography } from 'antd';
+import { Table, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import React from 'react';
 
@@ -10,37 +10,47 @@ interface EnergyConsumptionTableProps {
   data: EnergyConsumptionItem[];
   total?: EnergyConsumptionItem;
   loading: boolean;
-  compareWithPrevious?: boolean;
 }
 
 export const EnergyConsumptionTable: React.FC<EnergyConsumptionTableProps> = ({
   data,
   total,
   loading,
-  compareWithPrevious = false,
 }) => {
-  const formatNumber = (val?: number, fractionDigits = 2) => {
-    if (val === undefined || val === null || isNaN(val)) return '-';
+  const formatNumber = (val?: number | null, fractionDigits = 2) => {
+    if (val === undefined || val === null || isNaN(Number(val))) return '-';
     return Number(val).toLocaleString('vi-VN', {
       minimumFractionDigits: fractionDigits,
       maximumFractionDigits: fractionDigits,
     });
   };
 
-  const renderDelta = (delta?: number, pct?: number) => {
-    if (delta === undefined || delta === null) return '-';
-    const isPositive = delta > 0;
-    const isNegative = delta < 0;
-    const color = isPositive ? '#cf1322' : isNegative ? '#389e0d' : '#8c8c8c';
-    const sign = isPositive ? '+' : '';
-    const pctText = pct !== undefined && pct !== null ? ` (${sign}${formatNumber(pct, 1)}%)` : '';
-    return (
-      <span style={{ color, fontWeight: 500 }}>
-        {sign}
-        {formatNumber(delta, 2)}
-        {pctText}
-      </span>
-    );
+  const renderEnergyCell = (val: any, record: EnergyConsumptionItem, isBold = false) => {
+    if (val === undefined || val === null || val === '') {
+      return <div className='text-gray-400 text-center select-none'>-</div>;
+    }
+    const num = Number(val);
+    if (isNaN(num)) {
+      return <div className='text-gray-400 text-center select-none'>-</div>;
+    }
+
+    const formatted = num.toLocaleString('vi-VN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+    if (record?.isSuspected) {
+      return (
+        <Tooltip title='Số liệu bị nghi ngờ'>
+          <div className='text-amber-600 font-medium inline-flex items-center justify-end w-full gap-1 cursor-help'>
+            <span className={isBold ? 'font-bold' : ''}>{formatted}</span>
+            <span className='text-amber-500 font-bold text-base leading-none'>*</span>
+          </div>
+        </Tooltip>
+      );
+    }
+
+    return <div className={isBold ? 'font-bold' : ''}>{formatted}</div>;
   };
 
   const columns: ColumnsType<EnergyConsumptionItem> = [
@@ -51,150 +61,115 @@ export const EnergyConsumptionTable: React.FC<EnergyConsumptionTableProps> = ({
       width: 140,
       fixed: 'left',
       align: 'center',
+      className: 'whitespace-nowrap',
       render: (val: string) => <Text strong>{val || '-'}</Text>,
     },
     {
-      title: 'Hệ số',
-      dataIndex: 'multiplierFactor',
-      key: 'multiplierFactor',
-      width: 80,
-      align: 'center',
-      render: (val: number) => formatNumber(val, 0),
-    },
-    {
       title: 'Sản lượng Kênh Giao (kWh)',
+      align: 'center',
       children: [
         {
-          title: 'Tổng kỳ này',
+          title: 'Tổng',
           dataIndex: 'sanLuongTacDungTongKenhGiao',
           key: 'sanLuongTacDungTongKenhGiao',
-          width: 115,
+          width: 125,
           align: 'right',
-          render: (val) => <Text strong>{formatNumber(val, 2)}</Text>,
+          className: 'whitespace-nowrap',
+          render: (val, record) => renderEnergyCell(val, record, true),
         },
-        ...(compareWithPrevious
-          ? [
-              {
-                title: 'Tổng kỳ trước',
-                dataIndex: 'previousSanLuongTacDungTongKenhGiao',
-                key: 'previousSanLuongTacDungTongKenhGiao',
-                width: 115,
-                align: 'right' as const,
-                render: (val: number) => formatNumber(val, 2),
-              },
-              {
-                title: 'So sánh (+/-)',
-                key: 'deltaGiao',
-                width: 130,
-                align: 'right' as const,
-                render: (_: any, record: EnergyConsumptionItem) =>
-                  renderDelta(record.deltaKenhGiao, record.deltaPercentageKenhGiao),
-              },
-            ]
-          : []),
         {
           title: 'Biểu 1 (BT)',
           dataIndex: 'sanLuongTacDungBTKenhGiao',
           key: 'sanLuongTacDungBTKenhGiao',
-          width: 105,
+          width: 125,
           align: 'right',
-          render: (val) => formatNumber(val, 2),
+          className: 'whitespace-nowrap',
+          render: (val, record) => renderEnergyCell(val, record),
         },
         {
           title: 'Biểu 2 (CD)',
           dataIndex: 'sanLuongTacDungCDKenhGiao',
           key: 'sanLuongTacDungCDKenhGiao',
-          width: 105,
+          width: 125,
           align: 'right',
-          render: (val) => formatNumber(val, 2),
+          className: 'whitespace-nowrap',
+          render: (val, record) => renderEnergyCell(val, record),
         },
         {
           title: 'Biểu 3 (TD)',
           dataIndex: 'sanLuongTacDungTDKenhGiao',
           key: 'sanLuongTacDungTDKenhGiao',
-          width: 105,
+          width: 125,
           align: 'right',
-          render: (val) => formatNumber(val, 2),
+          className: 'whitespace-nowrap',
+          render: (val, record) => renderEnergyCell(val, record),
         },
         {
           title: 'VC (kVArh)',
           dataIndex: 'sanLuongPhanKhangTongKenhGiao',
           key: 'sanLuongPhanKhangTongKenhGiao',
-          width: 105,
+          width: 125,
           align: 'right',
-          render: (val) => formatNumber(val, 2),
+          className: 'whitespace-nowrap',
+          render: (val, record) => renderEnergyCell(val, record),
         },
       ],
     },
     {
       title: 'Sản lượng Kênh Nhận (kWh)',
+      align: 'center',
       children: [
         {
-          title: 'Tổng kỳ này',
+          title: 'Tổng',
           dataIndex: 'sanLuongTacDungTongKenhNhan',
           key: 'sanLuongTacDungTongKenhNhan',
-          width: 115,
+          width: 125,
           align: 'right',
-          render: (val) => <Text strong>{formatNumber(val, 2)}</Text>,
+          className: 'whitespace-nowrap',
+          render: (val, record) => renderEnergyCell(val, record, true),
         },
-        ...(compareWithPrevious
-          ? [
-              {
-                title: 'Tổng kỳ trước',
-                dataIndex: 'previousSanLuongTacDungTongKenhNhan',
-                key: 'previousSanLuongTacDungTongKenhNhan',
-                width: 115,
-                align: 'right' as const,
-                render: (val: number) => formatNumber(val, 2),
-              },
-              {
-                title: 'So sánh (+/-)',
-                key: 'deltaNhan',
-                width: 130,
-                align: 'right' as const,
-                render: (_: any, record: EnergyConsumptionItem) =>
-                  renderDelta(record.deltaKenhNhan, record.deltaPercentageKenhNhan),
-              },
-            ]
-          : []),
         {
           title: 'Biểu 1 (BT)',
           dataIndex: 'sanLuongTacDungBTKenhNhan',
           key: 'sanLuongTacDungBTKenhNhan',
-          width: 105,
+          width: 125,
           align: 'right',
-          render: (val) => formatNumber(val, 2),
+          className: 'whitespace-nowrap',
+          render: (val, record) => renderEnergyCell(val, record),
         },
         {
           title: 'Biểu 2 (CD)',
           dataIndex: 'sanLuongTacDungCDKenhNhan',
           key: 'sanLuongTacDungCDKenhNhan',
-          width: 105,
+          width: 125,
           align: 'right',
-          render: (val) => formatNumber(val, 2),
+          className: 'whitespace-nowrap',
+          render: (val, record) => renderEnergyCell(val, record),
         },
         {
           title: 'Biểu 3 (TD)',
           dataIndex: 'sanLuongTacDungTDKenhNhan',
           key: 'sanLuongTacDungTDKenhNhan',
-          width: 105,
+          width: 125,
           align: 'right',
-          render: (val) => formatNumber(val, 2),
+          className: 'whitespace-nowrap',
+          render: (val, record) => renderEnergyCell(val, record),
         },
         {
           title: 'VC (kVArh)',
           dataIndex: 'sanLuongPhanKhangTongKenhNhan',
           key: 'sanLuongPhanKhangTongKenhNhan',
-          width: 105,
+          width: 125,
           align: 'right',
-          render: (val) => formatNumber(val, 2),
+          className: 'whitespace-nowrap',
+          render: (val, record) => renderEnergyCell(val, record),
         },
       ],
     },
   ];
 
   return (
-    <div className='w-full overflow-x-auto'>
+    <div className='w-full min-w-full overflow-x-auto rounded-lg border border-gray-200 bg-white'>
       <Table<EnergyConsumptionItem>
         columns={columns}
         dataSource={data}
@@ -202,8 +177,16 @@ export const EnergyConsumptionTable: React.FC<EnergyConsumptionTableProps> = ({
         loading={loading}
         bordered
         size='small'
-        pagination={false}
-        scroll={{ x: compareWithPrevious ? 1600 : 1250, y: 550 }}
+        className='w-full'
+        rowClassName={() => 'whitespace-nowrap'}
+        pagination={{
+          defaultPageSize: 48,
+          showSizeChanger: true,
+          pageSizeOptions: ['24', '48', '96', '192'],
+          showTotal: (totalCount) => `Tổng số: ${totalCount} bản ghi`,
+          position: ['bottomRight'],
+        }}
+        scroll={{ x: 1390, y: 550 }}
         summary={() => {
           if (!total) return null;
           return (
@@ -214,68 +197,41 @@ export const EnergyConsumptionTable: React.FC<EnergyConsumptionTableProps> = ({
                     TỔNG CỘNG
                   </Text>
                 </Table.Summary.Cell>
-                <Table.Summary.Cell index={1} align='center'>
-                  -
-                </Table.Summary.Cell>
                 {/* Kênh Giao */}
-                <Table.Summary.Cell index={2} align='right'>
+                <Table.Summary.Cell index={1} align='right'>
                   <Text strong className='text-red-700'>
                     {formatNumber(total.sanLuongTacDungTongKenhGiao, 2)}
                   </Text>
                 </Table.Summary.Cell>
-                {compareWithPrevious && (
-                  <>
-                    <Table.Summary.Cell index={3} align='right'>
-                      <Text strong className='text-blue-700'>
-                        {formatNumber(total.previousSanLuongTacDungTongKenhGiao, 2)}
-                      </Text>
-                    </Table.Summary.Cell>
-                    <Table.Summary.Cell index={4} align='right'>
-                      {renderDelta(total.deltaKenhGiao, total.deltaPercentageKenhGiao)}
-                    </Table.Summary.Cell>
-                  </>
-                )}
-                <Table.Summary.Cell index={compareWithPrevious ? 5 : 3} align='right'>
+                <Table.Summary.Cell index={2} align='right'>
                   {formatNumber(total.sanLuongTacDungBTKenhGiao, 2)}
                 </Table.Summary.Cell>
-                <Table.Summary.Cell index={compareWithPrevious ? 6 : 4} align='right'>
+                <Table.Summary.Cell index={3} align='right'>
                   {formatNumber(total.sanLuongTacDungCDKenhGiao, 2)}
                 </Table.Summary.Cell>
-                <Table.Summary.Cell index={compareWithPrevious ? 7 : 5} align='right'>
+                <Table.Summary.Cell index={4} align='right'>
                   {formatNumber(total.sanLuongTacDungTDKenhGiao, 2)}
                 </Table.Summary.Cell>
-                <Table.Summary.Cell index={compareWithPrevious ? 8 : 6} align='right'>
+                <Table.Summary.Cell index={5} align='right'>
                   {formatNumber(total.sanLuongPhanKhangTongKenhGiao, 2)}
                 </Table.Summary.Cell>
 
                 {/* Kênh Nhận */}
-                <Table.Summary.Cell index={compareWithPrevious ? 9 : 7} align='right'>
+                <Table.Summary.Cell index={6} align='right'>
                   <Text strong className='text-emerald-700'>
                     {formatNumber(total.sanLuongTacDungTongKenhNhan, 2)}
                   </Text>
                 </Table.Summary.Cell>
-                {compareWithPrevious && (
-                  <>
-                    <Table.Summary.Cell index={10} align='right'>
-                      <Text strong className='text-blue-700'>
-                        {formatNumber(total.previousSanLuongTacDungTongKenhNhan, 2)}
-                      </Text>
-                    </Table.Summary.Cell>
-                    <Table.Summary.Cell index={11} align='right'>
-                      {renderDelta(total.deltaKenhNhan, total.deltaPercentageKenhNhan)}
-                    </Table.Summary.Cell>
-                  </>
-                )}
-                <Table.Summary.Cell index={compareWithPrevious ? 12 : 8} align='right'>
+                <Table.Summary.Cell index={7} align='right'>
                   {formatNumber(total.sanLuongTacDungBTKenhNhan, 2)}
                 </Table.Summary.Cell>
-                <Table.Summary.Cell index={compareWithPrevious ? 13 : 9} align='right'>
+                <Table.Summary.Cell index={8} align='right'>
                   {formatNumber(total.sanLuongTacDungCDKenhNhan, 2)}
                 </Table.Summary.Cell>
-                <Table.Summary.Cell index={compareWithPrevious ? 14 : 10} align='right'>
+                <Table.Summary.Cell index={9} align='right'>
                   {formatNumber(total.sanLuongTacDungTDKenhNhan, 2)}
                 </Table.Summary.Cell>
-                <Table.Summary.Cell index={compareWithPrevious ? 15 : 11} align='right'>
+                <Table.Summary.Cell index={10} align='right'>
                   {formatNumber(total.sanLuongPhanKhangTongKenhNhan, 2)}
                 </Table.Summary.Cell>
               </Table.Summary.Row>

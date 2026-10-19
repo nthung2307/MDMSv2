@@ -115,6 +115,7 @@ public class PeriodicEnergyStatementReadOnlyRepository : RestfulRepository<Perio
             Data = result.Data,
             HasNext = result.HasNext,
             HasPrevious = result.HasPrevious,
+            TotalCount = result.TotalCount,
         };
     }
 

@@ -42,6 +42,7 @@ public class CustomerReadOnlyRepository : RestfulRepository<CustomerEntity, AppR
             Data = result.Data,
             HasNext = result.HasNext,
             HasPrevious = result.HasPrevious,
+            TotalCount = result.TotalCount,
         };
     }
 
@@ -65,6 +66,7 @@ public class CustomerReadOnlyRepository : RestfulRepository<CustomerEntity, AppR
             Data = result.Data,
             HasNext = result.HasNext,
             HasPrevious = result.HasPrevious,
+            TotalCount = result.TotalCount,
         };
     }
 

@@ -1,5 +1,5 @@
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
-import { Card, Dropdown, MenuProps, TableProps } from 'antd';
+import { Card, Dropdown, MenuProps, TableProps, Tooltip } from 'antd';
 import { useEffect, useState } from 'react';
 import { BsThreeDots } from 'react-icons/bs';
 import { FiShare } from 'react-icons/fi';
@@ -159,32 +159,79 @@ const AccountManagement = () => {
       title: 'Tên đăng nhập',
       dataIndex: 'userName',
       align: 'left',
+      width: 170,
+      className: 'whitespace-nowrap',
+      render: (val) => {
+        const text = val || 'N/A';
+        return (
+          <Tooltip title={text}>
+            <div className='max-w-[170px] truncate whitespace-nowrap font-medium'>{text}</div>
+          </Tooltip>
+        );
+      },
     },
     {
       title: 'Nhóm người dùng',
       dataIndex: 'roleName',
       align: 'left',
+      width: 180,
+      className: 'whitespace-nowrap',
+      render: (val) => {
+        const text = val || 'N/A';
+        return (
+          <Tooltip title={text}>
+            <div className='max-w-[180px] truncate whitespace-nowrap'>{text}</div>
+          </Tooltip>
+        );
+      },
     },
     {
       title: 'Họ và tên',
       dataIndex: 'fullName',
       align: 'left',
+      width: 200,
+      className: 'whitespace-nowrap',
+      render: (val) => {
+        const text = val || 'N/A';
+        return (
+          <Tooltip title={text}>
+            <div className='max-w-[200px] truncate whitespace-nowrap'>{text}</div>
+          </Tooltip>
+        );
+      },
     },
     {
       title: 'Điện thoại',
       dataIndex: 'phoneNumber',
       align: 'left',
+      width: 130,
+      className: 'whitespace-nowrap',
+      render: (val) => {
+        const text = val || 'N/A';
+        return <span className='whitespace-nowrap'>{text}</span>;
+      },
     },
     {
       title: 'Email',
       dataIndex: 'email',
       align: 'left',
+      width: 220,
+      className: 'whitespace-nowrap',
+      render: (val) => {
+        const text = val || 'N/A';
+        return (
+          <Tooltip title={text}>
+            <div className='max-w-[220px] truncate whitespace-nowrap'>{text}</div>
+          </Tooltip>
+        );
+      },
     },
     {
       title: 'Trạng thái',
       dataIndex: 'status',
-      align: 'left',
-      width: '10%',
+      align: 'center',
+      width: 150,
+      className: 'whitespace-nowrap',
       render: (_, record) => {
         const isActive = record.status === Constants.CustomerStatus.Active;
         const backgroundColor = isActive ? '#41A026' : '#B22222';
@@ -196,8 +243,9 @@ const AccountManagement = () => {
     },
     {
       key: 'action',
-      // fixed: 'right',
-      width: 50,
+      fixed: 'right',
+      width: 60,
+      align: 'center',
       render: (_, record) => {
         const items: MenuProps['items'] = [
           {
@@ -335,40 +383,43 @@ const AccountManagement = () => {
               ) : null}
             </div>
           </div>
-          <PaginationCommon
-            pageSize={size}
-            hasNext={paginationData?.hasNext}
-            setSize={(newSize) => {
-              // Update the page size and reset pagination
-              setSize(newSize);
-              setGetListAccountParamsRequest((prev) => {
-                const updatedParams = { ...prev, pageSize: newSize };
-                return deleteParams(updatedParams, ['before', 'after']); // Remove 'before' and 'after' parameters
-              });
-            }}
-            hasPrevious={paginationData?.hasPrevious}
-            onClickPrevious={() => {
-              // When clicking on Previous, remove the 'after' and set 'before'
-              setGetListAccountParamsRequest((prev) => {
-                const updatedParams = { ...prev, before: firstAccountID };
-                return deleteParams(updatedParams, ['after']); // Remove 'after' parameter
-              });
-            }}
-            onClickNext={() => {
-              // When clicking on Next, remove the 'before' and set 'after'
-              setGetListAccountParamsRequest((prev) => {
-                const updatedParams = { ...prev, after: lastAccountID };
-                return deleteParams(updatedParams, ['before']); // Remove 'before' parameter
-              });
-            }}
-          />
         </div>
         <TableCommon
           columns={columns}
           dataSource={tableDataSource}
           pagination={false}
           loading={loading}
+          rowClassName={() => 'whitespace-nowrap'}
           scroll={{ x: 'max-content', y: window.innerHeight * 0.66 }}
+        />
+        <PaginationCommon
+          pageSize={size}
+          total={data?.totalCount}
+          currentCount={tableDataSource?.length || 0}
+          hasNext={paginationData?.hasNext}
+          setSize={(newSize) => {
+            // Update the page size and reset pagination
+            setSize(newSize);
+            setGetListAccountParamsRequest((prev) => {
+              const updatedParams = { ...prev, pageSize: newSize };
+              return deleteParams(updatedParams, ['before', 'after']); // Remove 'before' and 'after' parameters
+            });
+          }}
+          hasPrevious={paginationData?.hasPrevious}
+          onClickPrevious={() => {
+            // When clicking on Previous, remove the 'after' and set 'before'
+            setGetListAccountParamsRequest((prev) => {
+              const updatedParams = { ...prev, before: firstAccountID };
+              return deleteParams(updatedParams, ['after']); // Remove 'after' parameter
+            });
+          }}
+          onClickNext={() => {
+            // When clicking on Next, remove the 'before' and set 'after'
+            setGetListAccountParamsRequest((prev) => {
+              const updatedParams = { ...prev, after: lastAccountID };
+              return deleteParams(updatedParams, ['before']); // Remove 'before' parameter
+            });
+          }}
         />
       </Card>
       {/* Dialog export file */}

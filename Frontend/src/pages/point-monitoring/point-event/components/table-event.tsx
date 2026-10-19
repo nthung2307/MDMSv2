@@ -1,4 +1,4 @@
-import { TableProps } from 'antd';
+import { TableProps, Tooltip } from 'antd';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
@@ -19,13 +19,13 @@ const TableEvent = (props: Props) => {
     {
       title: 'Thời gian',
       dataIndex: 'createdTime',
-      width: '16%',
+      width: 170,
+      className: 'whitespace-nowrap',
       render: (value) => {
         return value ? (
-          <p>
-            {convertDateTime(value, 'dd/mm/yyyy hh:mi:ss')}{' '}
-            {/* {!record.quanlity && <span className='text-[#FF0000] text-18-20 font-bold'>!</span>} */}
-          </p>
+          <span className='whitespace-nowrap'>
+            {convertDateTime(value, 'dd/mm/yyyy hh:mi:ss')}
+          </span>
         ) : (
           <span>N/A</span>
         );
@@ -35,45 +35,68 @@ const TableEvent = (props: Props) => {
       title: 'Mã điểm đo',
       dataIndex: 'measurementPointCode',
       align: 'left',
-      width: '18%',
+      width: 160,
+      className: 'whitespace-nowrap',
       render: (val) => {
-        return <span>{val ?? 'N/A'}</span>;
+        const text = val ?? 'N/A';
+        return (
+          <Tooltip title={text}>
+            <div className='max-w-[160px] truncate whitespace-nowrap font-medium'>{text}</div>
+          </Tooltip>
+        );
       },
     },
     {
       title: 'Tên khách hàng',
       dataIndex: 'customerName',
       align: 'left',
-      width: '30%',
+      width: 250,
+      className: 'whitespace-nowrap',
       render: (val) => {
-        return <span>{val ?? 'N/A'}</span>;
+        const text = val ?? 'N/A';
+        return (
+          <Tooltip title={text}>
+            <div className='max-w-[250px] truncate whitespace-nowrap'>{text}</div>
+          </Tooltip>
+        );
       },
     },
     {
       title: 'Tên sự kiện',
       dataIndex: 'eventName',
       align: 'left',
-      width: '20%',
+      width: 280,
+      className: 'whitespace-nowrap',
       render: (val) => {
-        return <span>{val}</span>;
+        const text = val ?? 'N/A';
+        return (
+          <Tooltip title={text}>
+            <div className='max-w-[280px] truncate whitespace-nowrap'>{text}</div>
+          </Tooltip>
+        );
       },
     },
     {
       title: 'Trạng thái',
       align: 'center',
       dataIndex: 'status',
-      width: '10%',
+      width: 120,
+      className: 'whitespace-nowrap',
       render: (record) => {
-        return <span>{`${record.charAt(0)}${record.slice(1).toLowerCase()}`}</span>;
+        if (!record) return <span>N/A</span>;
+        return (
+          <span className='whitespace-nowrap'>{`${record.charAt(0)}${record.slice(1).toLowerCase()}`}</span>
+        );
       },
     },
     {
       title: 'Giá trị',
       dataIndex: 'value',
       align: 'center',
-      width: '6%',
+      width: 80,
+      className: 'whitespace-nowrap',
       render: (value) => {
-        return <span>{value == 'False' ? 0 : 1}</span>;
+        return <span className='whitespace-nowrap'>{value == 'False' ? 0 : 1}</span>;
       },
     },
   ];
@@ -84,7 +107,8 @@ const TableEvent = (props: Props) => {
       dataSource={dataSource}
       pagination={false}
       loading={loading}
-      scroll={{ x: 1000, y: window.innerHeight * 0.66 }}
+      rowClassName={() => 'whitespace-nowrap cursor-pointer'}
+      scroll={{ x: 'max-content', y: window.innerHeight * 0.66 }}
       onRow={(record) => {
         return {
           onClick: () => {

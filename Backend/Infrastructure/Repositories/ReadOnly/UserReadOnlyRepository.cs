@@ -47,6 +47,7 @@ public class UserReadOnlyRepository : RestfulRepository<UserEntity, AppReadOnlyD
             Data = result.Data,
             HasNext = result.HasNext,
             HasPrevious = result.HasPrevious,
+            TotalCount = result.TotalCount,
         };
     }
 

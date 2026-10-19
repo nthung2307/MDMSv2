@@ -119,6 +119,11 @@ export class Endpoint {
     static ExportCsvEnergyConsumption: string = 'report/export-csv-energy-consumption';
     static ExportPdfEnergyConsumption: string = 'report/export-pdf-energy-consumption';
     static ExportExcelEnergyConsumption: string = 'report/export-excel-energy-consumption';
+
+    // Báo cáo chỉ số điện tất cả điểm đo active tại 1 thời điểm
+    static GetActivePointsEnergyReport: string = 'report/active-points-energy-report';
+    static ExportCsvActivePointsEnergy: string = 'active-points-energy/export-csv-active-points-energy';
+    static ExportExcelActivePointsEnergy: string = 'active-points-energy/export-excel-active-points-energy';
   };
 
   static Export = class {

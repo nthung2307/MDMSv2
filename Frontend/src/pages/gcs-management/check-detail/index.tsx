@@ -38,6 +38,7 @@ const GCSCheckDetail = () => {
   const [paginationData, setPaginationData] = useState<{
     hasNext: boolean;
     hasPrevious: boolean;
+    totalCount?: number;
   }>({ hasNext: false, hasPrevious: false });
   const firstPointID = data?.[0]?.id;
   const lastPointID = data?.[data.length - 1]?.id;
@@ -101,6 +102,7 @@ const GCSCheckDetail = () => {
         setPaginationData({
           hasNext: data.hasNext,
           hasPrevious: data.hasPrevious,
+          totalCount: data.totalCount,
         });
       },
       () => {},
@@ -161,34 +163,36 @@ const GCSCheckDetail = () => {
               handleClearSearch={handleClearSearch}
               handleSearch={() => {}}
             />
-            <PaginationCommon
-              pageSize={size}
-              hasNext={paginationData?.hasNext}
-              setSize={(newSize) => {
-                setSize(newSize);
-                setGCSMonthlyDetailRequest((prev) => {
-                  const updatedParams = { ...prev, pageSize: newSize };
-                  return deleteParams(updatedParams, ['before', 'after']);
-                });
-              }}
-              hasPrevious={paginationData?.hasPrevious}
-              onClickPrevious={() => {
-                setGCSMonthlyDetailRequest((prev) => {
-                  const updatedParams = { ...prev, before: firstPointID };
-                  return deleteParams(updatedParams, ['after']); // Remove 'after' parameter
-                });
-              }}
-              onClickNext={() => {
-                setGCSMonthlyDetailRequest((prev) => {
-                  const updatedParams = { ...prev, after: lastPointID };
-                  return deleteParams(updatedParams, ['before']); // Remove 'before' parameter
-                });
-              }}
-            />
           </div>
           <div ref={tableRef}>
             <TableCheckDetail dataSource={data ?? []} loading={loading} />
           </div>
+          <PaginationCommon
+            pageSize={size}
+            total={paginationData?.totalCount}
+            currentCount={data?.length || 0}
+            hasNext={paginationData?.hasNext}
+            setSize={(newSize) => {
+              setSize(newSize);
+              setGCSMonthlyDetailRequest((prev) => {
+                const updatedParams = { ...prev, pageSize: newSize };
+                return deleteParams(updatedParams, ['before', 'after']);
+              });
+            }}
+            hasPrevious={paginationData?.hasPrevious}
+            onClickPrevious={() => {
+              setGetGCSCutOffCycleRequest((prev) => {
+                const updatedParams = { ...prev, before: firstPointID };
+                return deleteParams(updatedParams, ['after']); // Remove 'after' parameter
+              });
+            }}
+            onClickNext={() => {
+              setGetGCSCutOffCycleRequest((prev) => {
+                const updatedParams = { ...prev, after: lastPointID };
+                return deleteParams(updatedParams, ['before']); // Remove 'before' parameter
+              });
+            }}
+          />
         </Card>
       </div>
       {/* Dialog export file */}

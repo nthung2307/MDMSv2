@@ -1,79 +1,82 @@
-import { TableProps } from 'antd';
+import { Table, TableProps, Tooltip } from 'antd';
 import dayjs from 'dayjs';
-
-import TableCommon from '@/infrastructure/common/components/table/table-common';
+import React from 'react';
 
 interface Props {
-  dataSource: any;
+  dataSource: any[];
   loading?: boolean;
 }
 
-const TableHalfHourReport = (props: Props) => {
-  const { dataSource, loading } = props;
+const parseEnergyValue = (val: any) => {
+  if (val === null || val === undefined || val === '') {
+    return { isNull: true, isNotTopical: false, text: '-' };
+  }
 
-  const dataTable = dataSource.map((item: any) => {
-    return {
-      createdTime: item.createdTime,
-      // Kênh giao - Biểu giá TD
-      chiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao:
-        item.chiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao,
-      chiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiaoUnit:
-        item.chiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiaoUnit,
-      // Kênh giao - Biểu giá CD
-      chiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao:
-        item.chiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao,
-      chiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiaoUnit:
-        item.chiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiaoUnit,
-      // Kênh giao - Biểu giá BT
-      chiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao:
-        item.chiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao,
-      chiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiaoUnit:
-        item.chiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiaoUnit,
-      // Kênh giao - Tổng
-      chiSoTichLuyDienNangTacDungAPTongKenhGiao: item.chiSoTichLuyDienNangTacDungAPTongKenhGiao,
-      chiSoTichLuyDienNangTacDungAPTongKenhGiaoUnit:
-        item.chiSoTichLuyDienNangTacDungAPTongKenhGiaoUnit,
-      // Kênh giao - Phản kháng
-      chiSoTichLuyDienNangPhanKhangAQTongKenhGiao: item.chiSoTichLuyDienNangPhanKhangAQTongKenhGiao,
-      chiSoTichLuyDienNangPhanKhangAQTongKenhGiaoUnit:
-        item.chiSoTichLuyDienNangPhanKhangAQTongKenhGiaoUnit,
-      // Kênh nhận - Biểu giá TD
-      chiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan:
-        item.chiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan,
-      chiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhanUnit:
-        item.chiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhanUnit,
-      // Kênh nhận - Biểu giá CD
-      chiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan:
-        item.chiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan,
-      chiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhanUnit:
-        item.chiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhanUnit,
-      // Kênh nhận - Biểu giá BT
-      chiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan:
-        item.chiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan,
-      chiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhanUnit:
-        item.chiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhanUnit,
-      // Kênh nhận - Tổng
-      chiSoTichLuyDienNangTacDungAPTongKenhNhan: item.chiSoTichLuyDienNangTacDungAPTongKenhNhan,
-      chiSoTichLuyDienNangTacDungAPTongKenhNhanUnit:
-        item.chiSoTichLuyDienNangTacDungAPTongKenhNhanUnit,
-      // Kênh nhận - Phản kháng
-      chiSoTichLuyDienNangPhanKhangAQTongKenhNhan: item.chiSoTichLuyDienNangPhanKhangAQTongKenhNhan,
-      chiSoTichLuyDienNangPhanKhangAQTongKenhNhanUnit:
-        item.chiSoTichLuyDienNangPhanKhangAQTongKenhNhanUnit,
-      key: item.createdTime,
-    };
-  });
+  const str = String(val).trim();
+  if (str === '' || str === '-') {
+    return { isNull: true, isNotTopical: false, text: '-' };
+  }
 
-  const columns: TableProps['columns'] = [
+  const isNotTopical = str.endsWith('*') || str.includes('Not Topical');
+  const cleanStr = str.replace('*', '').replace('(Not Topical)', '').trim();
+
+  let formatted = cleanStr;
+  const numDirect = Number(cleanStr);
+  if (!isNaN(numDirect) && cleanStr !== '') {
+    formatted = numDirect.toLocaleString('vi-VN', {
+      minimumFractionDigits: numDirect % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 4,
+    });
+  }
+
+  return {
+    isNull: false,
+    isNotTopical,
+    text: formatted,
+  };
+};
+
+const renderEnergyCell = (val: any) => {
+  const { isNull, isNotTopical, text } = parseEnergyValue(val);
+
+  if (isNull) {
+    return (
+      <div style={{ textAlign: 'center' }} className='text-gray-400 select-none'>
+        -
+      </div>
+    );
+  }
+
+  if (isNotTopical) {
+    return (
+      <Tooltip title='Số liệu bị nghi ngờ'>
+        <div
+          style={{ textAlign: 'right', paddingRight: '8px' }}
+          className='text-amber-600 font-medium inline-flex items-center justify-end w-full gap-1 cursor-help'
+        >
+          <span>{text}</span>
+          <span className='text-amber-500 font-bold text-base leading-none'>*</span>
+        </div>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <div style={{ textAlign: 'right', paddingRight: '8px' }} className='text-gray-800'>
+      {text}
+    </div>
+  );
+};
+
+const TableHalfHourReport: React.FC<Props> = ({ dataSource, loading }) => {
+  const columns: TableProps<any>['columns'] = [
     {
       title: 'Thời gian',
       dataIndex: 'createdTime',
       fixed: 'left',
-      width: 150,
+      width: 160,
       align: 'center',
-      render: (record) => {
-        return record ? dayjs(record).format('DD/MM/YYYY HH:mm') : 'N/A';
-      },
+      render: (val: any) => (val ? dayjs(val).format('DD/MM/YYYY HH:mm') : '-'),
     },
     {
       title: 'Kênh giao (kWh)',
@@ -81,38 +84,38 @@ const TableHalfHourReport = (props: Props) => {
       children: [
         {
           title: 'Tổng',
-          align: 'center',
           dataIndex: 'chiSoTichLuyDienNangTacDungAPTongKenhGiao',
-          width: 120,
-          render: (value) => <div style={{ textAlign: 'right' }}>{value ?? 'N/A'}</div>,
+          width: 125,
+          align: 'center',
+          render: renderEnergyCell,
         },
         {
           title: 'Biểu 1 (BT)',
-          align: 'center',
           dataIndex: 'chiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao',
-          width: 120,
-          render: (value) => <div style={{ textAlign: 'right' }}>{value ?? 'N/A'}</div>,
+          width: 125,
+          align: 'center',
+          render: renderEnergyCell,
         },
         {
           title: 'Biểu 2 (CD)',
-          align: 'center',
           dataIndex: 'chiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao',
-          width: 120,
-          render: (value) => <div style={{ textAlign: 'right' }}>{value ?? 'N/A'}</div>,
+          width: 125,
+          align: 'center',
+          render: renderEnergyCell,
         },
         {
           title: 'Biểu 3 (TD)',
-          align: 'center',
           dataIndex: 'chiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao',
-          width: 120,
-          render: (value) => <div style={{ textAlign: 'right' }}>{value ?? 'N/A'}</div>,
+          width: 125,
+          align: 'center',
+          render: renderEnergyCell,
         },
         {
           title: 'VC (kVArh)',
-          align: 'center',
           dataIndex: 'chiSoTichLuyDienNangPhanKhangAQTongKenhGiao',
-          width: 120,
-          render: (value) => <div style={{ textAlign: 'right' }}>{value ?? 'N/A'}</div>,
+          width: 125,
+          align: 'center',
+          render: renderEnergyCell,
         },
       ],
     },
@@ -123,51 +126,61 @@ const TableHalfHourReport = (props: Props) => {
         {
           title: 'Tổng',
           dataIndex: 'chiSoTichLuyDienNangTacDungAPTongKenhNhan',
-          width: 120,
+          width: 125,
           align: 'center',
-          render: (value) => <div style={{ textAlign: 'right' }}>{value ?? 'N/A'}</div>,
+          render: renderEnergyCell,
         },
         {
           title: 'Biểu 1 (BT)',
           dataIndex: 'chiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan',
-          width: 120,
+          width: 125,
           align: 'center',
-          render: (value) => <div style={{ textAlign: 'right' }}>{value ?? 'N/A'}</div>,
+          render: renderEnergyCell,
         },
         {
           title: 'Biểu 2 (CD)',
           dataIndex: 'chiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan',
-          width: 120,
+          width: 125,
           align: 'center',
-          render: (value) => <div style={{ textAlign: 'right' }}>{value ?? 'N/A'}</div>,
+          render: renderEnergyCell,
         },
         {
           title: 'Biểu 3 (TD)',
           dataIndex: 'chiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan',
-          width: 120,
+          width: 125,
           align: 'center',
-          render: (value) => <div style={{ textAlign: 'right' }}>{value ?? 'N/A'}</div>,
+          render: renderEnergyCell,
         },
         {
           title: 'VC (kVArh)',
           dataIndex: 'chiSoTichLuyDienNangPhanKhangAQTongKenhNhan',
-          width: 120,
+          width: 125,
           align: 'center',
-          render: (value) => <div style={{ textAlign: 'right' }}>{value ?? 'N/A'}</div>,
+          render: renderEnergyCell,
         },
       ],
     },
   ];
 
   return (
-    <TableCommon
-      columns={columns}
-      dataSource={dataTable}
-      pagination={false}
-      loading={loading}
-      scroll={{ x: 1350 }}
-      bordered
-    />
+    <div className='w-full overflow-x-auto rounded-lg border border-gray-200 bg-white'>
+      <Table
+        columns={columns}
+        dataSource={dataSource}
+        loading={loading}
+        rowKey={(record, index) => `${record.createdTime || record.id || index}_${index}`}
+        pagination={{
+          defaultPageSize: 48,
+          showSizeChanger: true,
+          pageSizeOptions: ['24', '48', '96', '192'],
+          showTotal: (total) => `Tổng số: ${total} bản ghi`,
+          position: ['bottomRight'],
+        }}
+        scroll={{ x: 1410 }}
+        bordered
+        size='small'
+      />
+    </div>
   );
 };
 

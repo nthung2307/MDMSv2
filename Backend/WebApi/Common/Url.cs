@@ -80,6 +80,12 @@ public static class Url
             public const string ExportCsvEnergyConsumption = "Report/Export-Csv-Energy-Consumption";
             public const string ExportPdfEnergyConsumption = "Report/Export-Pdf-Energy-Consumption";
             public const string ExportExcelEnergyConsumption = "Report/Export-Excel-Energy-Consumption";
+
+            // Báo cáo chỉ số điện tất cả điểm đo active tại 1 thời điểm 30 phút
+            public const string ActivePointsEnergyReport = "Report/Active-Points-Energy-Report";
+            public const string ExportCsvActivePointsEnergy = "Active-Points-Energy/Export-Csv-Active-Points-Energy";
+            public const string ExportPdfActivePointsEnergy = "Active-Points-Energy/Export-Pdf-Active-Points-Energy";
+            public const string ExportExcelActivePointsEnergy = "Active-Points-Energy/Export-Excel-Active-Points-Energy";
         }
 
         public static class Auth

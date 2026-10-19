@@ -15,5 +15,13 @@ namespace Infrastructure.Repositories.ReadWrite
         {
             _measurementPointsEventEntities = applicationDbContext.Set<MeasurementPointsEventEntity>();
         }
+
+        public async Task<int> CleanupOldEventsAsync(int monthsToKeep = 3, CancellationToken cancellationToken = default)
+        {
+            var thresholdDate = DateTime.UtcNow.AddMonths(-monthsToKeep);
+            return await _measurementPointsEventEntities
+                .Where(x => x.CreatedTime < thresholdDate)
+                .ExecuteDeleteAsync(cancellationToken);
+        }
     }
 }

@@ -329,6 +329,21 @@ export default class Constants {
           ),
           new MenuItem(
             [],
+            MenuKeys.ActivePointsEnergyReport,
+            null,
+            'Chỉ số điện các điểm đo',
+            'Chỉ số điện các điểm đo',
+            [
+              Constants.Role.Admin.value,
+              Constants.Role.SuperAdmin.value,
+              Constants.Role.Staff.value,
+              Constants.Role.Customer.value,
+            ],
+            ROUTE_PATH.ACTIVE_POINTS_ENERGY_REPORT,
+            MenuKeys.Report
+          ),
+          new MenuItem(
+            [],
             MenuKeys.ElectricityConsumption,
             null,
             'Sản lượng điện',
@@ -340,36 +355,6 @@ export default class Constants {
               Constants.Role.Customer.value,
             ],
             ROUTE_PATH.ELECTRICITY_CONSUMPTION,
-            MenuKeys.Report
-          ),
-          new MenuItem(
-            [],
-            MenuKeys.LoadCurve,
-            null,
-            'Đồ thị phụ tải',
-            'Đồ thị phụ tải',
-            [
-              Constants.Role.Admin.value,
-              Constants.Role.SuperAdmin.value,
-              Constants.Role.Staff.value,
-              Constants.Role.Customer.value,
-            ],
-            ROUTE_PATH.LOAD_CURVE,
-            MenuKeys.Report
-          ),
-          new MenuItem(
-            [],
-            MenuKeys.TotalOutputMeasurementPoints,
-            null,
-            'Tổng sản lượng các điểm đo',
-            'Tổng sản lượng các điểm đo',
-            [
-              Constants.Role.Admin.value,
-              Constants.Role.SuperAdmin.value,
-              Constants.Role.Staff.value,
-              Constants.Role.Customer.value,
-            ],
-            ROUTE_PATH.TOTAL_OUTPUT_MEASUREMENT_POINTS,
             MenuKeys.Report
           ),
         ]
@@ -1759,6 +1744,61 @@ export default class Constants {
     static DailyFinalizedEnergyReport: Array<any> = [
       { label: 'STT', attr: 'index', width: 4 },
       { label: 'Ngày', attr: 'createdTime', width: 12 },
+      {
+        label: 'Kênh giao - Tổng',
+        attr: 'chiSoTichLuyDienNangTacDungAPTongKenhGiao',
+        width: 10,
+      },
+      {
+        label: 'Kênh giao - Biểu 1 (BT)',
+        attr: 'chiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao',
+        width: 10,
+      },
+      {
+        label: 'Kênh giao - Biểu 2 (CĐ)',
+        attr: 'chiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao',
+        width: 10,
+      },
+      {
+        label: 'Kênh giao - Biểu 3 (TĐ)',
+        attr: 'chiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao',
+        width: 10,
+      },
+      {
+        label: 'Kênh giao - VC (kVArh)',
+        attr: 'chiSoTichLuyDienNangPhanKhangAQTongKenhGiao',
+        width: 8,
+      },
+      {
+        label: 'Kênh nhận - Tổng',
+        attr: 'chiSoTichLuyDienNangTacDungAPTongKenhNhan',
+        width: 10,
+      },
+      {
+        label: 'Kênh nhận - Biểu 1 (BT)',
+        attr: 'chiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan',
+        width: 10,
+      },
+      {
+        label: 'Kênh nhận - Biểu 2 (CĐ)',
+        attr: 'chiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan',
+        width: 10,
+      },
+      {
+        label: 'Kênh nhận - Biểu 3 (TĐ)',
+        attr: 'chiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan',
+        width: 10,
+      },
+      {
+        label: 'Kênh nhận - VC (kVArh)',
+        attr: 'chiSoTichLuyDienNangPhanKhangAQTongKenhNhan',
+        width: 8,
+      },
+    ];
+    static ActivePointsEnergyReport = [
+      { label: 'STT', attr: 'index', width: 4 },
+      { label: 'Thời gian', attr: 'createdTime', width: 14 },
+      { label: 'Mã điểm đo', attr: 'measurementPointCode', width: 14 },
       {
         label: 'Kênh giao - Tổng',
         attr: 'chiSoTichLuyDienNangTacDungAPTongKenhGiao',

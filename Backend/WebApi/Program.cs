@@ -412,6 +412,11 @@ RecurringJob.AddOrUpdate<BackgroundJobService>(
     job => job.GenerateOperatingReportHalfHour(CancellationToken.None),
     "5,35 * * * *"
 );
+RecurringJob.AddOrUpdate<BackgroundJobService>(
+    "CleanupOldEvents",
+    job => job.CleanupOldEvents(CancellationToken.None),
+    "0 2 * * *"
+);
 //
 // RecurringJob.AddOrUpdate<BackgroundJobArchiveDataService>(
 //     "ArchiveDataMeasurementPointMonitoring",

@@ -19,7 +19,8 @@ public class ReportQueryHandler :
     IRequestHandler<YearlyFinalizedEnergyReportQuery, CursorPaginationResponse<FinalizedEnergyReportResponse>>,
     IRequestHandler<OperatingParameterReportQuery, CursorPaginationResponse<OperatingParameterReportResponse>>,
     IRequestHandler<OperatingParameterReportListQuery, List<OperatingParameterReportResponse>>,
-    IRequestHandler<EnergyConsumptionReportQuery, EnergyConsumptionReportResponse>
+    IRequestHandler<EnergyConsumptionReportQuery, EnergyConsumptionReportResponse>,
+    IRequestHandler<GetActivePointsEnergyReportQuery, List<ActivePointsEnergyReportResponse>>
 {
     private readonly IMeasurementPointMonitoringHourlyReadOnlyRepository _measurementPointMonitoringHourlyReadOnlyRepository;
     private readonly IMeasurementPointHalfHourEnergyReportReadOnlyRepository _measurementPointHalfHourEnergyReportReadOnlyRepository;
@@ -105,5 +106,11 @@ public class ReportQueryHandler :
         CancellationToken cancellationToken)
     {
         return await _energyConsumptionReportReadOnlyRepository.GetEnergyConsumptionReportAsync(request.Request, cancellationToken);
+    }
+
+    public async Task<List<ActivePointsEnergyReportResponse>> Handle(GetActivePointsEnergyReportQuery request,
+        CancellationToken cancellationToken)
+    {
+        return await _measurementPointHalfHourEnergyReportReadOnlyRepository.GetActivePointsEnergyReportAsync(request.Request, cancellationToken);
     }
 }

@@ -22,21 +22,32 @@ export interface EnergyConsumptionItem {
   timeLabel: string;
   createdTime?: string;
   multiplierFactor: number;
+  isSuspected?: boolean;
 
-  sanLuongTacDungTongKenhGiao: number;
-  sanLuongTacDungBTKenhGiao: number;
-  sanLuongTacDungCDKenhGiao: number;
-  sanLuongTacDungTDKenhGiao: number;
-  sanLuongPhanKhangTongKenhGiao: number;
+  sanLuongTacDungTongKenhGiao?: number | null;
+  sanLuongTacDungBTKenhGiao?: number | null;
+  sanLuongTacDungCDKenhGiao?: number | null;
+  sanLuongTacDungTDKenhGiao?: number | null;
+  sanLuongPhanKhangTongKenhGiao?: number | null;
 
-  sanLuongTacDungTongKenhNhan: number;
-  sanLuongTacDungBTKenhNhan: number;
-  sanLuongTacDungCDKenhNhan: number;
-  sanLuongTacDungTDKenhNhan: number;
-  sanLuongPhanKhangTongKenhNhan: number;
+  sanLuongTacDungTongKenhNhan?: number | null;
+  sanLuongTacDungBTKenhNhan?: number | null;
+  sanLuongTacDungCDKenhNhan?: number | null;
+  sanLuongTacDungTDKenhNhan?: number | null;
+  sanLuongPhanKhangTongKenhNhan?: number | null;
 
   previousSanLuongTacDungTongKenhGiao?: number;
+  previousSanLuongTacDungBTKenhGiao?: number;
+  previousSanLuongTacDungCDKenhGiao?: number;
+  previousSanLuongTacDungTDKenhGiao?: number;
+  previousSanLuongPhanKhangTongKenhGiao?: number;
+
   previousSanLuongTacDungTongKenhNhan?: number;
+  previousSanLuongTacDungBTKenhNhan?: number;
+  previousSanLuongTacDungCDKenhNhan?: number;
+  previousSanLuongTacDungTDKenhNhan?: number;
+  previousSanLuongPhanKhangTongKenhNhan?: number;
+
   deltaKenhGiao?: number;
   deltaPercentageKenhGiao?: number;
   deltaKenhNhan?: number;

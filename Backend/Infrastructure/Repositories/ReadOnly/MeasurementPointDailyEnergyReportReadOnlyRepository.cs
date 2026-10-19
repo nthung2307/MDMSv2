@@ -98,7 +98,8 @@ public class MeasurementPointDailyEnergyReportReadOnlyRepository :
         {
             Data = mappedItems,
             HasNext = false,
-            HasPrevious = false
+            HasPrevious = false,
+            TotalCount = mappedItems.Count
         };
     }
 }

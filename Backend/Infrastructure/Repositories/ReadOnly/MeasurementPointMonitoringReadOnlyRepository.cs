@@ -231,11 +231,17 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
                 .AnyAsync(cancellationToken);
         }
 
+        var totalCount = await fullQuery
+            .Select(x => x.MeasurementPointsId)
+            .Distinct()
+            .CountAsync(cancellationToken);
+
         return new CursorPaginationResponse<ListMeasurementPointMonitoringDto>
         {
             Data = paginatedResults,
             HasNext = hasNext,
-            HasPrevious = hasPrevious
+            HasPrevious = hasPrevious,
+            TotalCount = totalCount
         };
     }
 
@@ -1677,20 +1683,54 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
                     lookbackGrouped[key] = entity;
                 }
             }
+
+            // Với các điểm đo mất kết nối kéo dài vượt quá lookbackMinutes: lấy số liệu Valid gần nhất từng có trong quá khứ
+            var stillNeedingLookback = pointsNeedingLookback
+                .Where(pId => requiredTags.Any(tag => !primaryGrouped.ContainsKey((pId, tag)) && !lookbackGrouped.ContainsKey((pId, tag))))
+                .ToList();
+
+            if (stillNeedingLookback.Any())
+            {
+                var deepLookbackEntities = await _measurementPointMonitoringEntities
+                    .AsNoTracking()
+                    .Where(x => stillNeedingLookback.Contains(x.MeasurementPointsId) 
+                             && x.CreatedTime <= now 
+                             && x.Value != null && x.Value != "")
+                    .Include(x => x.TagName)
+                    .OrderByDescending(x => x.CreatedTime)
+                    .Take(stillNeedingLookback.Count * 20)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var entity in deepLookbackEntities)
+                {
+                    var key = (entity.MeasurementPointsId, entity.TagNameDescription ?? "");
+                    if (!primaryGrouped.ContainsKey(key) && !lookbackGrouped.ContainsKey(key))
+                    {
+                        lookbackGrouped[key] = entity;
+                    }
+                }
+            }
         }
 
         // Helper to get value & unit with lookback fallback
-        (string Value, string Unit) GetTagValue(long pointId, string tagDesc, string defaultUnit = "kWh")
+        (string? Value, string Unit) GetTagValue(long pointId, string tagDesc, string defaultUnit = "kWh")
         {
             if (primaryGrouped.TryGetValue((pointId, tagDesc), out var primary) && !string.IsNullOrWhiteSpace(primary.Value))
             {
+                // Nếu Quality == Bad (Quanlity == false): giữ nguyên số liệu đọc được nhưng đánh dấu số liệu bị nghi ngờ (*)
+                if (primary.Quanlity == false)
+                {
+                    return ($"{primary.Value}*", primary.TagName?.Unit ?? defaultUnit);
+                }
                 return (primary.Value, primary.TagName?.Unit ?? defaultUnit);
             }
             if (lookbackGrouped.TryGetValue((pointId, tagDesc), out var lookback) && !string.IsNullOrWhiteSpace(lookback.Value))
             {
-                return (lookback.Value, lookback.TagName?.Unit ?? defaultUnit);
+                // Số liệu quá khứ do mất tín hiệu hiện tại hoặc có Quanlity == false: đánh dấu Not Topical (*)
+                return ($"{lookback.Value}*", lookback.TagName?.Unit ?? defaultUnit);
             }
-            return ("0", defaultUnit);
+            // Không có cấu hình liên kết dữ liệu trong DB: trả về null
+            return (null, defaultUnit);
         }
 
         var result = new List<MeasurementPointEnergyReportDto>();
@@ -1818,11 +1858,15 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
         (double? Value, string Unit) ParseTagValue(long pointId, string tagDesc, string defaultUnit)
         {
             MeasurementPointMonitoringEntity? entity = null;
-            if (primaryGrouped.TryGetValue((pointId, tagDesc), out var primary) && !string.IsNullOrWhiteSpace(primary.Value))
+            if (primaryGrouped.TryGetValue((pointId, tagDesc), out var primary) 
+                && !string.IsNullOrWhiteSpace(primary.Value) 
+                && primary.Quanlity != false)
             {
                 entity = primary;
             }
-            else if (lookbackGrouped.TryGetValue((pointId, tagDesc), out var lookback) && !string.IsNullOrWhiteSpace(lookback.Value))
+            else if (lookbackGrouped.TryGetValue((pointId, tagDesc), out var lookback) 
+                     && !string.IsNullOrWhiteSpace(lookback.Value) 
+                     && lookback.Quanlity != false)
             {
                 entity = lookback;
             }

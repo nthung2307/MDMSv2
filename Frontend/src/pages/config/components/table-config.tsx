@@ -1,4 +1,4 @@
-import { Dropdown, MenuProps, TableProps } from 'antd';
+import { Dropdown, MenuProps, TableProps, Tooltip } from 'antd';
 // import { FaRegEdit } from 'react-icons/fa';
 // import { FiEye } from 'react-icons/fi';
 import { BsThreeDots } from 'react-icons/bs';
@@ -34,30 +34,57 @@ const TableConfigManagement = (props: Props) => {
     {
       title: 'Mã điểm đo',
       dataIndex: 'code',
+      width: 170,
+      className: 'whitespace-nowrap',
+      render: (text) => {
+        const val = text || 'N/A';
+        return (
+          <Tooltip title={val}>
+            <div className='max-w-[170px] truncate whitespace-nowrap font-medium'>{val}</div>
+          </Tooltip>
+        );
+      },
     },
     {
       title: 'Loại điểm đo',
       dataIndex: 'type',
+      width: 150,
+      className: 'whitespace-nowrap',
+      render: (text) => <span className='whitespace-nowrap'>{text || 'N/A'}</span>,
     },
     {
       title: 'Mô tả',
       dataIndex: 'description',
-      width: '20%',
+      width: 250,
+      className: 'whitespace-nowrap',
       render: (text) => {
-        return text ? <span>{text}</span> : <span>N/A</span>;
+        const val = text || 'N/A';
+        return (
+          <Tooltip title={val}>
+            <div className='max-w-[250px] truncate whitespace-nowrap'>{val}</div>
+          </Tooltip>
+        );
       },
     },
     {
       title: 'Tên khách hàng',
       dataIndex: 'customer',
-      width: '20%',
+      width: 250,
+      className: 'whitespace-nowrap',
       render: (record) => {
-        return record ? <span>{record.fullName}</span> : <span>N/A</span>;
+        const val = record?.fullName || 'N/A';
+        return (
+          <Tooltip title={val}>
+            <div className='max-w-[250px] truncate whitespace-nowrap'>{val}</div>
+          </Tooltip>
+        );
       },
     },
     {
       title: 'Trạng thái',
-      width: '15%',
+      width: 150,
+      align: 'center',
+      className: 'whitespace-nowrap',
       render: (_, record) => {
         const isActive = record.status === Constants.CustomerStatus.Active;
         const backgroundColor = isActive ? '#41A026' : '#B22222';
@@ -72,7 +99,7 @@ const TableConfigManagement = (props: Props) => {
       fixed: 'right',
       key: 'action',
       align: 'center',
-      width: 50,
+      width: 60,
       render: (_, record) => {
         const items: MenuProps['items'] = [
           {
@@ -105,6 +132,7 @@ const TableConfigManagement = (props: Props) => {
       dataSource={dataTable}
       pagination={false}
       loading={loading}
+      rowClassName={() => 'whitespace-nowrap cursor-pointer'}
       scroll={{ x: 'max-content', y: window.innerHeight * 0.69 }}
     />
   );

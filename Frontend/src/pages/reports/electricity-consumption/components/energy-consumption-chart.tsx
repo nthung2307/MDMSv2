@@ -1,5 +1,6 @@
-import { Card } from 'antd';
+import { Card, Empty, Radio } from 'antd';
 import {
+  BarController,
   BarElement,
   CategoryScale,
   Chart as ChartJS,
@@ -7,66 +8,125 @@ import {
   ChartOptions,
   Legend,
   LinearScale,
+  LineController,
+  LineElement,
+  PointElement,
   Title,
   Tooltip,
 } from 'chart.js';
-import React, { useMemo } from 'react';
-import { Bar } from 'react-chartjs-2';
+import React, { useMemo, useState } from 'react';
+import { Chart } from 'react-chartjs-2';
 
-import { EnergyConsumptionChartData } from '@/core/application/dto/reports/requests/GetEnergyConsumptionReportRequest';
+import {
+  EnergyConsumptionChartData,
+  EnergyConsumptionItem,
+} from '@/core/application/dto/reports/requests/GetEnergyConsumptionReportRequest';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  BarController,
+  PointElement,
+  LineElement,
+  LineController,
+  Title,
+  Tooltip,
+  Legend
+);
 
 interface EnergyConsumptionChartProps {
   chartData: EnergyConsumptionChartData;
+  items?: EnergyConsumptionItem[];
   title: string;
   compareWithPrevious?: boolean;
 }
 
 export const EnergyConsumptionChart: React.FC<EnergyConsumptionChartProps> = ({
   chartData,
+  items = [],
   title,
   compareWithPrevious = false,
 }) => {
-  const data: ChartData<'bar'> = useMemo(() => {
-    const labels = chartData?.labels || [];
+  const [channel, setChannel] = useState<'GIAO' | 'NHAN'>('GIAO');
+
+  const hasItems = items && items.length > 0;
+
+  const data: ChartData<'bar' | 'line'> = useMemo(() => {
+    const labels = hasItems
+      ? items.map((it) => it.timeLabel || '')
+      : chartData?.labels || [];
+
+    // Lấy dữ liệu 3 biểu theo chiều giao hoặc nhận
+    const b1Data = hasItems
+      ? items.map((it) =>
+          channel === 'GIAO'
+            ? it.sanLuongTacDungBTKenhGiao ?? 0
+            : it.sanLuongTacDungBTKenhNhan ?? 0
+        )
+      : [];
+    const b2Data = hasItems
+      ? items.map((it) =>
+          channel === 'GIAO'
+            ? it.sanLuongTacDungCDKenhGiao ?? 0
+            : it.sanLuongTacDungCDKenhNhan ?? 0
+        )
+      : [];
+    const b3Data = hasItems
+      ? items.map((it) =>
+          channel === 'GIAO'
+            ? it.sanLuongTacDungTDKenhGiao ?? 0
+            : it.sanLuongTacDungTDKenhNhan ?? 0
+        )
+      : [];
+
     const datasets: any[] = [
       {
-        label: 'Sản lượng Kênh Giao (kỳ này)',
-        data: chartData?.currentPeriodGiao || [],
-        backgroundColor: 'rgba(239, 68, 68, 0.85)',
-        borderColor: 'rgb(239, 68, 68)',
+        type: 'bar' as const,
+        label: 'Biểu 1 (BT)',
+        data: b1Data,
+        backgroundColor: 'rgba(59, 130, 246, 0.85)', // Xanh dương
+        borderColor: 'rgb(59, 130, 246)',
         borderWidth: 1,
-        borderRadius: 4,
+        stack: 'energyStack',
       },
       {
-        label: 'Sản lượng Kênh Nhận (kỳ này)',
-        data: chartData?.currentPeriodNhan || [],
-        backgroundColor: 'rgba(16, 185, 129, 0.85)',
+        type: 'bar' as const,
+        label: 'Biểu 2 (CD)',
+        data: b2Data,
+        backgroundColor: 'rgba(239, 68, 68, 0.85)', // Đỏ cam
+        borderColor: 'rgb(239, 68, 68)',
+        borderWidth: 1,
+        stack: 'energyStack',
+      },
+      {
+        type: 'bar' as const,
+        label: 'Biểu 3 (TD)',
+        data: b3Data,
+        backgroundColor: 'rgba(16, 185, 129, 0.85)', // Xanh lá
         borderColor: 'rgb(16, 185, 129)',
         borderWidth: 1,
-        borderRadius: 4,
+        stack: 'energyStack',
       },
     ];
 
-    if (compareWithPrevious) {
+    if (compareWithPrevious && hasItems) {
+      const prevData = items.map((it) =>
+        channel === 'GIAO'
+          ? it.previousSanLuongTacDungTongKenhGiao ?? 0
+          : it.previousSanLuongTacDungTongKenhNhan ?? 0
+      );
       datasets.push({
-        label: 'Sản lượng Kênh Giao (kỳ trước)',
-        data: chartData?.previousPeriodGiao || [],
-        backgroundColor: 'rgba(249, 115, 22, 0.45)',
-        borderColor: 'rgb(249, 115, 22)',
-        borderWidth: 1,
-        borderDash: [4, 4],
-        borderRadius: 4,
-      });
-      datasets.push({
-        label: 'Sản lượng Kênh Nhận (kỳ trước)',
-        data: chartData?.previousPeriodNhan || [],
-        backgroundColor: 'rgba(59, 130, 246, 0.45)',
-        borderColor: 'rgb(59, 130, 246)',
-        borderWidth: 1,
-        borderDash: [4, 4],
-        borderRadius: 4,
+        type: 'line' as const,
+        label: `Tổng kỳ trước (${channel === 'GIAO' ? 'Giao' : 'Nhận'})`,
+        data: prevData,
+        borderColor: 'rgb(245, 158, 11)',
+        backgroundColor: 'rgba(245, 158, 11, 0.2)',
+        borderWidth: 2,
+        borderDash: [5, 5],
+        pointRadius: 2,
+        pointHoverRadius: 4,
+        fill: false,
       });
     }
 
@@ -74,9 +134,9 @@ export const EnergyConsumptionChart: React.FC<EnergyConsumptionChartProps> = ({
       labels,
       datasets,
     };
-  }, [chartData, compareWithPrevious]);
+  }, [chartData, items, channel, compareWithPrevious, hasItems]);
 
-  const options: ChartOptions<'bar'> = useMemo(
+  const options: ChartOptions<'bar' | 'line'> = useMemo(
     () => ({
       responsive: true,
       maintainAspectRatio: false,
@@ -97,14 +157,14 @@ export const EnergyConsumptionChart: React.FC<EnergyConsumptionChartProps> = ({
         },
         title: {
           display: true,
-          text: title,
+          text: `${title} - ${channel === 'GIAO' ? 'Chiều giao' : 'Chiều nhận'}`,
           font: {
             size: 15,
             weight: 'bold',
           },
           padding: {
             top: 10,
-            bottom: 20,
+            bottom: 15,
           },
         },
         tooltip: {
@@ -117,11 +177,70 @@ export const EnergyConsumptionChart: React.FC<EnergyConsumptionChartProps> = ({
                 maximumFractionDigits: 2,
               })} kWh`;
             },
+            footer: (tooltipItems) => {
+              let sum = 0;
+              tooltipItems.forEach((item) => {
+                if (item.dataset.type !== 'line') {
+                  sum += (item.raw as number) || 0;
+                }
+              });
+              const lines = [
+                `Tổng cộng kỳ này: ${sum.toLocaleString('vi-VN', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })} kWh`,
+              ];
+
+              if (compareWithPrevious && hasItems) {
+                const idx = tooltipItems[0]?.dataIndex;
+                const it = items[idx];
+                if (it) {
+                  const prevTotal =
+                    channel === 'GIAO'
+                      ? it.previousSanLuongTacDungTongKenhGiao
+                      : it.previousSanLuongTacDungTongKenhNhan;
+                  if (prevTotal !== undefined && prevTotal !== null) {
+                    lines.push(
+                      `Tổng cộng kỳ trước: ${Number(prevTotal).toLocaleString('vi-VN', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })} kWh`
+                    );
+                  }
+                  const prevBT =
+                    channel === 'GIAO'
+                      ? it.previousSanLuongTacDungBTKenhGiao
+                      : it.previousSanLuongTacDungBTKenhNhan;
+                  const prevCD =
+                    channel === 'GIAO'
+                      ? it.previousSanLuongTacDungCDKenhGiao
+                      : it.previousSanLuongTacDungCDKenhNhan;
+                  const prevTD =
+                    channel === 'GIAO'
+                      ? it.previousSanLuongTacDungTDKenhGiao
+                      : it.previousSanLuongTacDungTDKenhNhan;
+                  if (prevBT !== undefined || prevCD !== undefined || prevTD !== undefined) {
+                    lines.push(
+                      `(Kỳ trước: BT: ${Number(prevBT || 0).toLocaleString('vi-VN', {
+                        minimumFractionDigits: 2,
+                      })} | CD: ${Number(prevCD || 0).toLocaleString('vi-VN', {
+                        minimumFractionDigits: 2,
+                      })} | TD: ${Number(prevTD || 0).toLocaleString('vi-VN', {
+                        minimumFractionDigits: 2,
+                      })})`
+                    );
+                  }
+                }
+              }
+
+              return lines.join('\n');
+            },
           },
         },
       },
       scales: {
         x: {
+          stacked: true,
           grid: {
             display: false,
           },
@@ -129,10 +248,14 @@ export const EnergyConsumptionChart: React.FC<EnergyConsumptionChartProps> = ({
             maxRotation: 45,
             minRotation: 0,
             autoSkip: true,
-            maxTicksLimit: 25,
+            maxTicksLimit: 48,
+            font: {
+              size: 10,
+            },
           },
         },
         y: {
+          stacked: true,
           beginAtZero: true,
           title: {
             display: true,
@@ -151,15 +274,55 @@ export const EnergyConsumptionChart: React.FC<EnergyConsumptionChartProps> = ({
         },
       },
     }),
-    [title]
+    [title, channel, compareWithPrevious, hasItems, items]
   );
 
+  if (!hasItems) {
+    return (
+      <Card className='mt-2 bg-white flex justify-center items-center py-16 shadow-sm border border-gray-100 rounded-lg'>
+        <Empty
+          description={
+            <span className='text-gray-500'>
+              Chưa có dữ liệu sản lượng điện để hiển thị biểu đồ.
+              <br />
+              Vui lòng chọn khách hàng, điểm đo và bấm <b>&quot;Truy vấn&quot;</b>.
+            </span>
+          }
+        />
+      </Card>
+    );
+  }
+
   return (
-    <Card className='shadow-sm'>
-      <div className='w-full h-[520px]'>
-        <Bar data={data} options={options} />
+    <div className='flex flex-col gap-4'>
+      {/* Bộ chọn chiều giao / chiều nhận tương tự báo cáo Thông số vận hành */}
+      <div className='flex flex-wrap items-center justify-start gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200'>
+        <Radio.Group
+          value={channel}
+          onChange={(e) => setChannel(e.target.value)}
+          buttonStyle='solid'
+          size='middle'
+        >
+          <Radio.Button value='GIAO'>
+            <span className='inline-flex items-center gap-1.5 leading-none font-medium px-2 py-1'>
+              Chiều giao (kWh)
+            </span>
+          </Radio.Button>
+          <Radio.Button value='NHAN'>
+            <span className='inline-flex items-center gap-1.5 leading-none font-medium px-2 py-1'>
+              Chiều nhận (kWh)
+            </span>
+          </Radio.Button>
+        </Radio.Group>
       </div>
-    </Card>
+
+      {/* Vùng hiển thị biểu đồ */}
+      <Card className='bg-white shadow-sm border border-gray-100 rounded-lg p-2'>
+        <div className='h-[480px] w-full'>
+          <Chart type='bar' data={data as any} options={options as any} />
+        </div>
+      </Card>
+    </div>
   );
 };
 

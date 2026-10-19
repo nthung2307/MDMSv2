@@ -34,7 +34,11 @@ const PointMonitoringEvent = () => {
   const [getListMeasurementParamsRequest, setGetListMeasurementParamsRequest] =
     useState<GetListMeasurementPointMonitoringRequest>();
 
-  const [paginationData, setPaginationData] = useState({
+  const [paginationData, setPaginationData] = useState<{
+    hasNext: boolean;
+    hasPrevious: boolean;
+    totalCount?: number;
+  }>({
     hasNext: false,
     hasPrevious: false,
   });
@@ -109,6 +113,7 @@ const PointMonitoringEvent = () => {
         setPaginationData({
           hasNext: data.hasNext,
           hasPrevious: data.hasPrevious,
+          totalCount: data.totalCount,
         });
       },
       () => {},
@@ -144,6 +149,7 @@ const PointMonitoringEvent = () => {
         setPaginationData({
           hasNext: resData?.hasNext || false,
           hasPrevious: resData?.hasPrevious || false,
+          totalCount: resData?.totalCount,
         });
       },
       () => {},
@@ -304,34 +310,36 @@ const PointMonitoringEvent = () => {
                   )}
                 </div>
               </div>
-              <PaginationCommon
-                pageSize={size}
-                hasNext={paginationData?.hasNext}
-                setSize={(newSize) => {
-                  setSize(newSize);
-                  setGetListMeasurementParamsRequest((prev) => {
-                    const updatedParams = { ...prev, pageSize: newSize };
-                    return deleteParams(updatedParams, ['before', 'after']);
-                  });
-                }}
-                hasPrevious={paginationData?.hasPrevious}
-                onClickPrevious={() => {
-                  setGetListMeasurementParamsRequest((prev) => {
-                    const updatedParams = { ...prev, before: firstCustomerID };
-                    return deleteParams(updatedParams, ['after']);
-                  });
-                }}
-                onClickNext={() => {
-                  setGetListMeasurementParamsRequest((prev) => {
-                    const updatedParams = { ...prev, after: lastCustomerID };
-                    return deleteParams(updatedParams, ['before']);
-                  });
-                }}
-              />
             </div>
             <div ref={tableRef}>
               <TableEvent dataSource={data ?? []} loading={loading} />
             </div>
+            <PaginationCommon
+              pageSize={size}
+              total={paginationData?.totalCount}
+              currentCount={data?.length || 0}
+              hasNext={paginationData?.hasNext}
+              setSize={(newSize) => {
+                setSize(newSize);
+                setGetListMeasurementParamsRequest((prev) => {
+                  const updatedParams = { ...prev, pageSize: newSize };
+                  return deleteParams(updatedParams, ['before', 'after']);
+                });
+              }}
+              hasPrevious={paginationData?.hasPrevious}
+              onClickPrevious={() => {
+                setGetListMeasurementParamsRequest((prev) => {
+                  const updatedParams = { ...prev, before: firstCustomerID };
+                  return deleteParams(updatedParams, ['after']);
+                });
+              }}
+              onClickNext={() => {
+                setGetListMeasurementParamsRequest((prev) => {
+                  const updatedParams = { ...prev, after: lastCustomerID };
+                  return deleteParams(updatedParams, ['before']);
+                });
+              }}
+            />
           </Card>
           <DialogExportForm
             open={isShowExport}

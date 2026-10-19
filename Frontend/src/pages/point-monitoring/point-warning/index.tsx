@@ -44,6 +44,7 @@ const PointMonitoringWarning = () => {
   const [paginationData, setPaginationData] = useState<{
     hasNext: boolean;
     hasPrevious: boolean;
+    totalCount?: number;
   }>({ hasNext: false, hasPrevious: false });
 
   const currentParamsRef = useRef<GetListMeasurementPointMonitoringRequest | undefined>(
@@ -144,6 +145,7 @@ const PointMonitoringWarning = () => {
         setPaginationData({
           hasNext: data.hasNext,
           hasPrevious: data.hasPrevious,
+          totalCount: data.totalCount,
         });
       },
       () => {},
@@ -178,6 +180,7 @@ const PointMonitoringWarning = () => {
         setPaginationData({
           hasNext: resData?.hasNext || false,
           hasPrevious: resData?.hasPrevious || false,
+          totalCount: resData?.totalCount,
         });
       },
       () => {},
@@ -296,31 +299,33 @@ const PointMonitoringWarning = () => {
                 ) : null}
               </div>
             </div>
-            <PaginationCommon
-              pageSize={size}
-              setSize={(newSize) => {
-                setSize(newSize);
-                setGetListMeasurementParamsRequest((prev) =>
-                  deleteParams({ ...prev, pageSize: newSize }, ['before', 'after'])
-                );
-              }}
-              hasNext={paginationData?.hasNext}
-              hasPrevious={paginationData?.hasPrevious}
-              onClickPrevious={() => {
-                setGetListMeasurementParamsRequest((prev) =>
-                  deleteParams({ ...prev, before: firstCustomerID }, ['after'])
-                );
-              }}
-              onClickNext={() => {
-                setGetListMeasurementParamsRequest((prev) =>
-                  deleteParams({ ...prev, after: lastCustomerID }, ['before'])
-                );
-              }}
-            />
           </div>
           <div ref={tableRef}>
             <TableWarning dataSource={data ?? []} loading={loading} />
           </div>
+          <PaginationCommon
+            pageSize={size}
+            total={paginationData?.totalCount}
+            currentCount={data?.length || 0}
+            setSize={(newSize) => {
+              setSize(newSize);
+              setGetListMeasurementParamsRequest((prev) =>
+                deleteParams({ ...prev, pageSize: newSize }, ['before', 'after'])
+              );
+            }}
+            hasNext={paginationData?.hasNext}
+            hasPrevious={paginationData?.hasPrevious}
+            onClickPrevious={() => {
+              setGetListMeasurementParamsRequest((prev) =>
+                deleteParams({ ...prev, before: firstCustomerID }, ['after'])
+              );
+            }}
+            onClickNext={() => {
+              setGetListMeasurementParamsRequest((prev) =>
+                deleteParams({ ...prev, after: lastCustomerID }, ['before'])
+              );
+            }}
+          />
         </Card>
         <DialogExportForm
           open={isShowExport}

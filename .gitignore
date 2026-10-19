@@ -13,6 +13,9 @@
 [Oo]bj/
 **/.dotnet/
 .dotnet/
+.dotnet*
+.dotnet*/
+scratch/
 
 # Visual Studio & JetBrains Rider
 **/.vs/

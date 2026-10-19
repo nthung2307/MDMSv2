@@ -21,9 +21,11 @@ public class MeasurementPointHalfHourEnergyReportReadWriteRepository :
     IMeasurementPointHalfHourEnergyReportReadWriteRepository
 {
     private readonly DbSet<MeasurementPointHalfHourEnergyReportEntity> _measurementPointHalfHourEnergyReportEntity;
+    private readonly AppReadWriteDbContext _context;
     
     public MeasurementPointHalfHourEnergyReportReadWriteRepository(AppReadWriteDbContext context, ISnowflakeIdService snowflakeIdService) : base(context, snowflakeIdService)
     {
+        _context = context;
         _measurementPointHalfHourEnergyReportEntity = context.Set<MeasurementPointHalfHourEnergyReportEntity>();
     }
 
@@ -239,5 +241,191 @@ public class MeasurementPointHalfHourEnergyReportReadWriteRepository :
             return valueNumber.ToString("N0", viCulture);
         }
         return valueNumber.ToString("N2", viCulture);
+    }
+
+    private static string FormatExportValue(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "-";
+        bool isNotTopical = value.EndsWith("*") || value.Contains("Not Topical");
+        string cleanValue = value.Replace("*", "").Replace("(Not Topical)", "").Trim();
+
+        if (double.TryParse(cleanValue, NumberStyles.Any, CultureInfo.InvariantCulture, out double valueNumber))
+        {
+            var viCulture = CultureInfo.GetCultureInfo("vi-VN");
+            string formatted = valueNumber % 1 == 0
+                ? valueNumber.ToString("N0", viCulture)
+                : valueNumber.ToString("N2", viCulture);
+            return isNotTopical ? $"{formatted}*" : formatted;
+        }
+        return isNotTopical ? $"{cleanValue}*" : cleanValue;
+    }
+
+    private static string? EnsureSuspected(string? val)
+    {
+        if (string.IsNullOrWhiteSpace(val)) return null;
+        val = val.Trim();
+        return val.EndsWith("*") ? val : $"{val}*";
+    }
+
+    private static DateTimeOffset GetNearestHalfHourSlot(DateTimeOffset time)
+    {
+        int minute = time.Minute;
+        int roundedMinute = minute < 15 ? 0 : (minute < 45 ? 30 : 0);
+        var baseTime = minute >= 45 ? time.AddHours(1) : time;
+        return new DateTimeOffset(baseTime.Year, baseTime.Month, baseTime.Day, baseTime.Hour, roundedMinute, 0, baseTime.Offset);
+    }
+
+    public async Task<byte[]> GenerateActivePointsEnergyCsvAsync(ActivePointsEnergyReportRequest request, CancellationToken cancellationToken)
+    {
+        var targetSlot = GetNearestHalfHourSlot(request.SelectedTime);
+        var slotStart = targetSlot.AddMinutes(-5);
+        var slotEnd = targetSlot.AddMinutes(5);
+
+        var pointQuery = _context.Set<MeasurementPointsEntity>()
+            .AsNoTracking()
+            .Include(p => p.Customer)
+            .Where(p => !p.Deleted && p.Status == "ACTIVE");
+
+        if (request.CustomerId.HasValue && request.CustomerId.Value > 0)
+        {
+            pointQuery = pointQuery.Where(p => p.CustomerId == request.CustomerId.Value);
+        }
+
+        var activePoints = await pointQuery
+            .OrderBy(p => p.CreatedTime)
+            .ThenBy(p => p.Id)
+            .ToListAsync(cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var search = request.Search.Trim().ToLower();
+            activePoints = activePoints.Where(p =>
+                (p.Code != null && p.Code.ToLower().Contains(search)) ||
+                (p.Description != null && p.Description.ToLower().Contains(search)) ||
+                (p.Customer != null && p.Customer.CustomerCode != null && p.Customer.CustomerCode.ToLower().Contains(search)) ||
+                (p.Customer != null && p.Customer.FullName != null && p.Customer.FullName.ToLower().Contains(search))
+            ).ToList();
+        }
+
+        var pointIds = activePoints.Select(p => p.Id).ToList();
+
+        var energyRecords = await _measurementPointHalfHourEnergyReportEntity.AsNoTracking()
+            .Where(r => pointIds.Contains(r.MeasurementPointId) && r.CreatedTime >= slotStart && r.CreatedTime <= slotEnd)
+            .OrderByDescending(r => r.CreatedTime)
+            .ToListAsync(cancellationToken);
+
+        var energyDict = energyRecords
+            .GroupBy(r => r.MeasurementPointId)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        // Đối với điểm đo mất kết nối: lấy số liệu Valid gần nhất trong quá khứ <= targetSlot và gắn cờ nghi ngờ (*)
+        var missingPointIds = pointIds.Where(id => !energyDict.ContainsKey(id)).ToList();
+        if (missingPointIds.Any())
+        {
+            var pastRecords = await _measurementPointHalfHourEnergyReportEntity.AsNoTracking()
+                .Where(r => missingPointIds.Contains(r.MeasurementPointId) && r.CreatedTime <= targetSlot)
+                .OrderByDescending(r => r.CreatedTime)
+                .ToListAsync(cancellationToken);
+
+            var pastDict = pastRecords
+                .GroupBy(r => r.MeasurementPointId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            foreach (var kvp in pastDict)
+            {
+                var pastEntity = kvp.Value;
+                energyDict[kvp.Key] = new MeasurementPointHalfHourEnergyReportEntity
+                {
+                    MeasurementPointId = pastEntity.MeasurementPointId,
+                    CreatedTime = pastEntity.CreatedTime,
+                    ChiSoTichLuyDienNangTacDungAPTongKenhGiao = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangTacDungAPTongKenhGiao),
+                    ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao),
+                    ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao),
+                    ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao),
+                    ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao),
+                    ChiSoTichLuyDienNangTacDungAPTongKenhNhan = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangTacDungAPTongKenhNhan),
+                    ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan),
+                    ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan),
+                    ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan),
+                    ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan),
+                };
+            }
+        }
+
+        using var memoryStream = new MemoryStream();
+        await using var streamWriter = new StreamWriter(memoryStream, Encoding.UTF8);
+        await using var csvWriter = new CsvWriter(streamWriter, CultureInfo.InvariantCulture);
+
+        #region Header 1
+        csvWriter.WriteField("STT");
+        csvWriter.WriteField("Thời gian");
+        csvWriter.WriteField("Mã điểm đo");
+
+        csvWriter.WriteField("Kênh giao (kWh)");
+        csvWriter.WriteField("");
+        csvWriter.WriteField("");
+        csvWriter.WriteField("");
+        csvWriter.WriteField("");
+
+        csvWriter.WriteField("Kênh nhận (kWh)");
+        csvWriter.WriteField("");
+        csvWriter.WriteField("");
+        csvWriter.WriteField("");
+        csvWriter.WriteField("");
+        #endregion
+
+        await csvWriter.NextRecordAsync();
+
+        #region Header 2
+        csvWriter.WriteField("");
+        csvWriter.WriteField("");
+        csvWriter.WriteField("");
+
+        csvWriter.WriteField("Tổng");
+        csvWriter.WriteField("Biểu 1 (BT)");
+        csvWriter.WriteField("Biểu 2 (CD)");
+        csvWriter.WriteField("Biểu 3 (TD)");
+        csvWriter.WriteField("VC (kVArh)");
+
+        csvWriter.WriteField("Tổng");
+        csvWriter.WriteField("Biểu 1 (BT)");
+        csvWriter.WriteField("Biểu 2 (CD)");
+        csvWriter.WriteField("Biểu 3 (TD)");
+        csvWriter.WriteField("VC (kVArh)");
+        #endregion
+
+        await csvWriter.NextRecordAsync();
+
+        for (int i = 0; i < activePoints.Count; i++)
+        {
+            var p = activePoints[i];
+            energyDict.TryGetValue(p.Id, out var energy);
+
+            csvWriter.WriteField((i + 1).ToString());
+            csvWriter.WriteField(targetSlot.ToString("dd/MM/yyyy HH:mm"));
+            csvWriter.WriteField(p.Code ?? string.Empty);
+
+            csvWriter.WriteField(FormatExportValue(energy?.ChiSoTichLuyDienNangTacDungAPTongKenhGiao));
+            csvWriter.WriteField(FormatExportValue(energy?.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao));
+            csvWriter.WriteField(FormatExportValue(energy?.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao));
+            csvWriter.WriteField(FormatExportValue(energy?.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao));
+            csvWriter.WriteField(FormatExportValue(energy?.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao));
+
+            csvWriter.WriteField(FormatExportValue(energy?.ChiSoTichLuyDienNangTacDungAPTongKenhNhan));
+            csvWriter.WriteField(FormatExportValue(energy?.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan));
+            csvWriter.WriteField(FormatExportValue(energy?.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan));
+            csvWriter.WriteField(FormatExportValue(energy?.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan));
+            csvWriter.WriteField(FormatExportValue(energy?.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan));
+
+            await csvWriter.NextRecordAsync();
+        }
+
+        await streamWriter.FlushAsync(cancellationToken);
+        return memoryStream.ToArray();
+    }
+
+    public Task<byte[]> GenerateActivePointsEnergyExcelAsync(ActivePointsEnergyReportRequest request, CancellationToken cancellationToken)
+    {
+        return GenerateActivePointsEnergyCsvAsync(request, cancellationToken);
     }
 }

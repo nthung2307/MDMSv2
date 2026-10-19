@@ -281,7 +281,8 @@ public class MeasurementPointHalfHourOperatingReportReadOnlyRepository :
         {
             Data = pagedItems,
             HasNext = hasNext,
-            HasPrevious = false
+            HasPrevious = false,
+            TotalCount = items.Count
         };
     }
 }

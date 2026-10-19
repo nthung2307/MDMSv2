@@ -13,7 +13,7 @@ import {
 } from 'chart.js';
 import React, { useMemo, useState } from 'react';
 import { Line } from 'react-chartjs-2';
-import { FiActivity, FiCpu, FiZap } from 'react-icons/fi';
+import { FiActivity, FiCpu, FiPercent, FiRadio, FiZap } from 'react-icons/fi';
 
 import { OperatingParameterItem } from '@/core/application/dto/reports/requests/GetOperatingParameterReportRequest';
 
@@ -335,28 +335,34 @@ export const OperatingParameterChart: React.FC<OperatingParameterChartProps> = (
           size='middle'
         >
           <Radio.Button value='voltage'>
-            <span className='flex items-center gap-1.5'>
+            <span className='inline-flex items-center gap-1.5 leading-none'>
               <FiZap />
               {`Điện áp (${voltageUnit})`}
             </span>
           </Radio.Button>
           <Radio.Button value='current'>
-            <span className='flex items-center gap-1.5'>
+            <span className='inline-flex items-center gap-1.5 leading-none'>
               <FiActivity />
               Dòng điện (A)
             </span>
           </Radio.Button>
           <Radio.Button value='power'>
-            <span className='flex items-center gap-1.5'>
+            <span className='inline-flex items-center gap-1.5 leading-none'>
               <FiCpu />
               Công suất (kW / kVAr)
             </span>
           </Radio.Button>
           <Radio.Button value='pf'>
-            <span>Hệ số công suất</span>
+            <span className='inline-flex items-center gap-1.5 leading-none'>
+              <FiPercent />
+              Hệ số công suất
+            </span>
           </Radio.Button>
           <Radio.Button value='frequency'>
-            <span>Tần số (Hz)</span>
+            <span className='inline-flex items-center gap-1.5 leading-none'>
+              <FiRadio />
+              Tần số (Hz)
+            </span>
           </Radio.Button>
         </Radio.Group>
       </div>

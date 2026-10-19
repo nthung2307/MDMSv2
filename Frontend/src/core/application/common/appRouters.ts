@@ -47,6 +47,7 @@ export const ROUTE_PATH = {
   HALF_HOUR_FINALIZED_ENERGY_REPORT: `${PREFIX}/reports/finalized-energy/interval`,
   DAILY_FINALIZED_ENERGY_REPORT: `${PREFIX}/reports/finalized-energy/monthly`,
   YEARLY_FINALIZED_ENERGY_REPORT: `${PREFIX}/reports/finalized-energy/yearly`,
+  ACTIVE_POINTS_ENERGY_REPORT: `${PREFIX}/reports/active-points-energy`,
   // End of Report
 
   // GCS Management

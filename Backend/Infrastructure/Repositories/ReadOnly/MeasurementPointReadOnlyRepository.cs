@@ -43,6 +43,7 @@ public class MeasurementPointReadOnlyRepository : RestfulRepository<MeasurementP
             Data = result.Data,
             HasNext = result.HasNext,
             HasPrevious = result.HasPrevious,
+            TotalCount = result.TotalCount,
         };
     }
 
@@ -64,6 +65,7 @@ public class MeasurementPointReadOnlyRepository : RestfulRepository<MeasurementP
             Data = result.Data,
             HasNext = result.HasNext,
             HasPrevious = result.HasPrevious,
+            TotalCount = result.TotalCount,
         };
     }
 

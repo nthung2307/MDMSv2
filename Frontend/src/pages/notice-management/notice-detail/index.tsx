@@ -80,6 +80,7 @@ const NoticeDetail = () => {
   const [paginationData, setPaginationData] = useState<{
     hasNext: boolean;
     hasPrevious: boolean;
+    totalCount?: number;
   }>({ hasNext: false, hasPrevious: false });
   const firstPointID = data?.[0]?.id;
   const lastPointID = data?.[data.length - 1]?.id;
@@ -203,6 +204,7 @@ const NoticeDetail = () => {
         setPaginationData({
           hasNext: data.hasNext,
           hasPrevious: data.hasPrevious,
+          totalCount: data.totalCount,
         });
       },
       () => {},
@@ -436,30 +438,6 @@ const NoticeDetail = () => {
               setDataForm={setDataForm}
               handleClearSearch={handleClearSearch}
             />
-            <PaginationCommon
-              pageSize={size}
-              hasNext={paginationData?.hasNext}
-              setSize={(newSize) => {
-                setSize(newSize);
-                setGetListNoticeRequest((prev) => {
-                  const updatedParams = { ...prev, pageSize: newSize };
-                  return deleteParams(updatedParams, ['before', 'after']);
-                });
-              }}
-              hasPrevious={paginationData?.hasPrevious}
-              onClickPrevious={() => {
-                setGetListNoticeRequest((prev) => {
-                  const updatedParams = { ...prev, before: firstPointID };
-                  return deleteParams(updatedParams, ['after']);
-                });
-              }}
-              onClickNext={() => {
-                setGetListNoticeRequest((prev) => {
-                  const updatedParams = { ...prev, after: lastPointID };
-                  return deleteParams(updatedParams, ['before']);
-                });
-              }}
-            />
           </div>
           <TableDetailNotice
             sendData={sendData}
@@ -467,6 +445,32 @@ const NoticeDetail = () => {
             dataSource={data}
             setIsShowDialogPDF={setIsShowDialogPDF}
             loading={loading}
+          />
+          <PaginationCommon
+            pageSize={size}
+            total={paginationData?.totalCount}
+            currentCount={data?.length || 0}
+            hasNext={paginationData?.hasNext}
+            setSize={(newSize) => {
+              setSize(newSize);
+              setGetListNoticeRequest((prev) => {
+                const updatedParams = { ...prev, pageSize: newSize };
+                return deleteParams(updatedParams, ['before', 'after']);
+              });
+            }}
+            hasPrevious={paginationData?.hasPrevious}
+            onClickPrevious={() => {
+              setGetListNoticeRequest((prev) => {
+                const updatedParams = { ...prev, before: firstPointID };
+                return deleteParams(updatedParams, ['after']);
+              });
+            }}
+            onClickNext={() => {
+              setGetListNoticeRequest((prev) => {
+                const updatedParams = { ...prev, after: lastPointID };
+                return deleteParams(updatedParams, ['before']);
+              });
+            }}
           />
         </Card>
       </div>

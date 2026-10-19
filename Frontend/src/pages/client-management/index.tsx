@@ -309,33 +309,6 @@ const ClientManagement = () => {
               ) : null}
             </div>
           </div>
-          <PaginationCommon
-            pageSize={size}
-            hasNext={paginationData?.hasNext}
-            setSize={(newSize) => {
-              // Update the page size and reset pagination
-              setSize(newSize);
-              setGetListCustomerParamsRequest((prev) => {
-                const updatedParams = { ...prev, pageSize: newSize };
-                return deleteParams(updatedParams, ['before', 'after']); // Remove 'before' and 'after' parameters
-              });
-            }}
-            hasPrevious={paginationData?.hasPrevious}
-            onClickPrevious={() => {
-              // When clicking on Previous, remove the 'after' and set 'before'
-              setGetListCustomerParamsRequest((prev) => {
-                const updatedParams = { ...prev, before: firstCustomerID };
-                return deleteParams(updatedParams, ['after']); // Remove 'after' parameter
-              });
-            }}
-            onClickNext={() => {
-              // When clicking on Next, remove the 'before' and set 'after'
-              setGetListCustomerParamsRequest((prev) => {
-                const updatedParams = { ...prev, after: lastCustomerID };
-                return deleteParams(updatedParams, ['before']); // Remove 'before' parameter
-              });
-            }}
-          />
         </div>
         <TableCommon
           columns={columns}
@@ -343,6 +316,35 @@ const ClientManagement = () => {
           pagination={false}
           loading={loading}
           scroll={{ x: 'max-content', y: window.innerHeight * 0.66 }}
+        />
+        <PaginationCommon
+          pageSize={size}
+          total={data?.totalCount}
+          currentCount={tableDataSource?.length || 0}
+          hasNext={paginationData?.hasNext}
+          setSize={(newSize) => {
+            // Update the page size and reset pagination
+            setSize(newSize);
+            setGetListCustomerParamsRequest((prev) => {
+              const updatedParams = { ...prev, pageSize: newSize };
+              return deleteParams(updatedParams, ['before', 'after']); // Remove 'before' and 'after' parameters
+            });
+          }}
+          hasPrevious={paginationData?.hasPrevious}
+          onClickPrevious={() => {
+            // When clicking on Previous, remove the 'after' and set 'before'
+            setGetListCustomerParamsRequest((prev) => {
+              const updatedParams = { ...prev, before: firstCustomerID };
+              return deleteParams(updatedParams, ['after']); // Remove 'after' parameter
+            });
+          }}
+          onClickNext={() => {
+            // When clicking on Next, remove the 'before' and set 'after'
+            setGetListCustomerParamsRequest((prev) => {
+              const updatedParams = { ...prev, after: lastCustomerID };
+              return deleteParams(updatedParams, ['before']); // Remove 'before' parameter
+            });
+          }}
         />
       </Card>
       {/* Dialog export file */}

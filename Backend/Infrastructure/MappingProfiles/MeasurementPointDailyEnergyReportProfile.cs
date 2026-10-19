@@ -26,13 +26,18 @@ public class MeasurementPointDailyEnergyReportProfile : Profile
     
     private static string? FormatValue(string? value)
     {
-        if (value == null) return null;
-        var viCulture = CultureInfo.GetCultureInfo("vi-VN");
-        double valueNumber = double.Parse(value, CultureInfo.InvariantCulture);
-        if (valueNumber % 1 == 0)
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        bool isNotTopical = value.EndsWith("*") || value.Contains("Not Topical");
+        string cleanValue = value.Replace("*", "").Replace("(Not Topical)", "").Trim();
+
+        if (double.TryParse(cleanValue, NumberStyles.Any, CultureInfo.InvariantCulture, out double valueNumber))
         {
-            return valueNumber.ToString("N0", viCulture);
+            var viCulture = CultureInfo.GetCultureInfo("vi-VN");
+            string formatted = valueNumber % 1 == 0
+                ? valueNumber.ToString("N0", viCulture)
+                : valueNumber.ToString("N2", viCulture);
+            return isNotTopical ? $"{formatted}*" : formatted;
         }
-        return valueNumber.ToString("N2", viCulture);
+        return isNotTopical ? $"{cleanValue}*" : cleanValue;
     }
 }

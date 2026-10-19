@@ -1,63 +1,159 @@
-import { Button, Card, DatePicker } from 'antd';
+import { Button, Card, DatePicker, Radio } from 'antd';
 import dayjs from 'dayjs';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FiShare } from 'react-icons/fi';
 import { IoBackspaceOutline } from 'react-icons/io5';
-import { useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
 import Constants from '@/core/application/common/constants';
 import { DataResponse } from '@/core/application/dto/common/responses/successResponse';
 import { GetListCustomerRequest } from '@/core/application/dto/customer/request/GetListCustomerRequest.ts';
 import { GetListMeasurementPointsRequest } from '@/core/application/dto/measurement-point/requests/GetListMeasurementPointsRequest.ts';
+import { GetListDailyDailyFinalizedEnergyReportRequest } from '@/core/application/dto/reports/requests/GetDailyFinalizedEnergyReportRequest.ts';
 import { GetListHalfHourFinalizedEnergyReportRequest } from '@/core/application/dto/reports/requests/GetListHalfHourFinalizedEnergyReportRequest';
-import { IHalfHourFinalizedEnergyReportListResponse } from '@/core/application/interfaces/response/reports/report.interface.ts';
+import { GetYearlyFinalizedEnergyReportRequest } from '@/core/application/dto/reports/requests/GetYearlyFinalizedEnergyReportRequest.ts';
 import { ButtonCommonCustomizable } from '@/infrastructure/common/components/button/button-common-customizable.tsx';
 import { BreadcrumbUI } from '@/infrastructure/common/components/controls/BreadcrumbUI.tsx';
 import DialogExportForm from '@/infrastructure/common/components/dialog-export/dialog-export';
 import InputSelectCommon from '@/infrastructure/common/components/input/input-select-common.tsx';
-import PaginationCommon from '@/infrastructure/common/components/pagination/pagination-common';
 import PageTitle from '@/infrastructure/common/components/title/page-title.tsx';
 import useDebounce from '@/infrastructure/common/libs/hooks/useDebounce.hook.tsx';
 import { useStateDataForm } from '@/infrastructure/common/libs/hooks/useStateDataForm.hook';
 import useGetListCustomerForReportHook from '@/infrastructure/repository/customer/hooks/useGetCustomerListForReport.hook.tsx';
 import useGetListMeasurementPointsForReportHook from '@/infrastructure/repository/measurement-point/hooks/useGetListMeasurementPointsForReport.hook.tsx';
+import useGetDailyFinalizedEnergyReportHook from '@/infrastructure/repository/reports/hooks/useGetDailyFinalizedEnergyReport.hook';
 import useGetHalfHourFinalizedEnergyReportHook from '@/infrastructure/repository/reports/hooks/useGetHalfHourFinalizedEnergyReport.hook';
-import { deleteParams } from '@/infrastructure/utils/helpers.ts';
+import useGetYearlyFinalizedEnergyReportHook from '@/infrastructure/repository/reports/hooks/useGetYearlyFinalizedEnergyReport.hook';
 import { _t } from '@/infrastructure/utils/translation';
 import TableHalfHourReport from '@/pages/reports/half-hour-finalized-energy-report/components/table-half-hour-report';
 
 const { RangePicker } = DatePicker;
 
-const HalfHourFinalizedEnergyReport = () => {
-  const navigate = useNavigate();
+export type ReportType = 'daily' | 'monthly' | 'yearly' | 'range';
+
+interface HalfHourFinalizedEnergyReportProps {
+  defaultReportType?: ReportType;
+}
+
+/**
+ * Chuẩn hóa và làm sạch dữ liệu chu kỳ 30 phút:
+ * 1. Tinh chỉnh mốc thời gian lẻ như "00:01", "09:31" về mốc chuẩn ":00" hoặc ":30".
+ * 2. Loại bỏ các dòng không đúng mốc chu kỳ 30 phút (lệch quá 5 phút).
+ * 3. Khử trùng lặp cùng mốc (deduplicate).
+ * 4. Sắp xếp thứ tự thời gian tăng dần.
+ */
+const normalizeHalfHourData = (records: any[]): any[] => {
+  if (!records || !records.length) return [];
+
+  const slotMap = new Map<string, { record: any; diffMs: number }>();
+
+  for (const item of records) {
+    if (!item.createdTime) continue;
+    const d = dayjs(item.createdTime);
+    const minute = d.minute();
+
+    let rounded: dayjs.Dayjs | null = null;
+
+    if (minute >= 55) {
+      // 09:59 -> 10:00
+      rounded = d.add(1, 'hour').minute(0).second(0).millisecond(0);
+    } else if (minute <= 5) {
+      // 00:01, 00:02 -> 00:00
+      rounded = d.minute(0).second(0).millisecond(0);
+    } else if (minute >= 25 && minute <= 35) {
+      // 09:31, 09:29 -> 09:30
+      rounded = d.minute(30).second(0).millisecond(0);
+    }
+
+    // Nếu không nằm trong khoảng hợp lệ ±5 phút quanh mốc 30 phút -> loại bỏ
+    if (!rounded) continue;
+
+    const slotKey = rounded.toISOString();
+    const diffMs = Math.abs(d.diff(rounded));
+
+    if (!slotMap.has(slotKey) || diffMs < slotMap.get(slotKey)!.diffMs) {
+      slotMap.set(slotKey, {
+        record: {
+          ...item,
+          createdTime: rounded.toISOString(),
+        },
+        diffMs,
+      });
+    }
+  }
+
+  return Array.from(slotMap.values())
+    .map((v) => v.record)
+    .sort((a, b) => new Date(a.createdTime).getTime() - new Date(b.createdTime).getTime());
+};
+
+/**
+ * Chuẩn hóa dữ liệu ngày/tháng (chốt lúc 0:00):
+ * Tinh chỉnh mốc 00:01, 00:02 về đúng 00:00
+ */
+const normalizeDailyData = (records: any[]): any[] => {
+  if (!records || !records.length) return [];
+
+  const slotMap = new Map<string, { record: any; diffMs: number }>();
+
+  for (const item of records) {
+    if (!item.createdTime) continue;
+    const d = dayjs(item.createdTime);
+    const rounded = d.minute(0).second(0).millisecond(0);
+    const slotKey = rounded.format('YYYY-MM-DD');
+    const diffMs = Math.abs(d.diff(rounded));
+
+    if (!slotMap.has(slotKey) || diffMs < slotMap.get(slotKey)!.diffMs) {
+      slotMap.set(slotKey, {
+        record: {
+          ...item,
+          createdTime: rounded.toISOString(),
+        },
+        diffMs,
+      });
+    }
+  }
+
+  return Array.from(slotMap.values())
+    .map((v) => v.record)
+    .sort((a, b) => new Date(a.createdTime).getTime() - new Date(b.createdTime).getTime());
+};
+
+const HalfHourFinalizedEnergyReport: React.FC<HalfHourFinalizedEnergyReportProps> = ({
+  defaultReportType,
+}) => {
+  const [searchParams] = useSearchParams();
+  const initialTypeFromUrl = (searchParams.get('type') as ReportType) || defaultReportType || 'daily';
+
+  const [reportType, setReportType] = useState<ReportType>(initialTypeFromUrl);
+  const [singleDate, setSingleDate] = useState<dayjs.Dayjs>(dayjs());
+  const [rangeDate, setRangeDate] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
+    dayjs().startOf('day'),
+    dayjs().endOf('day'),
+  ]);
+  const [selectedMonth, setSelectedMonth] = useState<dayjs.Dayjs>(dayjs());
+  const [selectedYear, setSelectedYear] = useState<dayjs.Dayjs>(dayjs());
+
   const [dataForm, setDataForm] = useStateDataForm({
     customerId: null,
     measurementPointId: null,
-    startTime: dayjs().startOf('day'),
-    endTime: dayjs().endOf('day'),
   });
+
   const [getHalfHourReport] = useGetHalfHourFinalizedEnergyReportHook();
+  const [getDailyReport] = useGetDailyFinalizedEnergyReportHook();
+  const [getYearlyReport] = useGetYearlyFinalizedEnergyReportHook();
   const [getListCustomerRequest] = useGetListCustomerForReportHook();
   const [getListMeasurementPointRequest] = useGetListMeasurementPointsForReportHook();
+
   const [isShowExport, setIsShowExport] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
-  const [size, setSize] = useState<number>(10);
-  const [data, setData] = useState<IHalfHourFinalizedEnergyReportListResponse>();
+  const [tableData, setTableData] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [measurementPoints, setMeasurementPoints] = useState<any[]>([]);
   const [searchData, setSearchData] = useState<{ customerCode: string; monitorPoint: string }>({
     customerCode: '',
     monitorPoint: '',
-  });
-  const [paginationData, setPaginationData] = useState<{
-    hasNext: boolean;
-    hasPrevious: boolean;
-  }>({ hasNext: false, hasPrevious: false });
-  const [requestParams, setRequestParams] = useState<
-    Partial<GetListHalfHourFinalizedEnergyReportRequest>
-  >({
-    pageSize: size,
   });
 
   const debouncedCustomerCodeSearch = useDebounce(searchData?.customerCode, 300);
@@ -67,11 +163,10 @@ const HalfHourFinalizedEnergyReport = () => {
     setDataForm({
       customerId: null,
       measurementPointId: null,
-      startTime: dayjs().startOf('day'),
-      endTime: dayjs().endOf('day'),
     });
     setSearchData({ customerCode: '', monitorPoint: '' });
     setMeasurementPoints([]);
+    setTableData([]);
   };
 
   const getListCustomerAsync = async () => {
@@ -91,13 +186,11 @@ const HalfHourFinalizedEnergyReport = () => {
     await getListCustomerRequest(
       params as any,
       (res) => {
-        const customersList = res?.data?.data?.map((it: any) => {
-          return {
-            value: it?.id,
-            label: it?.customerCode,
-            fullName: it?.fullName,
-          };
-        });
+        const customersList = res?.data?.data?.map((it: any) => ({
+          value: it?.id,
+          label: it?.customerCode,
+          fullName: it?.fullName,
+        }));
         setCustomers(customersList);
       },
       () => {},
@@ -114,12 +207,10 @@ const HalfHourFinalizedEnergyReport = () => {
     await getListMeasurementPointRequest(
       params,
       (res) => {
-        const measurementPointsList = res?.data?.data?.map((it: any) => {
-          return {
-            value: it?.id,
-            label: it?.code,
-          };
-        });
+        const measurementPointsList = res?.data?.data?.map((it: any) => ({
+          value: it?.id,
+          label: it?.code,
+        }));
         setMeasurementPoints(measurementPointsList);
       },
       () => {},
@@ -135,65 +226,99 @@ const HalfHourFinalizedEnergyReport = () => {
     setSearchData({ ...searchData, monitorPoint: data });
   };
 
-  const getReportData = async ({
-    pageSize = size,
-    before,
-    after,
-  }: Partial<GetListHalfHourFinalizedEnergyReportRequest> = {}) => {
+  const fetchReportData = async () => {
     if (!dataForm.customerId || !dataForm.measurementPointId) {
+      setTableData([]);
       return;
     }
 
-    const params: GetListHalfHourFinalizedEnergyReportRequest = {
-      customerId: dataForm.customerId,
-      measurementPointId: dataForm.measurementPointId,
-      startTime: dataForm.startTime.toDate(),
-      endTime: dataForm.endTime.toDate(),
-      pageSize: pageSize,
-      ...(before && { before }),
-      ...(after && { after }),
-    };
+    setLoading(true);
 
-    await getHalfHourReport(
-      params,
-      (res: DataResponse) => {
-        setData(res?.data);
-        setPaginationData({
-          hasNext: res?.data?.hasNext || false,
-          hasPrevious: res?.data?.hasPrevious || false,
-        });
-      },
-      () => {},
-      setLoading
-    );
+    if (reportType === 'daily') {
+      const params: GetListHalfHourFinalizedEnergyReportRequest = {
+        customerId: Number(dataForm.customerId),
+        measurementPointId: Number(dataForm.measurementPointId),
+        startTime: singleDate.startOf('day').toDate(),
+        endTime: singleDate.endOf('day').toDate(),
+        pageSize: 1000,
+      };
+      await getHalfHourReport(
+        params,
+        (res: DataResponse) => {
+          const raw = res?.data?.data || [];
+          setTableData(normalizeHalfHourData(raw));
+          setLoading(false);
+        },
+        () => {
+          setTableData([]);
+          setLoading(false);
+        },
+        setLoading
+      );
+    } else if (reportType === 'range') {
+      const params: GetListHalfHourFinalizedEnergyReportRequest = {
+        customerId: Number(dataForm.customerId),
+        measurementPointId: Number(dataForm.measurementPointId),
+        startTime: rangeDate[0].startOf('day').toDate(),
+        endTime: rangeDate[1].endOf('day').toDate(),
+        pageSize: 1000,
+      };
+      await getHalfHourReport(
+        params,
+        (res: DataResponse) => {
+          const raw = res?.data?.data || [];
+          setTableData(normalizeHalfHourData(raw));
+          setLoading(false);
+        },
+        () => {
+          setTableData([]);
+          setLoading(false);
+        },
+        setLoading
+      );
+    } else if (reportType === 'monthly') {
+      const params: GetListDailyDailyFinalizedEnergyReportRequest = {
+        customerId: Number(dataForm.customerId),
+        measurementPointId: Number(dataForm.measurementPointId),
+        month: selectedMonth.month() + 1,
+        year: selectedMonth.year(),
+        pageSize: 100,
+      };
+      await getDailyReport(
+        params,
+        (res: DataResponse) => {
+          const raw = res?.data?.data || [];
+          setTableData(normalizeDailyData(raw));
+          setLoading(false);
+        },
+        () => {
+          setTableData([]);
+          setLoading(false);
+        },
+        setLoading
+      );
+    } else if (reportType === 'yearly') {
+      const params: GetYearlyFinalizedEnergyReportRequest = {
+        customerId: Number(dataForm.customerId),
+        measurementPointId: Number(dataForm.measurementPointId),
+        year: selectedYear.year(),
+        pageSize: 50,
+      };
+      await getYearlyReport(
+        params,
+        (res: DataResponse) => {
+          const raw = res?.data?.data || [];
+          setTableData(normalizeDailyData(raw));
+          setLoading(false);
+        },
+        () => {
+          setTableData([]);
+          setLoading(false);
+        },
+        setLoading
+      );
+    }
   };
-
-  const dataExport = data?.data?.map((item, index) => {
-    return {
-      index: index + 1,
-      createdTime: item.createdTime ? dayjs(item.createdTime).format('DD/MM/YYYY HH:mm') : 'N/A',
-      chiSoTichLuyDienNangTacDungAPTongKenhGiao:
-        item.chiSoTichLuyDienNangTacDungAPTongKenhGiao ?? 'N/A',
-      chiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao:
-        item.chiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao ?? 'N/A',
-      chiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao:
-        item.chiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao ?? 'N/A',
-      chiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao:
-        item.chiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao ?? 'N/A',
-      chiSoTichLuyDienNangPhanKhangAQTongKenhGiao:
-        item.chiSoTichLuyDienNangPhanKhangAQTongKenhGiao ?? 'N/A',
-      chiSoTichLuyDienNangTacDungAPTongKenhNhan:
-        item.chiSoTichLuyDienNangTacDungAPTongKenhNhan ?? 'N/A',
-      chiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan:
-        item.chiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan ?? 'N/A',
-      chiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan:
-        item.chiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan ?? 'N/A',
-      chiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan:
-        item.chiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan ?? 'N/A',
-      chiSoTichLuyDienNangPhanKhangAQTongKenhNhan:
-        item.chiSoTichLuyDienNangPhanKhangAQTongKenhNhan ?? 'N/A',
-    };
-  });
 
   useEffect(() => {
     getListCustomerAsync();
@@ -202,6 +327,7 @@ const HalfHourFinalizedEnergyReport = () => {
   useEffect(() => {
     if (dataForm?.customerId) {
       setDataForm({ ...dataForm, measurementPointId: null });
+      setTableData([]);
       getListMeasurementPointAsync({
         pageSize: 10,
         searchByFields: [
@@ -215,30 +341,135 @@ const HalfHourFinalizedEnergyReport = () => {
     } else {
       setMeasurementPoints([]);
       setDataForm({ ...dataForm, measurementPointId: null });
+      setTableData([]);
     }
   }, [debouncedMeasurementPointSearch, dataForm?.customerId]);
 
   useEffect(() => {
-    if (
-      dataForm.customerId &&
-      dataForm.measurementPointId &&
-      dataForm.startTime &&
-      dataForm.endTime
-    ) {
-      setRequestParams((prev) => deleteParams(prev, ['before', 'after']));
+    if (dataForm.customerId && dataForm.measurementPointId) {
+      fetchReportData();
     }
-  }, [dataForm.customerId, dataForm.measurementPointId, dataForm.startTime, dataForm.endTime]);
+  }, [
+    dataForm.customerId,
+    dataForm.measurementPointId,
+    reportType,
+    singleDate,
+    rangeDate,
+    selectedMonth,
+    selectedYear,
+  ]);
 
-  useEffect(() => {
-    if (
-      dataForm.customerId &&
-      dataForm.measurementPointId &&
-      dataForm.startTime &&
-      dataForm.endTime
-    ) {
-      getReportData({ ...requestParams });
+  const cleanValForExport = (val: any) => {
+    if (val === null || val === undefined || val === '') {
+      return '-';
     }
-  }, [size, requestParams]);
+    const str = String(val).trim();
+    if (str === '' || str === '-') return '-';
+    return str;
+  };
+
+  const dataExport = useMemo(() => {
+    return tableData.map((item, index) => ({
+      index: index + 1,
+      createdTime: item.createdTime ? dayjs(item.createdTime).format('DD/MM/YYYY HH:mm') : '-',
+      chiSoTichLuyDienNangTacDungAPTongKenhGiao: cleanValForExport(
+        item.chiSoTichLuyDienNangTacDungAPTongKenhGiao
+      ),
+      chiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao: cleanValForExport(
+        item.chiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao
+      ),
+      chiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao: cleanValForExport(
+        item.chiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao
+      ),
+      chiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao: cleanValForExport(
+        item.chiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao
+      ),
+      chiSoTichLuyDienNangPhanKhangAQTongKenhGiao: cleanValForExport(
+        item.chiSoTichLuyDienNangPhanKhangAQTongKenhGiao
+      ),
+      chiSoTichLuyDienNangTacDungAPTongKenhNhan: cleanValForExport(
+        item.chiSoTichLuyDienNangTacDungAPTongKenhNhan
+      ),
+      chiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan: cleanValForExport(
+        item.chiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan
+      ),
+      chiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan: cleanValForExport(
+        item.chiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan
+      ),
+      chiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan: cleanValForExport(
+        item.chiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan
+      ),
+      chiSoTichLuyDienNangPhanKhangAQTongKenhNhan: cleanValForExport(
+        item.chiSoTichLuyDienNangPhanKhangAQTongKenhNhan
+      ),
+    }));
+  }, [tableData]);
+
+  const exportConfig = useMemo(() => {
+    switch (reportType) {
+      case 'daily':
+        return {
+          title: 'Báo cáo chỉ số điện hàng ngày',
+          fileNameCsv: `bao-cao-chi-so-dien-hang-ngay-${singleDate.format('DDMMYYYY')}`,
+          typeExportAll: 'half-hour-finalized-energy',
+          listHeader: Constants.listHeaderExport.HalfHourFinalizedEnergyReport,
+          requestBody: {
+            customerId: Number(dataForm.customerId),
+            measurementPointId: Number(dataForm.measurementPointId),
+            startTime: singleDate.startOf('day').toDate(),
+            endTime: singleDate.endOf('day').toDate(),
+          },
+        };
+      case 'range':
+        return {
+          title: 'Báo cáo chỉ số điện theo khoảng thời gian',
+          fileNameCsv: `bao-cao-chi-so-dien-${rangeDate[0].format('DDMMYYYY')}-${rangeDate[1].format('DDMMYYYY')}`,
+          typeExportAll: 'half-hour-finalized-energy',
+          listHeader: Constants.listHeaderExport.HalfHourFinalizedEnergyReport,
+          requestBody: {
+            customerId: Number(dataForm.customerId),
+            measurementPointId: Number(dataForm.measurementPointId),
+            startTime: rangeDate[0].startOf('day').toDate(),
+            endTime: rangeDate[1].endOf('day').toDate(),
+          },
+        };
+      case 'monthly':
+        return {
+          title: 'Báo cáo chỉ số điện hàng tháng',
+          fileNameCsv: `bao-cao-chi-so-dien-thang-${selectedMonth.format('MM-YYYY')}`,
+          typeExportAll: 'daily-finalized-energy',
+          listHeader: Constants.listHeaderExport.DailyFinalizedEnergyReport,
+          requestBody: {
+            customerId: Number(dataForm.customerId),
+            measurementPointId: Number(dataForm.measurementPointId),
+            month: selectedMonth.month() + 1,
+            year: selectedMonth.year(),
+          },
+        };
+      case 'yearly':
+        return {
+          title: 'Báo cáo chỉ số điện hàng năm',
+          fileNameCsv: `bao-cao-chi-so-dien-nam-${selectedYear.format('YYYY')}`,
+          typeExportAll: 'yearly-finalized-energy',
+          listHeader: Constants.listHeaderExport.DailyFinalizedEnergyReport,
+          requestBody: {
+            customerId: Number(dataForm.customerId),
+            measurementPointId: Number(dataForm.measurementPointId),
+            year: selectedYear.year(),
+          },
+        };
+    }
+  }, [
+    reportType,
+    dataForm.customerId,
+    dataForm.measurementPointId,
+    singleDate,
+    rangeDate,
+    selectedMonth,
+    selectedYear,
+  ]);
+
+  const showClearSearch = !!dataForm?.customerId || !!dataForm?.measurementPointId;
 
   return (
     <div>
@@ -256,46 +487,46 @@ const HalfHourFinalizedEnergyReport = () => {
               setIsShowExport(true);
             }}
             icon={<FiShare size={20} />}
-            disabled={!(data?.data && data.data.length > 0)}
+            disabled={!tableData || tableData.length === 0}
           />
         </div>
       </div>
+
       <Card className='mt-5 shadow-custom'>
-        <div className='mb-5 flex justify-between items-center'>
-          <div className='flex items-center w-2/3 gap-2'>
-            <div className='basis-4/5 flex items-center gap-3'>
-              <div className='basis-1/2'>
-                <InputSelectCommon
-                  label={null}
-                  attribute={'customerId'}
-                  dataAttribute={dataForm?.customerId}
-                  placeholder={'Nhập mã khách hàng'}
-                  setData={setDataForm}
-                  isRequired={false}
-                  allowClear={true}
-                  listDataItem={customers}
-                  showSearch={true}
-                  onSearch={onSearchCustomer}
-                />
-              </div>
-              <div className='basis-1/2'>
-                <InputSelectCommon
-                  label={null}
-                  attribute={'measurementPointId'}
-                  dataAttribute={dataForm?.measurementPointId}
-                  placeholder={'Nhập mã điểm đo'}
-                  setData={setDataForm}
-                  isRequired={false}
-                  allowClear={true}
-                  listDataItem={measurementPoints}
-                  disabled={!dataForm.customerId}
-                  showSearch={true}
-                  onSearch={onSearchMeasurementPoint}
-                />
-              </div>
+        {/* Hàng 1: Khách hàng và Điểm đo */}
+        <div className='mb-5 flex items-center'>
+          <div className='flex items-center w-full max-w-2xl gap-3'>
+            <div className='basis-1/2'>
+              <InputSelectCommon
+                label={null}
+                attribute={'customerId'}
+                dataAttribute={dataForm?.customerId}
+                placeholder={'Nhập mã khách hàng'}
+                setData={setDataForm}
+                isRequired={false}
+                allowClear={true}
+                listDataItem={customers}
+                showSearch={true}
+                onSearch={onSearchCustomer}
+              />
             </div>
-            <div className='flex gap-1'>
-              {dataForm?.customerId || dataForm?.measurementPointId ? (
+            <div className='basis-1/2'>
+              <InputSelectCommon
+                label={null}
+                attribute={'measurementPointId'}
+                dataAttribute={dataForm?.measurementPointId}
+                placeholder={'Nhập mã điểm đo'}
+                setData={setDataForm}
+                isRequired={false}
+                allowClear={true}
+                listDataItem={measurementPoints}
+                disabled={!dataForm.customerId}
+                showSearch={true}
+                onSearch={onSearchMeasurementPoint}
+              />
+            </div>
+            {showClearSearch && (
+              <div>
                 <ButtonCommonCustomizable
                   title={_t('')}
                   tooltipText='Xoá tất cả'
@@ -304,79 +535,89 @@ const HalfHourFinalizedEnergyReport = () => {
                   onClick={handleClearSearch}
                   variant={'text'}
                 />
-              ) : null}
-            </div>
+              </div>
+            )}
           </div>
-          <PaginationCommon
-            pageSize={size}
-            setSize={(newSize) => {
-              setSize(newSize);
-              setRequestParams((prev) => {
-                const updatedParams = { ...prev, pageSize: newSize };
-                return deleteParams(updatedParams, ['before', 'after']);
-              });
-            }}
-            hasNext={paginationData?.hasNext}
-            hasPrevious={paginationData?.hasPrevious}
-            onClickPrevious={() => {
-              const beforeId = data?.data?.[0]?.id;
-              setRequestParams((prev) => {
-                const updatedParams = { ...prev, before: beforeId };
-                return deleteParams(updatedParams, ['after']);
-              });
-            }}
-            onClickNext={() => {
-              const afterId = data?.data?.[data.data.length - 1]?.id;
-              setRequestParams((prev) => {
-                const updatedParams = { ...prev, after: afterId };
-                return deleteParams(updatedParams, ['before']);
-              });
-            }}
-          />
         </div>
-        <div className='mb-4 flex gap-3 items-center'>
-          <Button type='primary'>Chu kỳ 30 phút</Button>
-          <Button onClick={() => navigate(ROUTE_PATH.DAILY_FINALIZED_ENERGY_REPORT)}>
-            Hàng tháng (0:00 hàng ngày)
+
+        {/* Hàng 2: Bộ chọn chế độ báo cáo, thời gian và nút Truy vấn - Canh lề phải */}
+        <div className='mb-5 pb-3 border-b flex flex-wrap justify-end items-center gap-3'>
+          <Radio.Group
+            value={reportType}
+            onChange={(e) => setReportType(e.target.value)}
+            buttonStyle='solid'
+          >
+            <Radio.Button value='daily'>Hàng ngày</Radio.Button>
+            <Radio.Button value='monthly'>Hàng tháng</Radio.Button>
+            <Radio.Button value='yearly'>Hàng năm</Radio.Button>
+            <Radio.Button value='range'>Khoảng thời gian</Radio.Button>
+          </Radio.Group>
+
+          {reportType === 'daily' && (
+            <DatePicker
+              format='DD/MM/YYYY'
+              value={singleDate}
+              onChange={(d) => d && setSingleDate(d)}
+              allowClear={false}
+            />
+          )}
+
+          {reportType === 'monthly' && (
+            <DatePicker
+              picker='month'
+              format='MM/YYYY'
+              value={selectedMonth}
+              onChange={(d) => d && setSelectedMonth(d)}
+              allowClear={false}
+            />
+          )}
+
+          {reportType === 'yearly' && (
+            <DatePicker
+              picker='year'
+              format='YYYY'
+              value={selectedYear}
+              onChange={(d) => d && setSelectedYear(d)}
+              allowClear={false}
+            />
+          )}
+
+          {reportType === 'range' && (
+            <RangePicker
+              format='DD/MM/YYYY'
+              value={rangeDate}
+              onChange={(dates) => {
+                if (dates && dates[0] && dates[1]) {
+                  setRangeDate([dates[0], dates[1]]);
+                }
+              }}
+              allowClear={false}
+            />
+          )}
+
+          <Button type='primary' onClick={fetchReportData} loading={loading}>
+            Truy vấn
           </Button>
-          <Button onClick={() => navigate(ROUTE_PATH.YEARLY_FINALIZED_ENERGY_REPORT)}>
-            Hàng năm (0:00 đầu mỗi tháng)
-          </Button>
-          <RangePicker
-            format='DD/MM/YYYY'
-            value={[dataForm.startTime, dataForm.endTime]}
-            onChange={(dates) => {
-              if (dates && dates[0] && dates[1]) {
-                setDataForm({
-                  startTime: dates[0].startOf('day'),
-                  endTime: dates[1].endOf('day'),
-                });
-              }
-            }}
-            placeholder={['Từ ngày', 'Đến ngày']}
-          />
         </div>
+
+        {/* Hàng 3: Bảng dữ liệu với phân trang Ant Design chuẩn ở bottomRight */}
         <div>
-          <TableHalfHourReport dataSource={data?.data ?? []} loading={loading} />
+          <TableHalfHourReport dataSource={tableData} loading={loading} />
         </div>
       </Card>
+
       {/* Dialog export file */}
       <DialogExportForm
         open={isShowExport}
         handleCancel={() => {
           setIsShowExport(false);
         }}
-        title='Báo cáo số liệu định kỳ mỗi ngày'
+        title={exportConfig.title}
         dataSource={dataExport}
-        listHeader={Constants.listHeaderExport.HalfHourFinalizedEnergyReport}
-        fileNameCsv={'bao-cao-30-phut'}
-        typeExportAll={'half-hour-finalized-energy'}
-        requestBody={{
-          customerId: dataForm.customerId,
-          measurementPointId: dataForm.measurementPointId,
-          startTime: dataForm.startTime.toDate(),
-          endTime: dataForm.endTime.toDate(),
-        }}
+        listHeader={exportConfig.listHeader}
+        fileNameCsv={exportConfig.fileNameCsv}
+        typeExportAll={exportConfig.typeExportAll}
+        requestBody={exportConfig.requestBody}
         onlyExportAll={true}
       />
     </div>
