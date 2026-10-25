@@ -54,7 +54,7 @@ export const useApiExportRequestHook = () => {
               '',
               _t(
                 (response as FailureResponse).message.toString() ||
-                  'An error occurred. Please contact the administrator'
+                  'Đã có lỗi xảy ra. Vui lòng liên hệ với quản trị viên hệ thống.'
               )
             );
             onError();
@@ -65,7 +65,7 @@ export const useApiExportRequestHook = () => {
               '',
               _t(
                 (response as InvalidModelStateResponse).message[0] ||
-                  'An error occurred. Please contact the administrator'
+                  'Đã có lỗi xảy ra. Vui lòng liên hệ với quản trị viên hệ thống.'
               )
             );
             loggerService.info(response as InvalidModelStateResponse);
@@ -73,13 +73,13 @@ export const useApiExportRequestHook = () => {
             break;
           }
           default: {
-            notifyError('', _t('An error occurred. Please contact the administrator'));
+            notifyError('', _t('Đã có lỗi xảy ra. Vui lòng liên hệ với quản trị viên hệ thống.'));
             onError();
           }
         }
       }
     } catch (error) {
-      notifyError('', _t('An error occurred. Please contact the administrator'));
+      notifyError('', _t('Đã có lỗi xảy ra. Vui lòng liên hệ với quản trị viên hệ thống.'));
       onError();
     } finally {
       if (setLoading) {

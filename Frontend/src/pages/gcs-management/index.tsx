@@ -320,7 +320,7 @@ const GCSManagement = () => {
         title='Quản lý sổ GCS'
         dataSource={tableDataSource}
         listHeader={Constants.listHeaderExport.GcsManagement}
-        fileNameCsv={'so-gcs'}
+        fileNameCsv={'DanhSachSoGCS'}
         typeExportAll={'gcs'}
       />
     </div>

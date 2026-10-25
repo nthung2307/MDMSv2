@@ -149,23 +149,35 @@ const PointMonitoring = () => {
     }));
   }, []);
 
-  const dataExport = data?.map((item) => {
+  const dataExport = data?.map((item, index) => {
+    const hasMeasurementData =
+      item.dienApPhaA != null ||
+      item.dongDienPhaA != null ||
+      item.congSuatTacDungTong3Pha != null ||
+      item.congSuatPhanKhangTong3Pha != null ||
+      item.heSoCongSuatPFTrungBinh3Pha != null ||
+      item.tanSoHeThong != null;
+
+    let connectionStatus = '-';
+    if (hasMeasurementData && item.matKetNoi !== null && item.matKetNoi !== undefined) {
+      connectionStatus = item.matKetNoi ? 'Mất kết nối' : 'Bình thường';
+    }
+
     return {
+      index: index + 1,
       measurementPointCode: item.measurementPointCode,
-      measurementPointDescription: item.measurementPointDescription,
-      customerCode: item.customerCode,
       customerName: item.customerName,
-      matKetNoi: item.matKetNoi ? 'Mất kết nối' : 'Bình thường',
-      UParams: item.dienApPhaA ? `${item.dienApPhaA} ${item.dienApPhaAUnit}` : '????',
-      IParams: item.dongDienPhaA ? `${item.dongDienPhaA} ${item.dongDienPhaAUnit}` : '????',
+      matKetNoi: connectionStatus,
+      UParams: item.dienApPhaA ? `${item.dienApPhaA} ${item.dienApPhaAUnit || ''}`.trim() : '-',
+      IParams: item.dongDienPhaA ? `${item.dongDienPhaA} ${item.dongDienPhaAUnit || ''}`.trim() : '-',
       PParams: item.congSuatTacDungTong3Pha
-        ? `${item.congSuatTacDungTong3Pha} ${item.congSuatTacDungTong3PhaUnit}`
-        : '????',
+        ? `${item.congSuatTacDungTong3Pha} ${item.congSuatTacDungTong3PhaUnit || ''}`.trim()
+        : '-',
       QParams: item.congSuatPhanKhangTong3Pha
-        ? `${item.congSuatPhanKhangTong3Pha} ${item.congSuatPhanKhangTong3PhaUnit}`
-        : '????',
-      PFParams: item.heSoCongSuatPFTrungBinh3Pha ? `${item.heSoCongSuatPFTrungBinh3Pha}` : '????',
-      FParams: item.tanSoHeThong ? `${item.tanSoHeThong} ${item.tanSoHeThongUnit}` : '????',
+        ? `${item.congSuatPhanKhangTong3Pha} ${item.congSuatPhanKhangTong3PhaUnit || ''}`.trim()
+        : '-',
+      PFParams: item.heSoCongSuatPFTrungBinh3Pha ? `${item.heSoCongSuatPFTrungBinh3Pha}` : '-',
+      FParams: item.tanSoHeThong ? `${item.tanSoHeThong} ${item.tanSoHeThongUnit || ''}`.trim() : '-',
     };
   });
 
@@ -325,7 +337,7 @@ const PointMonitoring = () => {
           }}
           dataSource={dataExport}
           listHeader={Constants.listHeaderExport.summaryParams}
-          fileNameCsv={'thongsotonghop'}
+          fileNameCsv={'ThongSoTongHop'}
           typeExportAll={'measurement-point-monitoring'}
         />
       </SocketCommon>

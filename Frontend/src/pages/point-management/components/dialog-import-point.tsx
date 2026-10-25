@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { notifyError, notifySuccess } from '@/infrastructure/common/components/toast/toastMessage';
 import useImportMeasurementPointCsvHook from '@/infrastructure/repository/measurement-point/hooks/useImportMeasurementPointCsv.hook';
+import { convertExcelFileToCsvFile, downloadExcelTemplate } from '@/infrastructure/utils/excelHelper';
 
 const { Dragger } = Upload;
 const { Text } = Typography;
@@ -39,26 +40,49 @@ const DialogImportPoint = ({ open, handleCancel, onSuccess }: Props) => {
     handleCancel();
   };
 
-  const handleDownloadTemplate = () => {
-    const csvContent =
-      '\uFEFFSTT,Mã điểm đo,Loại điểm đo,Mô tả,Tên khách hàng,Email nhận phiếu báo (tối đa 3 email),Trạng thái\r\n' +
-      '1,ĐĐ001,3 Pha,Điểm đo trạm biến áp A,Công ty Điện lực Mẫu A,email1@example.com; email2@example.com,Đang sử dụng\r\n' +
-      '2,ĐĐ002,1 Pha,Điểm đo phân xưởng 1,Nhà máy Sản xuất Kyocera,kyocera_amr@example.com,Đang sử dụng\r\n';
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'Template_DiemDo.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  const handleDownloadTemplate = async () => {
+    try {
+      await downloadExcelTemplate(
+        'Template_DiemDo.xlsx',
+        'DiemDo',
+        [
+          { header: 'STT', key: 'stt', width: 8 },
+          { header: 'Mã điểm đo', key: 'maDiemDo', width: 16 },
+          { header: 'Loại điểm đo', key: 'loaiDiemDo', width: 16 },
+          { header: 'Mô tả', key: 'moTa', width: 32 },
+          { header: 'Tên khách hàng', key: 'tenKh', width: 32 },
+          { header: 'Email nhận phiếu báo (tối đa 3 email)', key: 'email', width: 36 },
+          { header: 'Trạng thái', key: 'trangThai', width: 16 },
+        ],
+        [
+          {
+            stt: 1,
+            maDiemDo: 'ĐĐ001',
+            loaiDiemDo: '3 Pha',
+            moTa: 'Điểm đo trạm biến áp A',
+            tenKh: 'Công ty Điện lực Mẫu A',
+            email: 'email1@example.com; email2@example.com',
+            trangThai: 'Đang sử dụng',
+          },
+          {
+            stt: 2,
+            maDiemDo: 'ĐĐ002',
+            loaiDiemDo: '1 Pha',
+            moTa: 'Điểm đo phân xưởng 1',
+            tenKh: 'Nhà máy Sản xuất Kyocera',
+            email: 'kyocera_amr@example.com',
+            trangThai: 'Đang sử dụng',
+          },
+        ]
+      );
+    } catch (err: any) {
+      notifyError(err, 'Lỗi khi tải tệp mẫu Excel!');
+    }
   };
 
   const handleUpload = async () => {
     if (fileList.length === 0) {
-      notifyError('', 'Vui lòng chọn tệp CSV trước khi nhập!');
+      notifyError('', 'Vui lòng chọn tệp Excel trước khi nhập!');
       return;
     }
 
@@ -69,23 +93,31 @@ const DialogImportPoint = ({ open, handleCancel, onSuccess }: Props) => {
       return;
     }
 
-    await importCsv(
-      file,
-      (resData: ImportResult) => {
-        setResult(resData);
-        notifySuccess(
-          '',
-          `Nhập dữ liệu thành công! Cập nhật: ${resData.updatedCount}, Thêm mới: ${resData.insertedCount}, Lỗi: ${resData.errorCount}`
-        );
-        onSuccess();
-      },
-      (err: any) => {
-        const errorMsg =
-          err?.data?.message || err?.message || 'Có lỗi xảy ra khi nhập dữ liệu từ CSV!';
-        notifyError('', errorMsg);
-      },
-      setLoading
-    );
+    try {
+      setLoading(true);
+      const fileToSend = await convertExcelFileToCsvFile(file);
+
+      await importCsv(
+        fileToSend,
+        (resData: ImportResult) => {
+          setResult(resData);
+          notifySuccess(
+            '',
+            `Nhập dữ liệu thành công! Cập nhật: ${resData.updatedCount}, Thêm mới: ${resData.insertedCount}, Lỗi: ${resData.errorCount}`
+          );
+          onSuccess();
+        },
+        (err: any) => {
+          const errorMsg =
+            err?.data?.message || err?.message || 'Có lỗi xảy ra khi nhập dữ liệu từ Excel!';
+          notifyError('', errorMsg);
+        },
+        setLoading
+      );
+    } catch (parseErr: any) {
+      setLoading(false);
+      notifyError(parseErr, 'Không thể đọc tệp Excel. Vui lòng kiểm tra định dạng tệp!');
+    }
   };
 
   const errorColumns = [
@@ -112,7 +144,7 @@ const DialogImportPoint = ({ open, handleCancel, onSuccess }: Props) => {
 
   return (
     <Modal
-      title='Nhập dữ liệu điểm đo từ CSV'
+      title='Nhập dữ liệu điểm đo từ Excel'
       open={open}
       onCancel={handleClose}
       width={720}
@@ -142,31 +174,35 @@ const DialogImportPoint = ({ open, handleCancel, onSuccess }: Props) => {
         />
 
         <div className='flex justify-between items-center'>
-          <Text type='secondary'>Chỉ hỗ trợ tệp định dạng .csv (UTF-8)</Text>
+          <Text type='secondary'>Hỗ trợ tệp định dạng .xlsx, .xls hoặc .csv (Ưu tiên Excel)</Text>
           <Button
             icon={<DownloadOutlined />}
             size='small'
             type='dashed'
             onClick={handleDownloadTemplate}
           >
-            Tải tệp mẫu CSV
+            Tải tệp mẫu Excel (.xlsx)
           </Button>
         </div>
 
         {!result ? (
           <Dragger
             name='file'
-            accept='.csv'
+            accept='.xlsx,.xls,.csv'
             maxCount={1}
             fileList={fileList}
             beforeUpload={(file) => {
               const fileName = file.name.toLowerCase();
-              const isCsv =
+              const isExcelOrCsv =
+                fileName.endsWith('.xlsx') ||
+                fileName.endsWith('.xls') ||
                 fileName.endsWith('.csv') ||
                 file.type === 'text/csv' ||
-                file.type === 'application/vnd.ms-excel';
-              if (!isCsv) {
-                notifyError('', 'Chỉ chấp nhận tệp định dạng .csv!');
+                file.type === 'application/vnd.ms-excel' ||
+                file.type ===
+                  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+              if (!isExcelOrCsv) {
+                notifyError('', 'Chỉ chấp nhận tệp định dạng Excel (.xlsx, .xls) hoặc .csv!');
                 return Upload.LIST_IGNORE;
               }
               setFileList([file]);
@@ -182,8 +218,8 @@ const DialogImportPoint = ({ open, handleCancel, onSuccess }: Props) => {
             <p className='ant-upload-drag-icon'>
               <InboxOutlined />
             </p>
-            <p className='ant-upload-text'>Kéo thả tệp CSV vào đây hoặc bấm để chọn tệp</p>
-            <p className='ant-upload-hint'>Hỗ trợ phân cách dấu phẩy (,) hoặc chấm phẩy (;)</p>
+            <p className='ant-upload-text'>Kéo thả tệp Excel (.xlsx) vào đây hoặc bấm để chọn tệp</p>
+            <p className='ant-upload-hint'>Hỗ trợ bảng tính Microsoft Excel (.xlsx, .xls) và .csv</p>
           </Dragger>
         ) : (
           <div className='flex flex-col gap-3'>

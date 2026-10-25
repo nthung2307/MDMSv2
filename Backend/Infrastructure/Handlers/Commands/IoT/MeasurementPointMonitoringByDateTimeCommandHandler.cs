@@ -57,8 +57,8 @@ public class MeasurementPointMonitoringByDateTimeCommandHandler : IMeasurementPo
                     MeasurementPointsId = measurementPoint.Id,
                     MeasurementPointCode = measurementPoint.Code,
                     MeasurementPointDescription = measurementPoint.Description,
-                    CustomerCode = measurementPoint.Customer.CustomerCode,
-                    CustomerName = measurementPoint.Customer.FullName,
+                    CustomerCode = measurementPoint.Customer?.CustomerCode ?? string.Empty,
+                    CustomerName = measurementPoint.Customer?.FullName ?? string.Empty,
                     GroupId = groupId,
                 };
 
@@ -88,7 +88,7 @@ public class MeasurementPointMonitoringByDateTimeCommandHandler : IMeasurementPo
                                 TagNameId = tagName.Id,
                                 TagNameDescription = tagName.Description,
                                 Value = convertedValue,
-                                Quanlity = bool.Parse(iotDataValue.Q),
+                                Quanlity = ParseQuality(iotDataValue.Q),
                                 GroupId = groupId,
                                 CreatedTime = DateTimeOffset.FromUnixTimeMilliseconds(iotDataValue.T)
                             };
@@ -99,53 +99,53 @@ public class MeasurementPointMonitoringByDateTimeCommandHandler : IMeasurementPo
                             {
                                 case ListDataMeasurementPoint.NgayHienTai:
                                     dto.CurrentDate = double.Parse(value, cultureInfo).ToString();
-                                    dto.CurrentDateQuanlity = bool.Parse(iotDataValue.Q);
+                                    dto.CurrentDateQuanlity = ParseQuality(iotDataValue.Q);
                                     break;
                                 case ListDataMeasurementPoint.ThangHienTai:
                                     dto.CurrentMonth = double.Parse(value, cultureInfo).ToString();
-                                    dto.CurrentMonthQuanlity = bool.Parse(iotDataValue.Q);
+                                    dto.CurrentMonthQuanlity = ParseQuality(iotDataValue.Q);
                                     break;
                                 case ListDataMeasurementPoint.NamHienTai:
                                     dto.CurrentYear = double.Parse(value, cultureInfo).ToString();
-                                    dto.CurrentYearQuanlity = bool.Parse(iotDataValue.Q);
+                                    dto.CurrentYearQuanlity = ParseQuality(iotDataValue.Q);
                                     break;
                                 case ListDataMeasurementPoint.GioHienTai:
                                     dto.CurrentTime = double.Parse(value, cultureInfo).ToString();
-                                    dto.CurrentTimeQuanlity = bool.Parse(iotDataValue.Q);
+                                    dto.CurrentTimeQuanlity = ParseQuality(iotDataValue.Q);
                                     break;
                                 case ListDataMeasurementPoint.PhutHienTai:
                                     dto.CurrentMinute = double.Parse(value, cultureInfo).ToString();
-                                    dto.CurrentMinuteQuanlity = bool.Parse(iotDataValue.Q);
+                                    dto.CurrentMinuteQuanlity = ParseQuality(iotDataValue.Q);
                                     break;
                                 case ListDataMeasurementPoint.GiayHienTai:
                                     dto.CurrentSecond = double.Parse(value, cultureInfo).ToString();
-                                    dto.CurrentSecondQuanlity = bool.Parse(iotDataValue.Q);
+                                    dto.CurrentSecondQuanlity = ParseQuality(iotDataValue.Q);
                                     break;
                                 case ListDataMeasurementPoint.NgayChotGanNhat:
                                     dto.LatestClosingDate = double.Parse(value, cultureInfo).ToString();
-                                    dto.LatestClosingDateQuanlity = bool.Parse(iotDataValue.Q);
+                                    dto.LatestClosingDateQuanlity = ParseQuality(iotDataValue.Q);
                                     break;
                                 case ListDataMeasurementPoint.ThangChotGanNhat:
                                     dto.LatestClosingMonth = double.Parse(value, cultureInfo).ToString();
-                                    dto.LatestClosingMonthQuanlity = bool.Parse(iotDataValue.Q);
+                                    dto.LatestClosingMonthQuanlity = ParseQuality(iotDataValue.Q);
                                     break;
                                 case ListDataMeasurementPoint.NamChotGanNhat:
                                     dto.LatestClosingYear = double.Parse(value, cultureInfo).ToString();
-                                    dto.LatestClosingYearQuanlity = bool.Parse(iotDataValue.Q);
+                                    dto.LatestClosingYearQuanlity = ParseQuality(iotDataValue.Q);
                                     break;
                                 case ListDataMeasurementPoint.GioChotGanNhat:
                                     dto.LatestClosingTime = double.Parse(value, cultureInfo).ToString();
-                                    dto.LatestClosingTimeQuanlity = bool.Parse(iotDataValue.Q);
+                                    dto.LatestClosingTimeQuanlity = ParseQuality(iotDataValue.Q);
                                     break;
                                 case ListDataMeasurementPoint.PhutChotGanNhat:
                                     dto.LatestClosingMinute = double.Parse(value, cultureInfo).ToString();
-                                    dto.LatestClosingMinuteQuanlity = bool.Parse(iotDataValue.Q);
+                                    dto.LatestClosingMinuteQuanlity = ParseQuality(iotDataValue.Q);
                                     break;
                                 case ListDataMeasurementPoint.GiayChotGanNhat:
                                     dto.LatestClosingSecond = double.Parse(value, cultureInfo).ToString();
-                                    dto.LatestClosingSecondQuanlity = bool.Parse(iotDataValue.Q);
+                                    dto.LatestClosingSecondQuanlity = ParseQuality(iotDataValue.Q);
                                     break;
-                                    }
+                            }
                         }
                     }
                 }
@@ -239,4 +239,13 @@ public class MeasurementPointMonitoringByDateTimeCommandHandler : IMeasurementPo
         return s;
     }
 
+    private static bool ParseQuality(string? q)
+    {
+        if (string.IsNullOrWhiteSpace(q)) return true; // Mặc định Good nếu không gửi cờ Q
+        if (bool.TryParse(q, out var bVal)) return bVal;
+        var trimmed = q.Trim();
+        if (trimmed == "1" || trimmed == "192" || trimmed.Equals("Good", StringComparison.OrdinalIgnoreCase)) return true;
+        if (trimmed == "0" || trimmed.Equals("Bad", StringComparison.OrdinalIgnoreCase)) return false;
+        return true;
+    }
 }

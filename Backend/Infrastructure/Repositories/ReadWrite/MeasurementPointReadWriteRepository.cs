@@ -191,7 +191,7 @@ namespace Infrastructure.Repositories.ReadWrite
                         if (searchField.SearchFieldName.Equals("code", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(searchField.SearchValue))
                         {
                             var codeVal = searchField.SearchValue.Trim().ToLower();
-                            query = query.Where(x => x.Code.ToLower().Contains(codeVal));
+                            query = query.Where(x => x.Code.ToLower().Contains(codeVal) || (x.Description != null && x.Description.ToLower().Contains(codeVal)) || (x.Customer != null && x.Customer.FullName.ToLower().Contains(codeVal)));
                         }
                         else if (searchField.SearchFieldName.Equals("status", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(searchField.SearchValue))
                         {

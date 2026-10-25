@@ -1,6 +1,6 @@
 import { Table, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import React from 'react';
+import React, { useMemo } from 'react';
 
 import { EnergyConsumptionItem } from '@/core/application/dto/reports/requests/GetEnergyConsumptionReportRequest';
 
@@ -17,9 +17,9 @@ export const EnergyConsumptionTable: React.FC<EnergyConsumptionTableProps> = ({
   total,
   loading,
 }) => {
-  const formatNumber = (val?: number | null, fractionDigits = 2) => {
+  const formatNumber = (val?: number | null, fractionDigits = 0) => {
     if (val === undefined || val === null || isNaN(Number(val))) return '-';
-    return Number(val).toLocaleString('vi-VN', {
+    return Math.round(Number(val)).toLocaleString('vi-VN', {
       minimumFractionDigits: fractionDigits,
       maximumFractionDigits: fractionDigits,
     });
@@ -34,9 +34,10 @@ export const EnergyConsumptionTable: React.FC<EnergyConsumptionTableProps> = ({
       return <div className='text-gray-400 text-center select-none'>-</div>;
     }
 
-    const formatted = num.toLocaleString('vi-VN', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+    const rounded = Math.round(num);
+    const formatted = rounded.toLocaleString('vi-VN', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     });
 
     if (record?.isSuspected) {
@@ -55,17 +56,24 @@ export const EnergyConsumptionTable: React.FC<EnergyConsumptionTableProps> = ({
 
   const columns: ColumnsType<EnergyConsumptionItem> = [
     {
+      title: 'STT',
+      key: 'stt',
+      width: 60,
+      align: 'center',
+      className: 'whitespace-nowrap',
+      render: (_val, _record, index) => <span className='whitespace-nowrap'>{index + 1}</span>,
+    },
+    {
       title: 'Thời gian',
       dataIndex: 'timeLabel',
       key: 'timeLabel',
       width: 140,
-      fixed: 'left',
       align: 'center',
       className: 'whitespace-nowrap',
       render: (val: string) => <Text strong>{val || '-'}</Text>,
     },
     {
-      title: 'Sản lượng Kênh Giao (kWh)',
+      title: 'Kênh giao (kWh)',
       align: 'center',
       children: [
         {
@@ -116,7 +124,7 @@ export const EnergyConsumptionTable: React.FC<EnergyConsumptionTableProps> = ({
       ],
     },
     {
-      title: 'Sản lượng Kênh Nhận (kWh)',
+      title: 'Kênh nhận (kWh)',
       align: 'center',
       children: [
         {
@@ -168,6 +176,77 @@ export const EnergyConsumptionTable: React.FC<EnergyConsumptionTableProps> = ({
     },
   ];
 
+  const summaryData = useMemo(() => {
+    const keys: (keyof EnergyConsumptionItem)[] = [
+      'sanLuongTacDungTongKenhGiao',
+      'sanLuongTacDungBTKenhGiao',
+      'sanLuongTacDungCDKenhGiao',
+      'sanLuongTacDungTDKenhGiao',
+      'sanLuongPhanKhangTongKenhGiao',
+      'sanLuongTacDungTongKenhNhan',
+      'sanLuongTacDungBTKenhNhan',
+      'sanLuongTacDungCDKenhNhan',
+      'sanLuongTacDungTDKenhNhan',
+      'sanLuongPhanKhangTongKenhNhan',
+    ];
+
+    const sumRow: Record<string, any> = {};
+    const minRow: Record<string, any> = {};
+    const maxRow: Record<string, any> = {};
+
+    keys.forEach((key) => {
+      let sum = 0;
+      let count = 0;
+      let minVal = Infinity;
+      let maxVal = -Infinity;
+
+      data.forEach((it) => {
+        const v = it[key];
+        if (v !== undefined && v !== null && v !== '' && !isNaN(Number(v))) {
+          const n = Number(v);
+          sum += n;
+          count++;
+          if (n < minVal) minVal = n;
+          if (n > maxVal) maxVal = n;
+        }
+      });
+
+      if (count === 0) {
+        sumRow[key] = null;
+        minRow[key] = null;
+        maxRow[key] = null;
+      } else {
+        if (
+          total &&
+          total[key] !== undefined &&
+          total[key] !== null &&
+          total[key] !== '' &&
+          !isNaN(Number(total[key]))
+        ) {
+          sumRow[key] = Math.round(Number(total[key]));
+        } else {
+          sumRow[key] = Math.round(sum);
+        }
+        minRow[key] = Math.round(minVal);
+        maxRow[key] = Math.round(maxVal);
+      }
+    });
+
+    return { sumRow, minRow, maxRow };
+  }, [data, total]);
+
+  const renderSummaryCell = (val: any, isBold = false) => {
+    if (val === undefined || val === null || val === '' || isNaN(Number(val))) {
+      return <div className='text-gray-400 text-center select-none'>-</div>;
+    }
+    const formatted = Math.round(Number(val)).toLocaleString('vi-VN');
+    return (
+      <div className={isBold ? 'font-bold text-gray-900' : 'font-medium text-gray-800'}>
+        {formatted}
+      </div>
+    );
+  };
+
   return (
     <div className='w-full min-w-full overflow-x-auto rounded-lg border border-gray-200 bg-white'>
       <Table<EnergyConsumptionItem>
@@ -186,53 +265,129 @@ export const EnergyConsumptionTable: React.FC<EnergyConsumptionTableProps> = ({
           showTotal: (totalCount) => `Tổng số: ${totalCount} bản ghi`,
           position: ['bottomRight'],
         }}
-        scroll={{ x: 1390, y: 550 }}
+        scroll={{ x: 'max-content', y: 550 }}
         summary={() => {
-          if (!total) return null;
+          if (!data || data.length === 0) return null;
+          const { sumRow, minRow, maxRow } = summaryData;
           return (
-            <Table.Summary fixed='bottom'>
-              <Table.Summary.Row className='bg-amber-50 font-semibold'>
+            <Table.Summary>
+              {/* Dòng 1: Tổng (Đơn sắc, viền đậm) */}
+              <Table.Summary.Row className='bg-gray-100 font-semibold border-t-2 border-gray-300'>
                 <Table.Summary.Cell index={0} align='center'>
-                  <Text strong className='text-amber-900'>
-                    TỔNG CỘNG
-                  </Text>
+                  <span className='font-bold text-gray-900'>Tổng</span>
                 </Table.Summary.Cell>
-                {/* Kênh Giao */}
-                <Table.Summary.Cell index={1} align='right'>
-                  <Text strong className='text-red-700'>
-                    {formatNumber(total.sanLuongTacDungTongKenhGiao, 2)}
-                  </Text>
+                <Table.Summary.Cell index={1} align='center'>
+                  <div className='text-gray-400 text-center select-none'>-</div>
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={2} align='right'>
-                  {formatNumber(total.sanLuongTacDungBTKenhGiao, 2)}
+                  {renderSummaryCell(sumRow.sanLuongTacDungTongKenhGiao, true)}
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={3} align='right'>
-                  {formatNumber(total.sanLuongTacDungCDKenhGiao, 2)}
+                  {renderSummaryCell(sumRow.sanLuongTacDungBTKenhGiao)}
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={4} align='right'>
-                  {formatNumber(total.sanLuongTacDungTDKenhGiao, 2)}
+                  {renderSummaryCell(sumRow.sanLuongTacDungCDKenhGiao)}
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={5} align='right'>
-                  {formatNumber(total.sanLuongPhanKhangTongKenhGiao, 2)}
+                  {renderSummaryCell(sumRow.sanLuongTacDungTDKenhGiao)}
                 </Table.Summary.Cell>
-
-                {/* Kênh Nhận */}
                 <Table.Summary.Cell index={6} align='right'>
-                  <Text strong className='text-emerald-700'>
-                    {formatNumber(total.sanLuongTacDungTongKenhNhan, 2)}
-                  </Text>
+                  {renderSummaryCell(sumRow.sanLuongPhanKhangTongKenhGiao)}
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={7} align='right'>
-                  {formatNumber(total.sanLuongTacDungBTKenhNhan, 2)}
+                  {renderSummaryCell(sumRow.sanLuongTacDungTongKenhNhan, true)}
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={8} align='right'>
-                  {formatNumber(total.sanLuongTacDungCDKenhNhan, 2)}
+                  {renderSummaryCell(sumRow.sanLuongTacDungBTKenhNhan)}
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={9} align='right'>
-                  {formatNumber(total.sanLuongTacDungTDKenhNhan, 2)}
+                  {renderSummaryCell(sumRow.sanLuongTacDungCDKenhNhan)}
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={10} align='right'>
-                  {formatNumber(total.sanLuongPhanKhangTongKenhNhan, 2)}
+                  {renderSummaryCell(sumRow.sanLuongTacDungTDKenhNhan)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={11} align='right'>
+                  {renderSummaryCell(sumRow.sanLuongPhanKhangTongKenhNhan)}
+                </Table.Summary.Cell>
+              </Table.Summary.Row>
+
+              {/* Dòng 2: Min (Đơn sắc) */}
+              <Table.Summary.Row className='bg-gray-50/80 font-medium'>
+                <Table.Summary.Cell index={0} align='center'>
+                  <span className='font-semibold text-gray-700'>Min</span>
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={1} align='center'>
+                  <div className='text-gray-400 text-center select-none'>-</div>
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={2} align='right'>
+                  {renderSummaryCell(minRow.sanLuongTacDungTongKenhGiao, true)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={3} align='right'>
+                  {renderSummaryCell(minRow.sanLuongTacDungBTKenhGiao)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={4} align='right'>
+                  {renderSummaryCell(minRow.sanLuongTacDungCDKenhGiao)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={5} align='right'>
+                  {renderSummaryCell(minRow.sanLuongTacDungTDKenhGiao)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={6} align='right'>
+                  {renderSummaryCell(minRow.sanLuongPhanKhangTongKenhGiao)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={7} align='right'>
+                  {renderSummaryCell(minRow.sanLuongTacDungTongKenhNhan, true)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={8} align='right'>
+                  {renderSummaryCell(minRow.sanLuongTacDungBTKenhNhan)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={9} align='right'>
+                  {renderSummaryCell(minRow.sanLuongTacDungCDKenhNhan)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={10} align='right'>
+                  {renderSummaryCell(minRow.sanLuongTacDungTDKenhNhan)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={11} align='right'>
+                  {renderSummaryCell(minRow.sanLuongPhanKhangTongKenhNhan)}
+                </Table.Summary.Cell>
+              </Table.Summary.Row>
+
+              {/* Dòng 3: Max (Đơn sắc) */}
+              <Table.Summary.Row className='bg-gray-50/80 font-medium'>
+                <Table.Summary.Cell index={0} align='center'>
+                  <span className='font-semibold text-gray-700'>Max</span>
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={1} align='center'>
+                  <div className='text-gray-400 text-center select-none'>-</div>
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={2} align='right'>
+                  {renderSummaryCell(maxRow.sanLuongTacDungTongKenhGiao, true)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={3} align='right'>
+                  {renderSummaryCell(maxRow.sanLuongTacDungBTKenhGiao)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={4} align='right'>
+                  {renderSummaryCell(maxRow.sanLuongTacDungCDKenhGiao)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={5} align='right'>
+                  {renderSummaryCell(maxRow.sanLuongTacDungTDKenhGiao)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={6} align='right'>
+                  {renderSummaryCell(maxRow.sanLuongPhanKhangTongKenhGiao)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={7} align='right'>
+                  {renderSummaryCell(maxRow.sanLuongTacDungTongKenhNhan, true)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={8} align='right'>
+                  {renderSummaryCell(maxRow.sanLuongTacDungBTKenhNhan)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={9} align='right'>
+                  {renderSummaryCell(maxRow.sanLuongTacDungCDKenhNhan)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={10} align='right'>
+                  {renderSummaryCell(maxRow.sanLuongTacDungTDKenhNhan)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={11} align='right'>
+                  {renderSummaryCell(maxRow.sanLuongPhanKhangTongKenhNhan)}
                 </Table.Summary.Cell>
               </Table.Summary.Row>
             </Table.Summary>

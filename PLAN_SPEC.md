@@ -757,4 +757,100 @@ Thay vì bố trí dàn trải 5 menu con rời rạc như hiện tại, cấu t
    - Backend `dotnet build Backend/WebApi/WebApi.csproj`: **0 Error(s)**.
    - Frontend `npm run build:dev` (`tsc && vite build`): **0 Error(s)**.
 
+---
+
+## 26. ĐẶC TẢ KỸ THUẬT: ĐỒNG NHẤT TÊN FILE XUẤT, CHUẨN HÓA BẢNG EXCEL & BẢO TOÀN ĐIỂM ĐO MẤT KẾT NỐI (PHASE 12)
+
+### 26.1. Đồng nhất Tên File Xuất Excel / CSV
+- **Thông số tổng hợp**: Tên tệp xuất chuẩn là `ThongSoTongHop.xlsx` (áp dụng cho cả xuất trang hiện tại và xuất tất cả).
+- **Danh sách sự kiện**: Tên tệp xuất chuẩn là `DanhSachSukien.xlsx` (trước đây là `sukien`).
+- **Danh sách cảnh báo**: Tên tệp xuất chuẩn là `DanhSachCanhBao.xlsx` (trước đây là `canhbao`).
+- **Quản lý sổ GCS**: Tên tệp xuất chuẩn là `DanhSachSoGCS.xlsx` (trước đây là `DanhSachLienKetDuLieu`).
+
+### 26.2. Hiệu chỉnh Cột Giá Trị Boolean cho Sự Kiện & Cảnh Báo
+- **Bản chất dữ liệu**: Trạng thái cảnh báo/sự kiện là giá trị logic nhị phân (`Boolean` / `ALARM` - `NORMAL`).
+- **Quy tắc hiển thị**:
+  * Khi cảnh báo tích cực (`True` / `1` / `ALARM`): Hiển thị giá trị nguyên `1`.
+  * Khi cảnh báo bình thường (`False` / `0` / `NORMAL`): Hiển thị giá trị nguyên `0`.
+  * Tuyệt đối **không hiển thị dạng số thực thập phân** (`1.00` hay `0.00`).
+- **Cấu hình trên ExcelJS**:
+  * Gán cấu hình cột `numFmt: '0'`, căn giữa `align: 'center'`.
+  * Trong [excelHelper.ts](file:///e:/sources/MDMSv2/Frontend/src/infrastructure/utils/excelHelper.ts), tự động chuyển đổi các biến thể Boolean (`true`, `"True"`, `"true"`, `1`, `"1"`) thành số nguyên `1` và ngược lại thành `0`.
+
+### 26.3. Đồng nhất Giao diện Cột Bảng Excel với Hiển thị Web
+- **Bảng Thông số tổng hợp**: Cấu trúc 10 cột khớp 100% giao diện Web:
+  `STT`, `Mã điểm đo`, `Tên khách hàng`, `Kết nối`, `U`, `I`, `P`, `Q`, `PF`, `F` (loại bỏ cột "Mô tả điểm đo" và "Mã KH" vốn không có trên Web).
+- **Bảng Sự kiện & Cảnh báo**: Bổ sung cột `STT`, tách cột "Nguồn" thành 2 cột độc lập: `Mã điểm đo` và `Tên khách hàng`.
+
+### 26.4. Bảo Toàn Điểm Đo Mất Kết Nối (> 2h Không Cập Nhật Dữ Liệu)
+- **Vấn đề**: Truy vấn cũ trong `MeasurementPointMonitoringReadOnlyRepository.cs` sử dụng điều kiện cứng `Where(x => x.CreatedTime >= DateTime.UtcNow.AddHours(-2))` trên bảng monitoring log. Khi điểm đo bị mất kết nối quá 2 giờ không gửi dữ liệu mới, điểm đo bị biến mất hoàn toàn khỏi danh sách giám sát và trang chi tiết, gây hiểu lầm cho người vận hành.
+- **Giải pháp**:
+  * Xuất phát truy vấn từ bảng gốc `_measurementPointsEntities` (Active points) để danh sách điểm đo luôn đầy đủ 100%.
+  * Lấy thông số vận hành mới nhất theo `MaxGroupId` của điểm đo (Last Known Values).
+  * Nếu thời điểm đo đếm lần cuối cách hiện tại quá 2 giờ (`latestTime < DateTimeOffset.UtcNow.AddHours(-2)`): Tự động đánh dấu cờ `MatKetNoi = true` ("Mất kết nối") nhưng vẫn giữ nguyên điểm đo trong danh sách và hiển thị các thông số đo được tại thời điểm gần nhất.
+  * Trong trang Chi tiết (`GetMeasurementPointDetailAsync` và `GetMeasurementPointDetailByIoTAsync`): Bỏ bộ lọc cứng `-2h`, truy vấn theo `latestGroupId` gần nhất để người vận hành luôn theo dõi được thông số ghi nhận lần cuối của điểm đo bị mất kết nối.
+
+---
+
+## 27. DANH SÁCH CÔNG VIỆC PHASE 12 (TASK BREAKDOWN)
+- [x] **Task 14.1**: [Frontend/Export] Đổi tên tệp xuất trong [summary-parameter/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/point-monitoring/summary-parameter/index.tsx) (`ThongSoTongHop`), [point-event/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/point-monitoring/point-event/index.tsx) (`DanhSachSukien`), [point-warning/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/point-monitoring/point-warning/index.tsx) (`DanhSachCanhBao`), [gcs-management/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/gcs-management/index.tsx) (`DanhSachSoGCS`).
+- [x] **Task 14.2**: [Frontend/Export] Đồng bộ cấu trúc 10 cột `summaryParams` và định dạng `numFmt: '0'` cho `warningParams`, `eventParams` trong [constants.ts](file:///e:/sources/MDMSv2/Frontend/src/core/application/common/constants.ts).
+- [x] **Task 14.3**: [Frontend/Utils] Xử lý chuyển đổi Boolean sang `1` / `0` chuẩn và định dạng `numFmt: '0'` trong [excelHelper.ts](file:///e:/sources/MDMSv2/Frontend/src/infrastructure/utils/excelHelper.ts).
+- [x] **Task 14.4**: [Backend/Repository] Cải tiến [MeasurementPointMonitoringReadOnlyRepository.cs](file:///e:/sources/MDMSv2/Backend/Infrastructure/Repositories/ReadOnly/MeasurementPointMonitoringReadOnlyRepository.cs) bảo toàn điểm đo mất kết nối > 2h với Last Known Values và cờ `MatKetNoi = true` cho cả màn hình danh sách và màn hình chi tiết.
+- [x] **Task 14.5**: [Backend/Repository] Đồng bộ header xuất CSV trong [MeasurementPointAlertReadOnlyRepository.cs](file:///e:/sources/MDMSv2/Backend/Infrastructure/Repositories/ReadOnly/MeasurementPointAlertReadOnlyRepository.cs) và [MeasurementPointEventReadOnlyRepository.cs](file:///e:/sources/MDMSv2/Backend/Infrastructure/Repositories/ReadOnly/MeasurementPointEventReadOnlyRepository.cs).
+- [x] **Task 14.6**: [QA & Review] Biên dịch hoàn tất 100% Backend (.NET 8: 0 Errors) và Frontend (Vite + TypeScript: 0 Errors).
+
+---
+
+## 28. ĐẶC TẢ KỸ THUẬT: HIỂN THỊ KẾT NỐI KHI CHƯA CÓ DỮ LIỆU & ĐỊNH DẠNG SỐ NGUYÊN CỘT "SỐ KÌ" SỔ GCS (PHASE 13)
+
+### 28.1. Xử Lý Cột "Kết Nối" Cho Điểm Đo Chưa Từng Gửi Dữ Liệu ("Thông Số Tổng Hợp")
+- **Ngữ cảnh**: Điểm đo đã được cấu hình liên kết dữ liệu thành công, nhưng Rest API chưa bao giờ gửi bất kỳ bản ghi đo đếm ($U, I, P, Q, PF, F$) hay tín hiệu trạng thái kết nối nào về hệ thống.
+- **Bất cập trước đó**:
+  * Các cột $U, I, P, Q, PF, F$ hiển thị dấu gạch ngang `'-'`.
+  * Cột "Kết nối" lại hiển thị "Bình thường" do logic fallback coi `isLost == false` (hoặc `dto.MatKetNoi == null`/`false` dẫn đến hiển thị "Bình thường"). Điều này gây hiểu lầm cho người vận hành rằng điểm đo đang kết nối tốt trong khi thực tế chưa từng có luồng dữ liệu nào truyền về.
+- **Giải pháp chuẩn hóa**:
+  * Xác định cờ kiểm tra dữ liệu: `hasData = !(U == null && I == null && P == null && Q == null && PF == null && F == null)`.
+  * Nếu điểm đo chưa từng có dữ liệu đo đếm (`!hasData`) và cũng không có tín hiệu trạng thái kết nối từ Rest API:
+    - **Cột Kết nối**: Hiển thị dấu gạch ngang **`'-'`** (đồng bộ với các cột thông số đo đếm còn lại).
+    - Áp dụng thống nhất trên:
+      1. Giao diện Web [table-point.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/point-monitoring/summary-parameter/components/table-point.tsx).
+      2. Dữ liệu xuất Excel Client-side [summary-parameter/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/point-monitoring/summary-parameter/index.tsx).
+      3. Dịch vụ xuất CSV & PDF Server-side [MeasurementPointMonitoringReadOnlyRepository.cs](file:///e:/sources/MDMSv2/Backend/Infrastructure/Repositories/ReadOnly/MeasurementPointMonitoringReadOnlyRepository.cs) (`dto.MatKetNoi = null` khi chưa có dữ liệu và ghi ra `"-"`).
+
+### 28.2. Định Dạng Số Nguyên Cho Cột "Số Kì" Trong File Excel "Quản Lý Sổ GCS"
+- **Ngữ cảnh**: Trong màn hình "Quản lý sổ GCS", khi xuất file Excel `DanhSachSoGCS.xlsx`, cột "Số kì" (`periodNumber`) đang hiển thị số thực có phần thập phân dạng `1.00`, `3.00`.
+- **Yêu cầu**: Cột "Số kì" là số nguyên đếm chu kỳ ghi chỉ số trong tháng (Kỳ 1, Kỳ 2, Kỳ 3), do đó phải hiển thị chính xác là **`1`**, **`3`**, không có phần thập phân.
+- **Giải pháp kỹ thuật**:
+  1. Cập nhật cấu hình metadata cột trong [constants.ts](file:///e:/sources/MDMSv2/Frontend/src/core/application/common/constants.ts):
+     - Gán `numFmt: '0'`, `align: 'center'`, điều chỉnh độ rộng cột `width: 10`.
+  2. Bổ sung quy tắc trong [excelHelper.ts](file:///e:/sources/MDMSv2/Frontend/src/infrastructure/utils/excelHelper.ts):
+     - Nhận diện cột `periodNumber`, `'số kì'`, `'số kỳ'` là cột số nguyên `isIntegerCol`.
+     - Ép kiểu giá trị sang số nguyên `Math.round(val)` hoặc `parseInt(val, 10)` và thiết lập định dạng ô `cell.numFmt = '0'` kèm căn giữa.
+  3. Hoàn thiện truyền thuộc tính `activeMsg` và `inactiveMsg` từ `listHeader` sang `ExcelColumn` trong [dialog-export.tsx](file:///e:/sources/MDMSv2/Frontend/src/infrastructure/common/components/dialog-export/dialog-export.tsx) để hỗ trợ xuất đúng nhãn trạng thái ("Đang mở" / "Đã đóng", "Đang sử dụng" / "Ngừng sử dụng").
+
+### 28.3. Khắc Phục Lỗi Lệch Cột Trong File Excel / CSV "Thông Số Tổng Hợp"
+- **Nguyên nhân**: Trong [MeasurementPointMonitoringReadOnlyRepository.cs](file:///e:/sources/MDMSv2/Backend/Infrastructure/Repositories/ReadOnly/MeasurementPointMonitoringReadOnlyRepository.cs), phương thức `ExportCsvMeasurementPointsMonitoringAsync` khai báo 10 tiêu đề cột (`STT`, `Mã điểm đo`, `Tên khách hàng`, `Kết nối`, `U`, `I`, `P`, `Q`, `PF`, `F`), nhưng trong vòng lặp ghi dòng dữ liệu (`csvWriter`) bị **bỏ quên trường `customer.CustomerName`** (chỉ ghi 9 trường: `STT`, `Mã điểm đo`, `Kết nối`, `U`, `I`, `P`, `Q`, `PF`, `F`).
+- **Hệ quả**: Toàn bộ dữ liệu từ cột thứ 3 bị dịch chuyển sang trái 1 cột:
+  * Trạng thái "Kết nối" ("Bình thường") rơi vào cột "Tên khách hàng".
+  * Điện áp U rơi vào cột "Kết nối".
+  * Dòng điện I rơi vào cột U... và cột F ngoài cùng bên phải bị trống.
+- **Khắc phục**:
+  1. Thêm `csvWriter.WriteField(customer.CustomerName ?? "");` vào vị trí trường thứ 3 trong `ExportCsvMeasurementPointsMonitoringAsync`.
+  2. Đồng bộ bảng PDF trong `ExportPdfMeasurementPointsMonitoringAsync` đúng 10 cột khớp 100% với Web và Excel.
+
+---
+
+## 29. DANH SÁCH CÔNG VIỆC PHASE 13 (TASK BREAKDOWN)
+- [x] **Task 15.1**: [Frontend/Constants] Cấu hình `numFmt: '0'`, `align: 'center'` cho cột `periodNumber` của `GcsManagement` trong [constants.ts](file:///e:/sources/MDMSv2/Frontend/src/core/application/common/constants.ts).
+- [x] **Task 15.2**: [Frontend/Utils] Cải tiến [excelHelper.ts](file:///e:/sources/MDMSv2/Frontend/src/infrastructure/utils/excelHelper.ts) hỗ trợ `numFmt: '0'`, `isIntegerCol` cho `periodNumber`, `activeMsg`/`inactiveMsg` cho trạng thái.
+- [x] **Task 15.3**: [Frontend/Components] Cập nhật [dialog-export.tsx](file:///e:/sources/MDMSv2/Frontend/src/infrastructure/common/components/dialog-export/dialog-export.tsx) chuyển tiếp `activeMsg` & `inactiveMsg`.
+- [x] **Task 15.4**: [Frontend/UI] Chuẩn hóa cột Kết nối trả về `'-'` khi `!hasMeasurementData` trong [table-point.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/point-monitoring/summary-parameter/components/table-point.tsx) và dữ liệu xuất Excel [summary-parameter/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/point-monitoring/summary-parameter/index.tsx).
+- [x] **Task 15.5**: [Backend/Repository] Cập nhật [MeasurementPointMonitoringReadOnlyRepository.cs](file:///e:/sources/MDMSv2/Backend/Infrastructure/Repositories/ReadOnly/MeasurementPointMonitoringReadOnlyRepository.cs):
+  * Thêm trường `customer.CustomerName` bị thiếu vào `csvWriter` (sửa triệt để lỗi lệch cột).
+  * Gán `MatKetNoi = null` khi không có `hasRealMeasurementData` ($U, I, P, Q, PF, F$), xuất ra `'-'` trong file CSV.
+- [x] **Task 15.6**: [QA & Build] Biên dịch kiểm tra: Backend .NET 8 (0 Errors) và Frontend React Vite (0 Errors).
+
+
+
 

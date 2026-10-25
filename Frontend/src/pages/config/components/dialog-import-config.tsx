@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import Constants from '@/core/application/common/constants';
 import { notifyError, notifySuccess } from '@/infrastructure/common/components/toast/toastMessage';
+import { convertExcelFileToCsvFile, downloadExcelTemplate } from '@/infrastructure/utils/excelHelper';
 
 const { Dragger } = Upload;
 const { Text } = Typography;
@@ -56,57 +57,50 @@ const DialogImportConfig = ({
     }
   };
 
-  const handleDownloadTemplate = () => {
-    const headers = [
-      'STT',
-      'Nhóm thông số',
-      'Tên thông số',
-      'Mã tham số',
-      'Tag ID',
-      'Đơn vị',
-      'Tên cảnh báo',
-    ];
+  const handleDownloadTemplate = async () => {
+    try {
+      const sampleRows = Constants.dataMeasurementPoint.allDataParams.map((param: any, idx: number) => {
+        const item = currentListTagName?.find((t: any) => t.description === param.value) || {};
+        const groupName = getGroupName(param.type);
+        const label = param.label || '';
+        const code = param.value || '';
+        const tagId = item.tagName || '';
+        const unit = item.unit || (param.unit && param.unit.length > 0 ? param.unit[0].value : '');
+        const customName = item.customName || '';
 
-    const escapeCsv = (str: string) => {
-      if (!str) return '""';
-      return `"${str.toString().replace(/"/g, '""')}"`;
-    };
+        return {
+          stt: idx + 1,
+          groupName,
+          label,
+          code,
+          tagId,
+          unit,
+          customName,
+        };
+      });
 
-    const rows = Constants.dataMeasurementPoint.allDataParams.map((param: any, idx: number) => {
-      const item = currentListTagName?.find((t: any) => t.description === param.value) || {};
-      const groupName = getGroupName(param.type);
-      const label = param.label || '';
-      const code = param.value || '';
-      const tagId = item.tagName || '';
-      const unit = item.unit || (param.unit && param.unit.length > 0 ? param.unit[0].value : '');
-      const customName = item.customName || '';
-
-      return [
-        idx + 1,
-        escapeCsv(groupName),
-        escapeCsv(label),
-        escapeCsv(code),
-        escapeCsv(tagId),
-        escapeCsv(unit),
-        escapeCsv(customName),
-      ].join(',');
-    });
-
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `Template_LienKetDuLieu_${pointCode || 'DiemDo'}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      await downloadExcelTemplate(
+        `Template_LienKetDuLieu_${pointCode || 'DiemDo'}.xlsx`,
+        'LienKetDuLieu',
+        [
+          { header: 'STT', key: 'stt', width: 8 },
+          { header: 'Nhóm thông số', key: 'groupName', width: 22 },
+          { header: 'Tên thông số', key: 'label', width: 26 },
+          { header: 'Mã tham số', key: 'code', width: 20 },
+          { header: 'Tag ID', key: 'tagId', width: 26 },
+          { header: 'Đơn vị', key: 'unit', width: 14 },
+          { header: 'Tên cảnh báo', key: 'customName', width: 26 },
+        ],
+        sampleRows
+      );
+    } catch (err: any) {
+      notifyError(err, 'Lỗi khi tải tệp mẫu Excel!');
+    }
   };
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (fileList.length === 0) {
-      notifyError('', 'Vui lòng chọn tệp CSV trước khi nhập!');
+      notifyError('', 'Vui lòng chọn tệp Excel trước khi nhập!');
       return;
     }
 
@@ -118,15 +112,17 @@ const DialogImportConfig = ({
     }
 
     setLoading(true);
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const text = evt.target?.result as string;
-        if (!text) {
-          notifyError('', 'File rỗng!');
-          setLoading(false);
-          return;
-        }
+    try {
+      const fileToSend = await convertExcelFileToCsvFile(file);
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const text = evt.target?.result as string;
+          if (!text) {
+            notifyError('', 'File rỗng!');
+            setLoading(false);
+            return;
+          }
 
         const rawLines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
         if (rawLines.length <= 1) {
@@ -245,10 +241,10 @@ const DialogImportConfig = ({
         onSuccess(currentList);
         notifySuccess(
           '',
-          `Đã nhập cấu hình từ file CSV (${updatedCount} tham số). Vui lòng nhấn "Lưu" để hoàn tất.`
+          `Đã nhập cấu hình từ file Excel (${updatedCount} tham số). Vui lòng nhấn "Lưu" để hoàn tất.`
         );
       } catch (err: any) {
-        notifyError('', 'Lỗi khi đọc file CSV: ' + (err.message || ''));
+        notifyError('', 'Lỗi khi đọc file: ' + (err.message || ''));
       } finally {
         setLoading(false);
       }
@@ -257,12 +253,16 @@ const DialogImportConfig = ({
       notifyError('', 'Lỗi khi đọc file!');
       setLoading(false);
     };
-    reader.readAsText(file, 'utf-8');
+    reader.readAsText(fileToSend, 'utf-8');
+    } catch (parseErr: any) {
+      setLoading(false);
+      notifyError(parseErr, 'Không thể đọc tệp Excel. Vui lòng kiểm tra định dạng tệp!');
+    }
   };
 
   return (
     <Modal
-      title='Nhập cấu hình liên kết dữ liệu từ CSV'
+      title='Nhập cấu hình liên kết dữ liệu từ Excel'
       open={open}
       onCancel={handleClose}
       width={720}
@@ -292,31 +292,35 @@ const DialogImportConfig = ({
         />
 
         <div className='flex justify-between items-center'>
-          <Text type='secondary'>Chỉ hỗ trợ tệp định dạng .csv (UTF-8)</Text>
+          <Text type='secondary'>Hỗ trợ tệp định dạng .xlsx, .xls hoặc .csv (Ưu tiên Excel)</Text>
           <Button
             icon={<DownloadOutlined />}
             size='small'
             type='dashed'
             onClick={handleDownloadTemplate}
           >
-            Tải tệp mẫu CSV
+            Tải tệp mẫu Excel (.xlsx)
           </Button>
         </div>
 
         {!result ? (
           <Dragger
             name='file'
-            accept='.csv'
+            accept='.xlsx,.xls,.csv'
             maxCount={1}
             fileList={fileList}
             beforeUpload={(file) => {
               const fileName = file.name.toLowerCase();
-              const isCsv =
+              const isExcelOrCsv =
+                fileName.endsWith('.xlsx') ||
+                fileName.endsWith('.xls') ||
                 fileName.endsWith('.csv') ||
                 file.type === 'text/csv' ||
-                file.type === 'application/vnd.ms-excel';
-              if (!isCsv) {
-                notifyError('', 'Chỉ chấp nhận tệp định dạng .csv!');
+                file.type === 'application/vnd.ms-excel' ||
+                file.type ===
+                  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+              if (!isExcelOrCsv) {
+                notifyError('', 'Chỉ chấp nhận tệp định dạng Excel (.xlsx, .xls) hoặc .csv!');
                 return Upload.LIST_IGNORE;
               }
               setFileList([file]);
@@ -332,8 +336,8 @@ const DialogImportConfig = ({
             <p className='ant-upload-drag-icon'>
               <InboxOutlined />
             </p>
-            <p className='ant-upload-text'>Kéo thả tệp CSV vào đây hoặc bấm để chọn tệp</p>
-            <p className='ant-upload-hint'>Hỗ trợ phân cách dấu phẩy (,) hoặc chấm phẩy (;)</p>
+            <p className='ant-upload-text'>Kéo thả tệp Excel (.xlsx) vào đây hoặc bấm để chọn tệp</p>
+            <p className='ant-upload-hint'>Hỗ trợ bảng tính Microsoft Excel (.xlsx, .xls) và .csv</p>
           </Dragger>
         ) : (
           <div className='flex flex-col gap-3'>

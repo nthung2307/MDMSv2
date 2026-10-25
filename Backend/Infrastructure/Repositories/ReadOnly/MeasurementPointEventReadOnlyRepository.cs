@@ -196,8 +196,9 @@ public class MeasurementPointEventReadOnlyRepository : RestfulRepository<Measure
         // Write headers
         csvWriter.WriteField("STT");
         csvWriter.WriteField("Thời gian");
-        csvWriter.WriteField("Nguồn");
-        csvWriter.WriteField("Tên cảnh báo");
+        csvWriter.WriteField("Mã điểm đo");
+        csvWriter.WriteField("Tên khách hàng");
+        csvWriter.WriteField("Tên sự kiện");
         csvWriter.WriteField("Trạng thái");
         csvWriter.WriteField("Giá trị");
         await csvWriter.NextRecordAsync();
@@ -208,10 +209,11 @@ public class MeasurementPointEventReadOnlyRepository : RestfulRepository<Measure
             var customer = query[i];
             csvWriter.WriteField(i + 1);
             csvWriter.WriteField(customer.CreatedTime.AddHours(7).ToString("dd/MM/yyyy HH:mm:ss"));
-            csvWriter.WriteField(customer.MeasurementPoint.Code + " - " + customer.MeasurementPoint.Customer.FullName);
-            csvWriter.WriteField(customer.EventName);
+            csvWriter.WriteField(customer.MeasurementPoint?.Code ?? "");
+            csvWriter.WriteField(customer.MeasurementPoint?.Customer?.FullName ?? "");
+            csvWriter.WriteField(customer.EventName ?? "");
             csvWriter.WriteField(customer.Status == "ALARM" ? "Alarm" : "Normal");
-            csvWriter.WriteField(customer.Value == "True" ? "1" : "0");
+            csvWriter.WriteField(customer.Value == "True" || customer.Value == "1" ? "1" : "0");
             await csvWriter.NextRecordAsync();
         }
         await streamWriter.FlushAsync(cancellationToken);

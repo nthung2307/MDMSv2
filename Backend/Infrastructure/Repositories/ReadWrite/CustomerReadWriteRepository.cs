@@ -147,12 +147,59 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
         return document.GeneratePdf();
     }
 
-    public async Task<byte[]> GenerateCustomerCsv(CancellationToken cancellationToken)
+    public Task<byte[]> GenerateCustomerCsv(CancellationToken cancellationToken)
+    {
+        return GenerateCustomerCsv(null, cancellationToken);
+    }
+
+    public async Task<byte[]> GenerateCustomerCsv(ExportCustomerCsvRequest? request, CancellationToken cancellationToken)
     {
         using var memoryStream = new MemoryStream();
         await using var streamWriter = new StreamWriter(memoryStream, new UTF8Encoding(true));
-        var query = await _customerEntities.AsNoTracking()
+        var query = _customerEntities.AsNoTracking()
             .Where(x => !x.Deleted)
+            .AsQueryable();
+
+        if (request != null)
+        {
+            if (!string.IsNullOrWhiteSpace(request.CustomerCode))
+            {
+                var code = request.CustomerCode.Trim().ToLower();
+                query = query.Where(x => x.CustomerCode.ToLower().Contains(code) || x.FullName.ToLower().Contains(code));
+            }
+            else if (!string.IsNullOrWhiteSpace(request.Code))
+            {
+                var code = request.Code.Trim().ToLower();
+                query = query.Where(x => x.CustomerCode.ToLower().Contains(code) || x.FullName.ToLower().Contains(code));
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.Status))
+            {
+                var status = request.Status.Trim();
+                query = query.Where(x => x.Status == status);
+            }
+
+            if (request.SearchByFields != null && request.SearchByFields.Count > 0)
+            {
+                foreach (var searchField in request.SearchByFields)
+                {
+                    if ((searchField.SearchFieldName.Equals("customerCode", StringComparison.OrdinalIgnoreCase) ||
+                         searchField.SearchFieldName.Equals("code", StringComparison.OrdinalIgnoreCase)) &&
+                        !string.IsNullOrWhiteSpace(searchField.SearchValue))
+                    {
+                        var codeVal = searchField.SearchValue.Trim().ToLower();
+                        query = query.Where(x => x.CustomerCode.ToLower().Contains(codeVal) || x.FullName.ToLower().Contains(codeVal));
+                    }
+                    else if (searchField.SearchFieldName.Equals("status", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(searchField.SearchValue))
+                    {
+                        var statusVal = searchField.SearchValue.Trim();
+                        query = query.Where(x => x.Status == statusVal);
+                    }
+                }
+            }
+        }
+
+        var customers = await query
             .OrderBy(x => x.Id)
             .ToListAsync(cancellationToken);
 
@@ -168,9 +215,9 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
         await csvWriter.NextRecordAsync();
 
         // Write rows
-        for (var i = 0; i < query.Count; i++)
+        for (var i = 0; i < customers.Count; i++)
         {
-            var customer = query[i];
+            var customer = customers[i];
             csvWriter.WriteField(i + 1);
             csvWriter.WriteField(customer.FullName);
             csvWriter.WriteField(customer.CustomerCode);

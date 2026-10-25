@@ -185,14 +185,14 @@ public class UserController : ControllerBase
     [HttpPost]
     [Route(Common.Url.Default.Account.ExportCsv)]
     // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
-    public async Task<IActionResult> ExportCsvAccountsAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> ExportCsvAccountsAsync([FromBody] ExportUserCsvRequest? request, CancellationToken cancellationToken)
     {
         try
         {
-            var csvData = await _userReadWriteRepository.GenerateCustomerCsv(cancellationToken);
+            var csvData = await _userReadWriteRepository.GenerateCustomerCsv(request, cancellationToken);
             return File(
                 fileContents: csvData,
-                contentType: "application/octet-stream; charset=utf-8",
+                contentType: "text/csv; charset=utf-8",
                 fileDownloadName: $"Export-User-{DateTime.Now:s}.csv");
         }
         catch (Exception e)

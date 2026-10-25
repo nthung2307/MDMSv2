@@ -6,6 +6,7 @@ import { IoBackspaceOutline, IoSearch } from 'react-icons/io5';
 import { useSearchParams } from 'react-router-dom';
 
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
+import { Endpoint } from '@/core/application/common/endPoint.ts';
 import { GetListCustomerRequest } from '@/core/application/dto/customer/request/GetListCustomerRequest.ts';
 import { GetListMeasurementPointsRequest } from '@/core/application/dto/measurement-point/requests/GetListMeasurementPointsRequest.ts';
 import {
@@ -24,6 +25,7 @@ import { useStateDataForm } from '@/infrastructure/common/libs/hooks/useStateDat
 import useGetListCustomerForReportHook from '@/infrastructure/repository/customer/hooks/useGetCustomerListForReport.hook.tsx';
 import useGetListMeasurementPointsForReportHook from '@/infrastructure/repository/measurement-point/hooks/useGetListMeasurementPointsForReport.hook.tsx';
 import useGetEnergyConsumptionReportHook from '@/infrastructure/repository/reports/hooks/useGetEnergyConsumptionReport.hook.ts';
+import { ChartSheetItem } from '@/infrastructure/utils/excelHelper';
 import { _t } from '@/infrastructure/utils/translation.ts';
 import EnergyConsumptionChart from '@/pages/reports/electricity-consumption/components/energy-consumption-chart.tsx';
 import EnergyConsumptionTable from '@/pages/reports/electricity-consumption/components/energy-consumption-table.tsx';
@@ -37,7 +39,7 @@ const ElectricityConsumption = () => {
 
   const [cycleType, setCycleType] = useState<'HALF_HOUR' | 'MONTHLY' | 'YEARLY'>(initialCycle);
   const [viewMode, setViewMode] = useState<'table' | 'chart'>(initialView);
-  const [compareWithPrevious, setCompareWithPrevious] = useState<boolean>(true);
+  const compareWithPrevious = cycleType === 'YEARLY';
 
   const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs>(dayjs());
   const [selectedMonth, setSelectedMonth] = useState<dayjs.Dayjs>(dayjs());
@@ -46,6 +48,25 @@ const ElectricityConsumption = () => {
   const [reportData, setReportData] = useState<EnergyConsumptionReportResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [isShowExport, setIsShowExport] = useState<boolean>(false);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+
+  const energyConsumptionHeaders = useMemo(
+    () => [
+      { label: 'STT', attr: 'stt', width: 7, align: 'center' as const, numFmt: '0' },
+      { label: 'Thời gian', attr: 'timeLabel', width: 18, align: 'center' as const },
+      { label: 'Kênh giao (kWh) - Tổng', attr: 'sanLuongTacDungTongKenhGiao', width: 15, align: 'right' as const, numFmt: '#,##0' },
+      { label: 'Kênh giao (kWh) - Biểu 1 (BT)', attr: 'sanLuongTacDungBTKenhGiao', width: 15, align: 'right' as const, numFmt: '#,##0' },
+      { label: 'Kênh giao (kWh) - Biểu 2 (CD)', attr: 'sanLuongTacDungCDKenhGiao', width: 15, align: 'right' as const, numFmt: '#,##0' },
+      { label: 'Kênh giao (kWh) - Biểu 3 (TD)', attr: 'sanLuongTacDungTDKenhGiao', width: 15, align: 'right' as const, numFmt: '#,##0' },
+      { label: 'Kênh giao (kWh) - VC (kVArh)', attr: 'sanLuongPhanKhangTongKenhGiao', width: 15, align: 'right' as const, numFmt: '#,##0' },
+      { label: 'Kênh nhận (kWh) - Tổng', attr: 'sanLuongTacDungTongKenhNhan', width: 15, align: 'right' as const, numFmt: '#,##0' },
+      { label: 'Kênh nhận (kWh) - Biểu 1 (BT)', attr: 'sanLuongTacDungBTKenhNhan', width: 15, align: 'right' as const, numFmt: '#,##0' },
+      { label: 'Kênh nhận (kWh) - Biểu 2 (CD)', attr: 'sanLuongTacDungCDKenhNhan', width: 15, align: 'right' as const, numFmt: '#,##0' },
+      { label: 'Kênh nhận (kWh) - Biểu 3 (TD)', attr: 'sanLuongTacDungTDKenhNhan', width: 15, align: 'right' as const, numFmt: '#,##0' },
+      { label: 'Kênh nhận (kWh) - VC (kVArh)', attr: 'sanLuongPhanKhangTongKenhNhan', width: 15, align: 'right' as const, numFmt: '#,##0' },
+    ],
+    []
+  );
 
   const [getListCustomerRequest] = useGetListCustomerForReportHook();
   const [getListMeasurementPointRequest] = useGetListMeasurementPointsForReportHook();
@@ -234,9 +255,20 @@ const ElectricityConsumption = () => {
   };
 
   const fileNameBuilder = () => {
-    const customer = listCustomer?.find((c: any) => c.value === dataForm?.customerCode)?.label || '';
-    const point = listMeasurementPoint?.find((p: any) => p.value === dataForm?.monitorPoint)?.label || '';
-    return `Bao_cao_san_luong_${cycleType}_${customer}_${point}`;
+    const point =
+      listMeasurementPoint?.find((p: any) => p.value === dataForm?.monitorPoint)?.label ||
+      dataForm?.monitorPoint ||
+      '';
+    const pointPart = point ? `_${point}` : '';
+    let dateStr = '';
+    if (cycleType === 'HALF_HOUR') {
+      dateStr = selectedDate.format('YYYYMMDD');
+    } else if (cycleType === 'MONTHLY') {
+      dateStr = selectedMonth.format('YYYYMM');
+    } else {
+      dateStr = selectedYear.format('YYYY');
+    }
+    return `BaoCao_SanLuongDien${pointPart}_${dateStr}`;
   };
 
   const chartTitle = useMemo(() => {
@@ -276,6 +308,318 @@ const ElectricityConsumption = () => {
     selectedYear,
     compareWithPrevious,
   ]);
+
+  const exportDataSource = useMemo(() => {
+    if (!reportData?.items) return [];
+    return reportData.items.map((it, idx) => ({
+      stt: idx + 1,
+      timeLabel: it.timeLabel || '',
+      sanLuongTacDungTongKenhGiao:
+        it.sanLuongTacDungTongKenhGiao !== null && it.sanLuongTacDungTongKenhGiao !== undefined
+          ? Math.round(Number(it.sanLuongTacDungTongKenhGiao))
+          : '-',
+      sanLuongTacDungBTKenhGiao:
+        it.sanLuongTacDungBTKenhGiao !== null && it.sanLuongTacDungBTKenhGiao !== undefined
+          ? Math.round(Number(it.sanLuongTacDungBTKenhGiao))
+          : '-',
+      sanLuongTacDungCDKenhGiao:
+        it.sanLuongTacDungCDKenhGiao !== null && it.sanLuongTacDungCDKenhGiao !== undefined
+          ? Math.round(Number(it.sanLuongTacDungCDKenhGiao))
+          : '-',
+      sanLuongTacDungTDKenhGiao:
+        it.sanLuongTacDungTDKenhGiao !== null && it.sanLuongTacDungTDKenhGiao !== undefined
+          ? Math.round(Number(it.sanLuongTacDungTDKenhGiao))
+          : '-',
+      sanLuongPhanKhangTongKenhGiao:
+        it.sanLuongPhanKhangTongKenhGiao !== null && it.sanLuongPhanKhangTongKenhGiao !== undefined
+          ? Math.round(Number(it.sanLuongPhanKhangTongKenhGiao))
+          : '-',
+      sanLuongTacDungTongKenhNhan:
+        it.sanLuongTacDungTongKenhNhan !== null && it.sanLuongTacDungTongKenhNhan !== undefined
+          ? Math.round(Number(it.sanLuongTacDungTongKenhNhan))
+          : '-',
+      sanLuongTacDungBTKenhNhan:
+        it.sanLuongTacDungBTKenhNhan !== null && it.sanLuongTacDungBTKenhNhan !== undefined
+          ? Math.round(Number(it.sanLuongTacDungBTKenhNhan))
+          : '-',
+      sanLuongTacDungCDKenhNhan:
+        it.sanLuongTacDungCDKenhNhan !== null && it.sanLuongTacDungCDKenhNhan !== undefined
+          ? Math.round(Number(it.sanLuongTacDungCDKenhNhan))
+          : '-',
+      sanLuongTacDungTDKenhNhan:
+        it.sanLuongTacDungTDKenhNhan !== null && it.sanLuongTacDungTDKenhNhan !== undefined
+          ? Math.round(Number(it.sanLuongTacDungTDKenhNhan))
+          : '-',
+      sanLuongPhanKhangTongKenhNhan:
+        it.sanLuongPhanKhangTongKenhNhan !== null && it.sanLuongPhanKhangTongKenhNhan !== undefined
+          ? Math.round(Number(it.sanLuongPhanKhangTongKenhNhan))
+          : '-',
+    }));
+  }, [reportData?.items]);
+
+  const exportSummaryRows = useMemo(() => {
+    if (!reportData?.items || reportData.items.length === 0) return [];
+
+    const keys: (keyof EnergyConsumptionItem)[] = [
+      'sanLuongTacDungTongKenhGiao',
+      'sanLuongTacDungBTKenhGiao',
+      'sanLuongTacDungCDKenhGiao',
+      'sanLuongTacDungTDKenhGiao',
+      'sanLuongPhanKhangTongKenhGiao',
+      'sanLuongTacDungTongKenhNhan',
+      'sanLuongTacDungBTKenhNhan',
+      'sanLuongTacDungCDKenhNhan',
+      'sanLuongTacDungTDKenhNhan',
+      'sanLuongPhanKhangTongKenhNhan',
+    ];
+
+    const sumRow: Record<string, any> = { stt: 'Tổng', timeLabel: '' };
+    const minRow: Record<string, any> = { stt: 'Min', timeLabel: '' };
+    const maxRow: Record<string, any> = { stt: 'Max', timeLabel: '' };
+
+    const total = reportData.total;
+
+    keys.forEach((key) => {
+      let sum = 0;
+      let count = 0;
+      let minVal = Infinity;
+      let maxVal = -Infinity;
+
+      reportData.items.forEach((it) => {
+        const v = it[key];
+        if (v !== undefined && v !== null && v !== '' && !isNaN(Number(v))) {
+          const n = Number(v);
+          sum += n;
+          count++;
+          if (n < minVal) minVal = n;
+          if (n > maxVal) maxVal = n;
+        }
+      });
+
+      if (count === 0) {
+        sumRow[key] = '-';
+        minRow[key] = '-';
+        maxRow[key] = '-';
+      } else {
+        if (
+          total &&
+          total[key] !== undefined &&
+          total[key] !== null &&
+          total[key] !== '' &&
+          !isNaN(Number(total[key]))
+        ) {
+          sumRow[key] = Math.round(Number(total[key]));
+        } else {
+          sumRow[key] = Math.round(sum);
+        }
+        minRow[key] = Math.round(minVal);
+        maxRow[key] = Math.round(maxVal);
+      }
+    });
+
+    return [sumRow, minRow, maxRow];
+  }, [reportData?.items, reportData?.total]);
+
+  const energyChartSheets = useMemo((): ChartSheetItem[] => {
+    if (!reportData?.items || reportData.items.length === 0) return [];
+    const items = reportData.items;
+    const labels = items.map((it) => it.timeLabel || '');
+
+    // Kênh giao
+    const b1Giao = items.map((it) => Math.round(Number(it.sanLuongTacDungBTKenhGiao || 0)));
+    const b2Giao = items.map((it) => Math.round(Number(it.sanLuongTacDungCDKenhGiao || 0)));
+    const b3Giao = items.map((it) => Math.round(Number(it.sanLuongTacDungTDKenhGiao || 0)));
+
+    const datasetsGiao: any[] = [
+      {
+        type: 'bar',
+        label: 'Biểu 1 (BT)',
+        data: b1Giao,
+        backgroundColor: 'rgba(59, 130, 246, 0.85)',
+        borderColor: 'rgb(59, 130, 246)',
+        borderWidth: 1,
+        stack: 'energyStack',
+      },
+      {
+        type: 'bar',
+        label: 'Biểu 2 (CD)',
+        data: b2Giao,
+        backgroundColor: 'rgba(239, 68, 68, 0.85)',
+        borderColor: 'rgb(239, 68, 68)',
+        borderWidth: 1,
+        stack: 'energyStack',
+      },
+      {
+        type: 'bar',
+        label: 'Biểu 3 (TD)',
+        data: b3Giao,
+        backgroundColor: 'rgba(16, 185, 129, 0.85)',
+        borderColor: 'rgb(16, 185, 129)',
+        borderWidth: 1,
+        stack: 'energyStack',
+      },
+    ];
+
+    if (compareWithPrevious) {
+      const prevDataGiao = items.map((it) =>
+        Math.round(Number(it.previousSanLuongTacDungTongKenhGiao || 0))
+      );
+      datasetsGiao.push({
+        type: 'line',
+        label: 'Cùng kỳ năm trước (Giao)',
+        data: prevDataGiao,
+        borderColor: 'rgb(245, 158, 11)',
+        backgroundColor: 'rgba(245, 158, 11, 0.2)',
+        borderWidth: 2,
+        borderDash: [5, 5],
+        pointRadius: 3,
+        fill: false,
+      });
+    }
+
+    // Kênh nhận
+    const b1Nhan = items.map((it) => Math.round(Number(it.sanLuongTacDungBTKenhNhan || 0)));
+    const b2Nhan = items.map((it) => Math.round(Number(it.sanLuongTacDungCDKenhNhan || 0)));
+    const b3Nhan = items.map((it) => Math.round(Number(it.sanLuongTacDungTDKenhNhan || 0)));
+
+    const datasetsNhan: any[] = [
+      {
+        type: 'bar',
+        label: 'Biểu 1 (BT)',
+        data: b1Nhan,
+        backgroundColor: 'rgba(59, 130, 246, 0.85)',
+        borderColor: 'rgb(59, 130, 246)',
+        borderWidth: 1,
+        stack: 'energyStack',
+      },
+      {
+        type: 'bar',
+        label: 'Biểu 2 (CD)',
+        data: b2Nhan,
+        backgroundColor: 'rgba(239, 68, 68, 0.85)',
+        borderColor: 'rgb(239, 68, 68)',
+        borderWidth: 1,
+        stack: 'energyStack',
+      },
+      {
+        type: 'bar',
+        label: 'Biểu 3 (TD)',
+        data: b3Nhan,
+        backgroundColor: 'rgba(16, 185, 129, 0.85)',
+        borderColor: 'rgb(16, 185, 129)',
+        borderWidth: 1,
+        stack: 'energyStack',
+      },
+    ];
+
+    if (compareWithPrevious) {
+      const prevDataNhan = items.map((it) =>
+        Math.round(Number(it.previousSanLuongTacDungTongKenhNhan || 0))
+      );
+      datasetsNhan.push({
+        type: 'line',
+        label: 'Cùng kỳ năm trước (Nhận)',
+        data: prevDataNhan,
+        borderColor: 'rgb(245, 158, 11)',
+        backgroundColor: 'rgba(245, 158, 11, 0.2)',
+        borderWidth: 2,
+        borderDash: [5, 5],
+        pointRadius: 3,
+        fill: false,
+      });
+    }
+
+    const baseOptions = (subTitleText: string) => ({
+      responsive: false,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: {
+          position: 'top' as const,
+          labels: { boxWidth: 14, font: { size: 12 } },
+        },
+        title: {
+          display: true,
+          text: subTitleText,
+          font: { size: 14, weight: 'bold' as const },
+        },
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false } },
+        y: { stacked: true, beginAtZero: true },
+      },
+    });
+
+    return [
+      {
+        sheetName: 'BĐ Kênh giao',
+        title: `${chartTitle} - Kênh giao (kWh)`,
+        chartConfig: {
+          type: 'bar',
+          data: { labels, datasets: datasetsGiao },
+          options: baseOptions(`${chartTitle} - Kênh giao (kWh)`),
+        },
+      },
+      {
+        sheetName: 'BĐ Kênh nhận',
+        title: `${chartTitle} - Kênh nhận (kWh)`,
+        chartConfig: {
+          type: 'bar',
+          data: { labels, datasets: datasetsNhan },
+          options: baseOptions(`${chartTitle} - Kênh nhận (kWh)`),
+        },
+      },
+    ];
+  }, [reportData?.items, chartTitle, compareWithPrevious]);
+
+  const exportTotalRow = useMemo(() => {
+    if (!reportData?.total) return undefined;
+    const tot = reportData.total;
+    return {
+      stt: 'Tổng',
+      timeLabel: '',
+      sanLuongTacDungTongKenhGiao:
+        tot.sanLuongTacDungTongKenhGiao !== null && tot.sanLuongTacDungTongKenhGiao !== undefined
+          ? Math.round(Number(tot.sanLuongTacDungTongKenhGiao))
+          : '-',
+      sanLuongTacDungBTKenhGiao:
+        tot.sanLuongTacDungBTKenhGiao !== null && tot.sanLuongTacDungBTKenhGiao !== undefined
+          ? Math.round(Number(tot.sanLuongTacDungBTKenhGiao))
+          : '-',
+      sanLuongTacDungCDKenhGiao:
+        tot.sanLuongTacDungCDKenhGiao !== null && tot.sanLuongTacDungCDKenhGiao !== undefined
+          ? Math.round(Number(tot.sanLuongTacDungCDKenhGiao))
+          : '-',
+      sanLuongTacDungTDKenhGiao:
+        tot.sanLuongTacDungTDKenhGiao !== null && tot.sanLuongTacDungTDKenhGiao !== undefined
+          ? Math.round(Number(tot.sanLuongTacDungTDKenhGiao))
+          : '-',
+      sanLuongPhanKhangTongKenhGiao:
+        tot.sanLuongPhanKhangTongKenhGiao !== null && tot.sanLuongPhanKhangTongKenhGiao !== undefined
+          ? Math.round(Number(tot.sanLuongPhanKhangTongKenhGiao))
+          : '-',
+      sanLuongTacDungTongKenhNhan:
+        tot.sanLuongTacDungTongKenhNhan !== null && tot.sanLuongTacDungTongKenhNhan !== undefined
+          ? Math.round(Number(tot.sanLuongTacDungTongKenhNhan))
+          : '-',
+      sanLuongTacDungBTKenhNhan:
+        tot.sanLuongTacDungBTKenhNhan !== null && tot.sanLuongTacDungBTKenhNhan !== undefined
+          ? Math.round(Number(tot.sanLuongTacDungBTKenhNhan))
+          : '-',
+      sanLuongTacDungCDKenhNhan:
+        tot.sanLuongTacDungCDKenhNhan !== null && tot.sanLuongTacDungCDKenhNhan !== undefined
+          ? Math.round(Number(tot.sanLuongTacDungCDKenhNhan))
+          : '-',
+      sanLuongTacDungTDKenhNhan:
+        tot.sanLuongTacDungTDKenhNhan !== null && tot.sanLuongTacDungTDKenhNhan !== undefined
+          ? Math.round(Number(tot.sanLuongTacDungTDKenhNhan))
+          : '-',
+      sanLuongPhanKhangTongKenhNhan:
+        tot.sanLuongPhanKhangTongKenhNhan !== null && tot.sanLuongPhanKhangTongKenhNhan !== undefined
+          ? Math.round(Number(tot.sanLuongPhanKhangTongKenhNhan))
+          : '-',
+    };
+  }, [reportData?.total]);
 
   return (
     <div>
@@ -384,17 +728,6 @@ const ElectricityConsumption = () => {
                 value={viewMode}
                 onChange={(val) => setViewMode(val as 'table' | 'chart')}
               />
-
-              <div className='flex items-center gap-2'>
-                <Switch
-                  checked={compareWithPrevious}
-                  onChange={(checked) => setCompareWithPrevious(checked)}
-                  id='compare-switch'
-                />
-                <label htmlFor='compare-switch' className='text-sm text-gray-700 font-medium cursor-pointer select-none'>
-                  So sánh
-                </label>
-              </div>
             </div>
 
             {/* Lề phải: Hàng ngày, Hàng tháng, Hàng năm, DatePicker, Truy vấn */}
@@ -449,13 +782,17 @@ const ElectricityConsumption = () => {
           </div>
 
           {/* View Content */}
-          {viewMode === 'table' ? (
+          <div style={{ display: viewMode === 'table' ? 'block' : 'none' }}>
             <EnergyConsumptionTable
               data={reportData?.items || []}
               total={reportData?.total}
               loading={loading}
             />
-          ) : (
+          </div>
+          <div
+            ref={chartContainerRef}
+            style={{ display: viewMode === 'chart' ? 'block' : 'none' }}
+          >
             <EnergyConsumptionChart
               chartData={
                 reportData?.chart || {
@@ -470,7 +807,7 @@ const ElectricityConsumption = () => {
               title={chartTitle}
               compareWithPrevious={compareWithPrevious}
             />
-          )}
+          </div>
         </div>
       </Card>
 
@@ -479,15 +816,42 @@ const ElectricityConsumption = () => {
         handleCancel={() => {
           setIsShowExport(false);
         }}
-        title='Báo cáo sản lượng điện'
-        onlyPDF={false}
-        chartRef={null}
-        listHeader={[]}
+        title='BÁO CÁO SẢN LƯỢNG ĐIỆN'
+        chartRef={chartContainerRef.current}
+        chartSheets={energyChartSheets}
+        dataSource={exportDataSource}
+        totalRow={exportTotalRow}
+        summaryRows={exportSummaryRows}
+        listHeader={energyConsumptionHeaders}
         fileNameCsv={fileNameBuilder()}
-        typeExportAll={'report'}
-        subTypeExportAll={'energy-consumption'}
+        typeExportAll={''}
+        serverExcelEndpoint={Endpoint.Report.ExportExcelEnergyConsumption}
         requestBody={exportRequestBody}
-        onlyExportAll={true}
+        extraInfo={[
+          {
+            label: 'Khách hàng',
+            value:
+              listCustomer?.find((c: any) => c.value === dataForm.customerCode)?.label ||
+              dataForm.customerCode ||
+              'Tất cả',
+          },
+          {
+            label: 'Điểm đo',
+            value:
+              listMeasurementPoint?.find((p: any) => p.value === dataForm.monitorPoint)?.label ||
+              dataForm.monitorPoint ||
+              'Tất cả',
+          },
+          {
+            label: 'Thời gian',
+            value:
+              cycleType === 'HALF_HOUR'
+                ? selectedDate.format('DD/MM/YYYY')
+                : cycleType === 'MONTHLY'
+                ? selectedMonth.format('MM/YYYY')
+                : selectedYear.format('YYYY'),
+          },
+        ]}
       />
     </div>
   );

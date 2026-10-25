@@ -16,6 +16,7 @@ import {
 } from 'chart.js';
 import React, { useMemo, useState } from 'react';
 import { Chart } from 'react-chartjs-2';
+import { FiArrowDownLeft, FiArrowUpRight } from 'react-icons/fi';
 
 import {
   EnergyConsumptionChartData,
@@ -38,15 +39,17 @@ ChartJS.register(
 interface EnergyConsumptionChartProps {
   chartData: EnergyConsumptionChartData;
   items?: EnergyConsumptionItem[];
-  title: string;
+  title?: string;
   compareWithPrevious?: boolean;
+  containerRef?: React.Ref<HTMLDivElement>;
 }
 
 export const EnergyConsumptionChart: React.FC<EnergyConsumptionChartProps> = ({
   chartData,
   items = [],
-  title,
+  title = '',
   compareWithPrevious = false,
+  containerRef,
 }) => {
   const [channel, setChannel] = useState<'GIAO' | 'NHAN'>('GIAO');
 
@@ -113,19 +116,19 @@ export const EnergyConsumptionChart: React.FC<EnergyConsumptionChartProps> = ({
     if (compareWithPrevious && hasItems) {
       const prevData = items.map((it) =>
         channel === 'GIAO'
-          ? it.previousSanLuongTacDungTongKenhGiao ?? 0
-          : it.previousSanLuongTacDungTongKenhNhan ?? 0
+          ? Math.round(it.previousSanLuongTacDungTongKenhGiao ?? 0)
+          : Math.round(it.previousSanLuongTacDungTongKenhNhan ?? 0)
       );
       datasets.push({
         type: 'line' as const,
-        label: `Tổng kỳ trước (${channel === 'GIAO' ? 'Giao' : 'Nhận'})`,
+        label: `Cùng kỳ năm trước (${channel === 'GIAO' ? 'Giao' : 'Nhận'})`,
         data: prevData,
         borderColor: 'rgb(245, 158, 11)',
         backgroundColor: 'rgba(245, 158, 11, 0.2)',
         borderWidth: 2,
         borderDash: [5, 5],
-        pointRadius: 2,
-        pointHoverRadius: 4,
+        pointRadius: 3,
+        pointHoverRadius: 5,
         fill: false,
       });
     }
@@ -157,7 +160,7 @@ export const EnergyConsumptionChart: React.FC<EnergyConsumptionChartProps> = ({
         },
         title: {
           display: true,
-          text: `${title} - ${channel === 'GIAO' ? 'Chiều giao' : 'Chiều nhận'}`,
+          text: `${title} - ${channel === 'GIAO' ? 'Kênh giao' : 'Kênh nhận'}`,
           font: {
             size: 15,
             weight: 'bold',
@@ -172,10 +175,7 @@ export const EnergyConsumptionChart: React.FC<EnergyConsumptionChartProps> = ({
             label: (context) => {
               const label = context.dataset.label || '';
               const val = context.raw as number;
-              return `${label}: ${Number(val).toLocaleString('vi-VN', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })} kWh`;
+              return `${label}: ${Math.round(Number(val)).toLocaleString('vi-VN')} kWh`;
             },
             footer: (tooltipItems) => {
               let sum = 0;
@@ -185,10 +185,7 @@ export const EnergyConsumptionChart: React.FC<EnergyConsumptionChartProps> = ({
                 }
               });
               const lines = [
-                `Tổng cộng kỳ này: ${sum.toLocaleString('vi-VN', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })} kWh`,
+                `Tổng cộng: ${Math.round(sum).toLocaleString('vi-VN')} kWh`,
               ];
 
               if (compareWithPrevious && hasItems) {
@@ -201,33 +198,7 @@ export const EnergyConsumptionChart: React.FC<EnergyConsumptionChartProps> = ({
                       : it.previousSanLuongTacDungTongKenhNhan;
                   if (prevTotal !== undefined && prevTotal !== null) {
                     lines.push(
-                      `Tổng cộng kỳ trước: ${Number(prevTotal).toLocaleString('vi-VN', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })} kWh`
-                    );
-                  }
-                  const prevBT =
-                    channel === 'GIAO'
-                      ? it.previousSanLuongTacDungBTKenhGiao
-                      : it.previousSanLuongTacDungBTKenhNhan;
-                  const prevCD =
-                    channel === 'GIAO'
-                      ? it.previousSanLuongTacDungCDKenhGiao
-                      : it.previousSanLuongTacDungCDKenhNhan;
-                  const prevTD =
-                    channel === 'GIAO'
-                      ? it.previousSanLuongTacDungTDKenhGiao
-                      : it.previousSanLuongTacDungTDKenhNhan;
-                  if (prevBT !== undefined || prevCD !== undefined || prevTD !== undefined) {
-                    lines.push(
-                      `(Kỳ trước: BT: ${Number(prevBT || 0).toLocaleString('vi-VN', {
-                        minimumFractionDigits: 2,
-                      })} | CD: ${Number(prevCD || 0).toLocaleString('vi-VN', {
-                        minimumFractionDigits: 2,
-                      })} | TD: ${Number(prevTD || 0).toLocaleString('vi-VN', {
-                        minimumFractionDigits: 2,
-                      })})`
+                      `Cùng kỳ năm trước: ${Math.round(Number(prevTotal)).toLocaleString('vi-VN')} kWh`
                     );
                   }
                 }
@@ -294,7 +265,7 @@ export const EnergyConsumptionChart: React.FC<EnergyConsumptionChartProps> = ({
   }
 
   return (
-    <div className='flex flex-col gap-4'>
+    <div className='flex flex-col gap-4' ref={containerRef}>
       {/* Bộ chọn chiều giao / chiều nhận tương tự báo cáo Thông số vận hành */}
       <div className='flex flex-wrap items-center justify-start gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200'>
         <Radio.Group
@@ -305,12 +276,14 @@ export const EnergyConsumptionChart: React.FC<EnergyConsumptionChartProps> = ({
         >
           <Radio.Button value='GIAO'>
             <span className='inline-flex items-center gap-1.5 leading-none font-medium px-2 py-1'>
-              Chiều giao (kWh)
+              <FiArrowUpRight />
+              Kênh giao (kWh)
             </span>
           </Radio.Button>
           <Radio.Button value='NHAN'>
             <span className='inline-flex items-center gap-1.5 leading-none font-medium px-2 py-1'>
-              Chiều nhận (kWh)
+              <FiArrowDownLeft />
+              Kênh nhận (kWh)
             </span>
           </Radio.Button>
         </Radio.Group>

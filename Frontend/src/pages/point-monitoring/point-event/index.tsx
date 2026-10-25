@@ -157,13 +157,14 @@ const PointMonitoringEvent = () => {
     );
   };
 
-  const dataExport = data?.map((item) => ({
+  const dataExport = data?.map((item, idx) => ({
+    index: idx + 1,
     createdTime: convertDateTime(item.createdTime, 'dd-mm-yyyy hh:mm:ss') ?? 'N/A',
     measurementPointCode: item.measurementPointCode ?? 'N/A',
     customerName: item.customerName ?? 'N/A',
     eventName: item.eventName ? item.eventName : 'N/A',
     status: `${item.status.charAt(0)}${item.status.slice(1).toLowerCase()}`,
-    value: item.value == 'False' ? 0 : 1,
+    value: item.value === true || item.value === 'True' || item.value === 1 || item.value === '1' ? 1 : 0,
   }));
   useEffect(() => {
     const searchByFields: any = [];
@@ -349,7 +350,7 @@ const PointMonitoringEvent = () => {
             title='Quản lý sự kiện'
             dataSource={dataExport}
             listHeader={Constants.listHeaderExport.eventParams}
-            fileNameCsv={'sukien'}
+            fileNameCsv={'DanhSachSukien'}
             typeExportAll={'measurement-point-monitoring'}
             subTypeExportAll={'measurement-point-event'}
           />

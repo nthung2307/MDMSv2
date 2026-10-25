@@ -16,6 +16,7 @@ import { notifyError, notifySuccess } from '@/infrastructure/common/components/t
 import useCreateTagNameHook from '@/infrastructure/repository/config/hooks/useCreateTagName.hook';
 import useGetTagNameListHook from '@/infrastructure/repository/config/hooks/useGetListTagName.hook';
 import { _t } from '@/infrastructure/utils/translation';
+import { downloadExcelTemplate } from '@/infrastructure/utils/excelHelper';
 import DialogImportConfig from '@/pages/config/components/dialog-import-config';
 import TableTagNameManagement from '@/pages/config/components/table-tag-name';
 
@@ -82,7 +83,7 @@ const DataMeasurementPoint = () => {
     );
   };
 
-  const handleExportCsv = () => {
+  const handleExportCsv = async () => {
     if (!listTagName || listTagName.length === 0) {
       notifyError('', 'Chưa có dữ liệu để xuất');
       return;
@@ -104,52 +105,39 @@ const DataMeasurementPoint = () => {
       }
     };
 
-    const headers = [
-      'STT',
-      'Nhóm thông số',
-      'Tên thông số',
-      'Mã tham số',
-      'Tag ID',
-      'Đơn vị',
-      'Tên cảnh báo',
-    ];
-    const rows = Constants.dataMeasurementPoint.allDataParams.map((param: any, idx: number) => {
-      const item = listTagName.find((t: any) => t.description === param.value) || {};
-      const groupName = getGroupName(param.type);
-      const label = param.label || '';
-      const code = param.value || '';
-      const tagId = item.tagName || '';
-      const unit = item.unit || (param.unit && param.unit.length > 0 ? param.unit[0].value : '');
-      const customName = item.customName || '';
+    try {
+      const rows = Constants.dataMeasurementPoint.allDataParams.map((param: any, idx: number) => {
+        const item = listTagName.find((t: any) => t.description === param.value) || {};
+        return {
+          stt: idx + 1,
+          groupName: getGroupName(param.type),
+          label: param.label || '',
+          code: param.value || '',
+          tagId: item.tagName || '',
+          unit: item.unit || (param.unit && param.unit.length > 0 ? param.unit[0].value : ''),
+          customName: item.customName || '',
+        };
+      });
 
-      const escapeCsv = (str: string) => {
-        if (!str) return '""';
-        return `"${str.toString().replace(/"/g, '""')}"`;
-      };
-
-      return [
-        idx + 1,
-        escapeCsv(groupName),
-        escapeCsv(label),
-        escapeCsv(code),
-        escapeCsv(tagId),
-        escapeCsv(unit),
-        escapeCsv(customName),
-      ].join(',');
-    });
-
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    const pointCode = record?.code || id;
-    link.setAttribute('download', `LienKetDuLieu_${pointCode}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    notifySuccess('', _t('Xuất file CSV thành công'));
+      const pointCode = record?.code || id;
+      await downloadExcelTemplate(
+        `LienKetDuLieu_${pointCode}.xlsx`,
+        'LienKetDuLieu',
+        [
+          { header: 'STT', key: 'stt', width: 8 },
+          { header: 'Nhóm thông số', key: 'groupName', width: 22 },
+          { header: 'Tên thông số', key: 'label', width: 26 },
+          { header: 'Mã tham số', key: 'code', width: 20 },
+          { header: 'Tag ID', key: 'tagId', width: 26 },
+          { header: 'Đơn vị', key: 'unit', width: 14 },
+          { header: 'Tên cảnh báo', key: 'customName', width: 26 },
+        ],
+        rows
+      );
+      notifySuccess('', _t('Xuất file Excel thành công'));
+    } catch (err: any) {
+      notifyError(err, 'Lỗi khi xuất file Excel');
+    }
   };
 
   const validateWarning = listTagName
@@ -180,14 +168,14 @@ const DataMeasurementPoint = () => {
           <ButtonCommonCustomizable
             title={''}
             classButton='text-button-variant'
-            tooltipText={'Xuất CSV'}
+            tooltipText={'Xuất Excel'}
             onClick={handleExportCsv}
             icon={<FiShare size={20} />}
           />
           <ButtonCommonCustomizable
             title={''}
             classButton='text-button-variant'
-            tooltipText={'Nhập từ CSV'}
+            tooltipText={'Nhập từ Excel'}
             onClick={() => setIsShowImport(true)}
             icon={<FiDownload size={20} />}
           />

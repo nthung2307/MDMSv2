@@ -19,6 +19,7 @@ import PageTitle from '@/infrastructure/common/components/title/page-title.tsx';
 import SocketCommon from '@/infrastructure/common/components/websocket/socket-common.tsx';
 import useDebounce from '@/infrastructure/common/libs/hooks/useDebounce.hook';
 import { useStateDataForm } from '@/infrastructure/common/libs/hooks/useStateDataForm.hook';
+import { setRecoilStateAsync } from '@/infrastructure/common/libs/recoil-outside/recoil.service.tsx';
 import useGetListMeasurementPointAlertHook from '@/infrastructure/repository/measurement-point-monitoring/hooks/useGetListMeasurementPointAlert.hook';
 import { convertDateTime, deleteParams, getISODate } from '@/infrastructure/utils/helpers';
 import { _t } from '@/infrastructure/utils/translation';
@@ -147,6 +148,9 @@ const PointMonitoringWarning = () => {
           hasPrevious: data.hasPrevious,
           totalCount: data.totalCount,
         });
+        if (typeof data?.totalCount === 'number') {
+          setRecoilStateAsync(CountState, data.totalCount);
+        }
       },
       () => {},
       setLoading
@@ -182,19 +186,23 @@ const PointMonitoringWarning = () => {
           hasPrevious: resData?.hasPrevious || false,
           totalCount: resData?.totalCount,
         });
+        if (typeof resData?.totalCount === 'number') {
+          setRecoilStateAsync(CountState, resData.totalCount);
+        }
       },
       () => {},
       () => {} // Silent refresh without popping table loading overlay
     );
   };
 
-  const dataExport = data?.map((item) => ({
+  const dataExport = data?.map((item, idx) => ({
+    index: idx + 1,
     createdTime: convertDateTime(item.createdTime, 'dd-mm-yyyy hh:mm:ss') ?? 'N/A',
     measurementPointCode: item.measurementPointCode ?? 'N/A',
     customerName: item.customerName ?? 'N/A',
     eventName: item.eventName ? item.eventName : 'N/A',
     status: `${item.status.charAt(0)}${item.status.slice(1).toLowerCase()}`,
-    value: item.value ? 1 : 0,
+    value: item.value === true || item.value === 'True' || item.value === 1 || item.value === '1' ? 1 : 0,
   }));
 
   // Effect for fetching data
@@ -333,7 +341,7 @@ const PointMonitoringWarning = () => {
           title='Quản lý cảnh báo'
           dataSource={dataExport}
           listHeader={Constants.listHeaderExport.warningParams}
-          fileNameCsv={'canhbao'}
+          fileNameCsv={'DanhSachCanhBao'}
           typeExportAll={'measurement-point-monitoring'}
           subTypeExportAll={'measurement-point-alert'}
         />

@@ -431,8 +431,9 @@ const AccountManagement = () => {
         title={'Quản lý tài khoản'}
         dataSource={tableDataSource}
         listHeader={Constants.listHeaderExport.accounts}
-        fileNameCsv={'taikhoan'}
+        fileNameCsv={'DanhSachTaiKhoan'}
         typeExportAll={'user'}
+        requestBody={getListAccountParamsRequest}
       />
     </div>
   );

@@ -1592,35 +1592,36 @@ export default class Constants {
     ];
 
     static summaryParams: Array<any> = [
-      { label: 'Mã điểm đo', attr: 'measurementPointCode', width: 13 },
-      { label: 'Mô tả điểm đo', attr: 'measurementPointDescription', width: 13 },
-      { label: 'Mã KH', attr: 'customerCode', width: 6 },
-      { label: 'Tên KH', attr: 'customerName', width: 28 },
-      { label: 'Kết nối', attr: 'matKetNoi', width: 40 / 7 },
-      { label: 'U', attr: 'UParams', width: 40 / 7 },
-      { label: 'I', attr: 'IParams', width: 40 / 7 },
-      { label: 'P', attr: 'PParams', width: 40 / 7 },
-      { label: 'Q', attr: 'QParams', width: 40 / 7 },
-      { label: 'PF', attr: 'PFParams', width: 40 / 7 },
-      { label: 'F', attr: 'FParams', width: 40 / 7 },
+      { label: 'STT', attr: 'index', width: 6, align: 'center' },
+      { label: 'Mã điểm đo', attr: 'measurementPointCode', width: 18, align: 'left' },
+      { label: 'Tên khách hàng', attr: 'customerName', width: 32, align: 'left' },
+      { label: 'Kết nối', attr: 'matKetNoi', width: 14, align: 'center' },
+      { label: 'U', attr: 'UParams', width: 14, align: 'center' },
+      { label: 'I', attr: 'IParams', width: 14, align: 'center' },
+      { label: 'P', attr: 'PParams', width: 14, align: 'center' },
+      { label: 'Q', attr: 'QParams', width: 14, align: 'center' },
+      { label: 'PF', attr: 'PFParams', width: 12, align: 'center' },
+      { label: 'F', attr: 'FParams', width: 12, align: 'center' },
     ];
 
     static warningParams: Array<any> = [
-      { label: 'Thời gian', attr: 'createdTime', width: 15 },
-      { label: 'Mã điểm đo', attr: 'measurementPointCode', width: 20 },
-      { label: 'Tên khách hàng', attr: 'customerName', width: 35 },
-      { label: 'Tên cảnh báo', attr: 'eventName', width: 15 },
-      { label: 'Trạng thái', attr: 'status', width: 10 },
-      { label: 'Giá trị', attr: 'value', width: 5 },
+      { label: 'STT', attr: 'index', width: 6, align: 'center' },
+      { label: 'Thời gian', attr: 'createdTime', width: 20, align: 'center' },
+      { label: 'Mã điểm đo', attr: 'measurementPointCode', width: 18, align: 'left' },
+      { label: 'Tên khách hàng', attr: 'customerName', width: 32, align: 'left' },
+      { label: 'Tên cảnh báo', attr: 'eventName', width: 25, align: 'left' },
+      { label: 'Trạng thái', attr: 'status', width: 14, align: 'center' },
+      { label: 'Giá trị', attr: 'value', width: 10, align: 'center', numFmt: '0' },
     ];
 
     static eventParams: Array<any> = [
-      { label: 'Thời gian', attr: 'createdTime', width: 15 },
-      { label: 'Mã điểm đo', attr: 'measurementPointCode', width: 20 },
-      { label: 'Tên khách hàng', attr: 'customerName', width: 35 },
-      { label: 'Tên sự kiện', attr: 'eventName', width: 15 },
-      { label: 'Trạng thái', attr: 'status', width: 8 },
-      { label: 'Giá trị', attr: 'value', width: 7 },
+      { label: 'STT', attr: 'index', width: 6, align: 'center' },
+      { label: 'Thời gian', attr: 'createdTime', width: 20, align: 'center' },
+      { label: 'Mã điểm đo', attr: 'measurementPointCode', width: 18, align: 'left' },
+      { label: 'Tên khách hàng', attr: 'customerName', width: 32, align: 'left' },
+      { label: 'Tên sự kiện', attr: 'eventName', width: 25, align: 'left' },
+      { label: 'Trạng thái', attr: 'status', width: 14, align: 'center' },
+      { label: 'Giá trị', attr: 'value', width: 10, align: 'center', numFmt: '0' },
     ];
 
     static PointManagement: Array<any> = [
@@ -1640,15 +1641,16 @@ export default class Constants {
     ];
 
     static GcsManagement: Array<any> = [
-      { label: 'STT', attr: 'index', width: 3 },
-      { label: 'Mã sổ', attr: 'code', width: 15 },
-      { label: 'Tên sổ', attr: 'name', width: 15 },
-      { label: 'Số kì', attr: 'periodNumber', width: 4 },
-      { label: 'Mô tả', attr: 'description', width: 53 },
+      { label: 'STT', attr: 'index', width: 6, align: 'center' },
+      { label: 'Mã sổ', attr: 'code', width: 18, align: 'left' },
+      { label: 'Tên sổ', attr: 'name', width: 25, align: 'left' },
+      { label: 'Số kì', attr: 'periodNumber', width: 10, align: 'center', numFmt: '0' },
+      { label: 'Mô tả', attr: 'description', width: 40, align: 'left' },
       {
         label: 'Trạng thái',
         attr: 'status',
-        width: 10,
+        width: 14,
+        align: 'center',
         activeMsg: 'Đang mở',
         inactiveMsg: 'Đã đóng',
       },

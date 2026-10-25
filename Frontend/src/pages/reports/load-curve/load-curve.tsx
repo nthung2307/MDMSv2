@@ -629,7 +629,6 @@ const LoadChart = () => {
           setIsShowExport(false);
         }}
         title='Biểu đồ phụ tải'
-        onlyPDF={true}
         chartRef={chartRef.current}
         listHeader={[]}
         fileNameCsv={fileNameBuilder()}

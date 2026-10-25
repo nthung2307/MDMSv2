@@ -43,206 +43,224 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
     {
         var cultureInfo = CultureInfo.InvariantCulture;
 
-        var measurementPointMonitoring = _measurementPointMonitoringEntities.AsNoTracking();
-        var measurementPointMonitoringByStatus = _measurementPointMonitoringByStatusEntities.AsNoTracking();
-
-        // Get base monitoring data
-        var query = measurementPointMonitoring
-            .Where(x => x.CreatedTime <= DateTime.UtcNow && x.CreatedTime >= DateTime.UtcNow.AddHours(-2))
-            .Include(x => x.MeasurementPoints)
-            .ThenInclude(x => x.Customer)
-            .OrderByDescending(x => x.CreatedTime)
-            .Select(x => new MeasurementPointMonitoringEntity()
-            {
-                MeasurementPointsId = x.MeasurementPointsId,
-                Value = x.Value,
-                Quanlity = x.Quanlity,
-                GroupId = x.GroupId,
-                TagNameDescription = x.TagNameDescription,
-                CreatedTime = x.CreatedTime,
-                MeasurementPoints = new MeasurementPointsEntity()
-                {
-                    Code = x.MeasurementPoints.Code,
-                    Description = x.MeasurementPoints.Description,
-                    Customer = new CustomerEntity()
-                    {
-                        CustomerCode = x.MeasurementPoints.Customer.CustomerCode,
-                        FullName = x.MeasurementPoints.Customer.FullName
-                    }
-                },
-                TagName = new TagNameEntity()
-                {
-                    Unit = x.TagName.Unit,
-                    Description = x.TagName.Description
-                }
-            })
-            .AsQueryable();
-
-        // Get status data separately
-        var statusQuery = measurementPointMonitoringByStatus
-            .OrderByDescending(x => x.CreatedTime)
-            .AsQueryable();
-
-        if (request.Status != null)
-        {
-            statusQuery = statusQuery.Where(x => x.TagNameDescription == "MAT_KET_NOI" &&
-                                               x.Value == request.Status.ToString());
-
-            var matchingIds = await statusQuery.Select(x => x.MeasurementPointId).ToListAsync(cancellationToken);
-            query = query.Where(x => matchingIds.Contains(x.MeasurementPointsId));
-        }
+        var pointQuery = _measurementPointsEntities.AsNoTracking()
+            .Include(x => x.Customer)
+            .Where(x => x.Status == EntityStatus.Active && !x.Deleted);
 
         if (!string.IsNullOrEmpty(request.CustomerName))
         {
-            query = query.Where(x => x.MeasurementPoints.Customer.FullName != null &&
-                                    x.MeasurementPoints.Customer.FullName.Contains(request.CustomerName));
+            pointQuery = pointQuery.Where(x => x.Customer != null &&
+                                               x.Customer.FullName != null &&
+                                               x.Customer.FullName.Contains(request.CustomerName));
         }
 
         if (!string.IsNullOrEmpty(request.MeasurementPointCode))
         {
-            query = query.Where(x => x.MeasurementPoints.Code != null &&
-                                     x.MeasurementPoints.Code.Contains(request.MeasurementPointCode));
+            pointQuery = pointQuery.Where(x => x.Code != null &&
+                                               x.Code.Contains(request.MeasurementPointCode));
         }
 
-        query = query.OrderBy(x => x.MeasurementPointsId);
+        if (request.Status != null)
+        {
+            var statusQuery = _measurementPointMonitoringByStatusEntities.AsNoTracking()
+                .Where(x => x.TagNameDescription == ListDataMeasurementPoint.MatKetNoi &&
+                            x.Value == request.Status.ToString());
+            var matchingIds = await statusQuery.Select(x => x.MeasurementPointId).Distinct().ToListAsync(cancellationToken);
+            pointQuery = pointQuery.Where(x => matchingIds.Contains(x.Id));
+        }
 
-        // Store the complete set query for checking if there are previous records
-        var fullQuery = query.AsNoTracking();
+        pointQuery = pointQuery.OrderBy(x => x.Id);
+        var fullQuery = pointQuery;
+        var totalCount = await fullQuery.CountAsync(cancellationToken);
 
         if (request.After.HasValue)
         {
-            query = (IOrderedQueryable<MeasurementPointMonitoringEntity>)query.Where(x => x.MeasurementPointsId > request.After.Value);
+            pointQuery = (IOrderedQueryable<MeasurementPointsEntity>)pointQuery.Where(x => x.Id > request.After.Value);
         }
         else if (request.Before.HasValue)
         {
-            query = (IOrderedQueryable<MeasurementPointMonitoringEntity>)query.Where(x => x.MeasurementPointsId < request.Before.Value);
+            pointQuery = (IOrderedQueryable<MeasurementPointsEntity>)pointQuery.Where(x => x.Id < request.Before.Value).OrderByDescending(x => x.Id);
         }
 
-        var queryResult = await query.ProjectTo<MeasurementPointMonitoringRawDto>(_mapper.ConfigurationProvider)
-                                .ToListAsync(cancellationToken);
-
-        var measurementPointIds = queryResult.Select(x => x.MeasurementPointsId).Distinct().ToList();
-        
-        // Get status data for retrieved measurement points
-        var statusData = await statusQuery.Where(x => measurementPointIds.Contains(x.MeasurementPointId))
-                                          .ToListAsync(cancellationToken);
-
-        var measurementPointDtos = queryResult.GroupBy(x => x.MeasurementPointsId)
-            .Select(group =>
-            {
-                var firstEntity = group.FirstOrDefault();
-                if (firstEntity == null) return null;
-
-                var dto = new ListMeasurementPointMonitoringDto
-                {
-                    Id = firstEntity.MeasurementPointsId,
-                    MeasurementPointsId = firstEntity.MeasurementPointsId,
-                    MeasurementPointCode = firstEntity.MeasurementPoints.Code,
-                    MeasurementPointDescription = firstEntity.MeasurementPoints.Description,
-                    CustomerCode = firstEntity.MeasurementPoints.Customer.CustomerCode,
-                    CustomerName = firstEntity.MeasurementPoints.Customer.FullName,
-                    GroupId = firstEntity.GroupId ?? 0
-                };
-
-                var statusEntity = statusData.FirstOrDefault(s => s.MeasurementPointId == dto.MeasurementPointsId &&
-                                                                  s.TagNameDescription == ListDataMeasurementPoint.MatKetNoi);
-                dto.MatKetNoi = statusEntity != null && bool.Parse(statusEntity.Value);
-                dto.MatKetNoiQuanlity = statusEntity != null && bool.Parse(statusEntity.Quanlity?.ToString() ?? "false");
-
-                foreach (var entity in group.OrderBy(x => x.CreatedTime))
-                {
-                    var value = entity.Value;
-                    switch (entity.TagNameDescription)
-                    {
-                        case ListDataMeasurementPoint.DongDienPhaA:
-                            dto.DongDienPhaA = double.Parse(value, cultureInfo);
-                            dto.DongDienPhaAUnit = entity.TagName.Unit;
-                            dto.DongDienPhaAQuanlity = bool.Parse(entity.Quanlity?.ToString() ?? "false");
-                            break;
-                        case ListDataMeasurementPoint.DienApPhaA:
-                            dto.DienApPhaA = double.Parse(value, cultureInfo);
-                            dto.DienApPhaAUnit = entity.TagName.Unit;
-                            dto.DienApPhaAQuanlity = bool.Parse(entity.Quanlity?.ToString() ?? "false");
-                            break;
-                        case ListDataMeasurementPoint.CongSuatTacDungTong3Pha:
-                            dto.CongSuatTacDungTong3Pha = double.Parse(value, cultureInfo);
-                            dto.CongSuatTacDungTong3PhaUnit = entity.TagName.Unit;
-                            dto.CongSuatTacDungTong3PhaQuanlity = bool.Parse(entity.Quanlity?.ToString() ?? "false");
-                            break;
-                        case ListDataMeasurementPoint.CongSuatPhanKhangTong3Pha:
-                            dto.CongSuatPhanKhangTong3Pha = double.Parse(value, cultureInfo);
-                            dto.CongSuatPhanKhangTong3PhaUnit = entity.TagName.Unit;
-                            dto.CongSuatPhanKhangTong3PhaQuanlity = bool.Parse(entity.Quanlity?.ToString() ?? "false");
-                            break;
-                        case ListDataMeasurementPoint.HeSoCongSuatPFTrungBinh3Pha:
-                            dto.HeSoCongSuatPFTrungBinh3Pha = double.Parse(value, cultureInfo);
-                            dto.HeSoCongSuatPFTrungBinh3PhaQuanlity = bool.Parse(entity.Quanlity?.ToString() ?? "false");
-                            break;
-                        case ListDataMeasurementPoint.TanSoHeThong:
-                            dto.TanSoHeThong = double.Parse(value, cultureInfo);
-                            dto.TanSoHeThongUnit = entity.TagName.Unit;
-                            dto.TanSoHeThongQuanlity = bool.Parse(entity.Quanlity?.ToString() ?? "false");
-                            break;
-                    }
-                }
-
-                return dto;
-            })
-            .Where(dto => dto != null)
-            .ToList();
-
+        var pagedPoints = await pointQuery.Take(request.PageSize).ToListAsync(cancellationToken);
         if (request.Before.HasValue)
         {
-            measurementPointDtos.Reverse();
+            pagedPoints.Reverse();
         }
 
-        var paginatedResults = measurementPointDtos.Take(request.PageSize).ToList();
+        var measurementPointDtos = await PopulateMonitoringDtosAsync(pagedPoints, cultureInfo, cancellationToken);
 
-        if (request.Before.HasValue)
-        {
-            paginatedResults.Reverse();
-        }
-
-        // Fix for HasPrevious logic
         bool hasPrevious = false;
-        
-        if (paginatedResults.Any())
-        {
-            // Get the minimum ID in the current page
-            var minId = paginatedResults.Min(x => x.MeasurementPointsId);
-            
-            // Check if there are any records with smaller IDs than the minimum ID in the current page
-            hasPrevious = await fullQuery
-                .Where(x => x.MeasurementPointsId < minId)
-                .AnyAsync(cancellationToken);
-        }
-
-        // Fix for HasNext logic
         bool hasNext = false;
-        
-        if (paginatedResults.Any())
+        if (pagedPoints.Any())
         {
-            // Get the maximum ID in the current page
-            var maxId = paginatedResults.Max(x => x.MeasurementPointsId);
-            
-            // Check if there are any records with larger IDs than the maximum ID in the current page
-            hasNext = await fullQuery
-                .Where(x => x.MeasurementPointsId > maxId)
-                .AnyAsync(cancellationToken);
+            var minId = pagedPoints.Min(x => x.Id);
+            var maxId = pagedPoints.Max(x => x.Id);
+            hasPrevious = await fullQuery.AnyAsync(x => x.Id < minId, cancellationToken);
+            hasNext = await fullQuery.AnyAsync(x => x.Id > maxId, cancellationToken);
         }
-
-        var totalCount = await fullQuery
-            .Select(x => x.MeasurementPointsId)
-            .Distinct()
-            .CountAsync(cancellationToken);
 
         return new CursorPaginationResponse<ListMeasurementPointMonitoringDto>
         {
-            Data = paginatedResults,
+            Data = measurementPointDtos,
             HasNext = hasNext,
             HasPrevious = hasPrevious,
             TotalCount = totalCount
         };
+    }
+
+    private async Task<List<ListMeasurementPointMonitoringDto>> PopulateMonitoringDtosAsync(
+        List<MeasurementPointsEntity> points,
+        CultureInfo cultureInfo,
+        CancellationToken cancellationToken)
+    {
+        var pointIds = points.Select(x => x.Id).ToList();
+        if (!pointIds.Any()) return new List<ListMeasurementPointMonitoringDto>();
+
+        var statusData = await _measurementPointMonitoringByStatusEntities.AsNoTracking()
+            .Where(x => pointIds.Contains(x.MeasurementPointId) && x.TagNameDescription == ListDataMeasurementPoint.MatKetNoi)
+            .OrderByDescending(x => x.CreatedTime)
+            .ToListAsync(cancellationToken);
+
+        var latestGroups = await _measurementPointMonitoringEntities.AsNoTracking()
+            .Where(x => pointIds.Contains(x.MeasurementPointsId) && x.GroupId.HasValue)
+            .GroupBy(x => x.MeasurementPointsId)
+            .Select(g => new { MeasurementPointsId = g.Key, MaxGroupId = g.Max(x => x.GroupId.Value) })
+            .ToListAsync(cancellationToken);
+
+        var latestGroupIds = latestGroups.Select(x => x.MaxGroupId).ToList();
+
+        var latestData = await _measurementPointMonitoringEntities.AsNoTracking()
+            .Include(x => x.TagName)
+            .Where(x => latestGroupIds.Contains(x.GroupId.Value))
+            .ToListAsync(cancellationToken);
+
+        var dataByPoint = latestData.GroupBy(x => x.MeasurementPointsId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var twoHoursAgo = DateTimeOffset.UtcNow.AddHours(-2);
+        var measurementPointDtos = new List<ListMeasurementPointMonitoringDto>();
+
+        foreach (var point in points)
+        {
+            var dto = new ListMeasurementPointMonitoringDto
+            {
+                Id = point.Id,
+                MeasurementPointsId = point.Id,
+                MeasurementPointCode = point.Code,
+                MeasurementPointDescription = point.Description,
+                CustomerCode = point.Customer?.CustomerCode,
+                CustomerName = point.Customer?.FullName,
+                GroupId = 0
+            };
+
+            var statusEntity = statusData.FirstOrDefault(s => s.MeasurementPointId == point.Id);
+            bool hasStatus = statusEntity != null && !string.IsNullOrWhiteSpace(statusEntity.Value);
+            bool isLost = hasStatus && (statusEntity.Value == "True" || statusEntity.Value == "1" || statusEntity.Value == "true" || statusEntity.Value == "ALARM");
+            bool quality = hasStatus && bool.Parse(statusEntity.Quanlity?.ToString() ?? "false");
+
+            bool hasData = dataByPoint.TryGetValue(point.Id, out var entities) && 
+                entities.Any(e => !string.IsNullOrWhiteSpace(e.TagNameDescription) && 
+                                  !string.IsNullOrWhiteSpace(e.Value) && 
+                                  e.Value != "null");
+
+            if (hasData)
+            {
+                dto.GroupId = entities.First().GroupId ?? 0;
+                var latestTime = entities.Max(e => e.CreatedTime);
+
+                if (latestTime < twoHoursAgo)
+                {
+                    isLost = true;
+                    quality = true;
+                }
+                else if (!hasStatus)
+                {
+                    isLost = false;
+                    quality = true;
+                }
+
+                foreach (var entity in entities.OrderBy(x => x.CreatedTime))
+                {
+                    var value = entity.Value;
+                    if (string.IsNullOrWhiteSpace(value)) continue;
+
+                    switch (entity.TagNameDescription)
+                    {
+                        case ListDataMeasurementPoint.DongDienPhaA:
+                            if (double.TryParse(value, NumberStyles.Any, cultureInfo, out var ia))
+                            {
+                                dto.DongDienPhaA = ia;
+                                dto.DongDienPhaAUnit = entity.TagName?.Unit;
+                                dto.DongDienPhaAQuanlity = bool.Parse(entity.Quanlity?.ToString() ?? "false");
+                            }
+                            break;
+                        case ListDataMeasurementPoint.DienApPhaA:
+                            if (double.TryParse(value, NumberStyles.Any, cultureInfo, out var ua))
+                            {
+                                dto.DienApPhaA = ua;
+                                dto.DienApPhaAUnit = entity.TagName?.Unit;
+                                dto.DienApPhaAQuanlity = bool.Parse(entity.Quanlity?.ToString() ?? "false");
+                            }
+                            break;
+                        case ListDataMeasurementPoint.CongSuatTacDungTong3Pha:
+                            if (double.TryParse(value, NumberStyles.Any, cultureInfo, out var p))
+                            {
+                                dto.CongSuatTacDungTong3Pha = p;
+                                dto.CongSuatTacDungTong3PhaUnit = entity.TagName?.Unit;
+                                dto.CongSuatTacDungTong3PhaQuanlity = bool.Parse(entity.Quanlity?.ToString() ?? "false");
+                            }
+                            break;
+                        case ListDataMeasurementPoint.CongSuatPhanKhangTong3Pha:
+                            if (double.TryParse(value, NumberStyles.Any, cultureInfo, out var q))
+                            {
+                                dto.CongSuatPhanKhangTong3Pha = q;
+                                dto.CongSuatPhanKhangTong3PhaUnit = entity.TagName?.Unit;
+                                dto.CongSuatPhanKhangTong3PhaQuanlity = bool.Parse(entity.Quanlity?.ToString() ?? "false");
+                            }
+                            break;
+                        case ListDataMeasurementPoint.HeSoCongSuatPFTrungBinh3Pha:
+                            if (double.TryParse(value, NumberStyles.Any, cultureInfo, out var pf))
+                            {
+                                dto.HeSoCongSuatPFTrungBinh3Pha = pf;
+                                dto.HeSoCongSuatPFTrungBinh3PhaQuanlity = bool.Parse(entity.Quanlity?.ToString() ?? "false");
+                            }
+                            break;
+                        case ListDataMeasurementPoint.TanSoHeThong:
+                            if (double.TryParse(value, NumberStyles.Any, cultureInfo, out var f))
+                            {
+                                dto.TanSoHeThong = f;
+                                dto.TanSoHeThongUnit = entity.TagName?.Unit;
+                                dto.TanSoHeThongQuanlity = bool.Parse(entity.Quanlity?.ToString() ?? "false");
+                            }
+                            break;
+                    }
+                }
+            }
+
+            bool hasRealMeasurementData = dto.DongDienPhaA.HasValue || 
+                                          dto.DienApPhaA.HasValue || 
+                                          dto.CongSuatTacDungTong3Pha.HasValue || 
+                                          dto.CongSuatPhanKhangTong3Pha.HasValue || 
+                                          dto.HeSoCongSuatPFTrungBinh3Pha.HasValue || 
+                                          dto.TanSoHeThong.HasValue;
+
+            if (!hasRealMeasurementData && !hasStatus)
+            {
+                // Điểm đo chưa từng nhận được dữ liệu đo đếm hay tín hiệu kết nối từ REST API
+                dto.MatKetNoi = null;
+                dto.MatKetNoiQuanlity = null;
+            }
+            else
+            {
+                dto.MatKetNoi = isLost;
+                dto.MatKetNoiQuanlity = quality;
+            }
+
+            measurementPointDtos.Add(dto);
+        }
+
+        return measurementPointDtos;
     }
 
     public async Task<byte[]> ExportPdfMeasurementPointsMonitoringAsync(CancellationToken cancellationToken)
@@ -290,10 +308,10 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
                 {
                     Id = firstEntity.MeasurementPointsId,
                     MeasurementPointsId = firstEntity.MeasurementPointsId,
-                    MeasurementPointCode = firstEntity.MeasurementPoints.Code,
-                    MeasurementPointDescription = firstEntity.MeasurementPoints.Description,
-                    CustomerCode = firstEntity.MeasurementPoints.Customer.CustomerCode,
-                    CustomerName = firstEntity.MeasurementPoints.Customer.FullName,
+                    MeasurementPointCode = firstEntity.MeasurementPoints?.Code,
+                    MeasurementPointDescription = firstEntity.MeasurementPoints?.Description,
+                    CustomerCode = firstEntity.MeasurementPoints?.Customer?.CustomerCode,
+                    CustomerName = firstEntity.MeasurementPoints?.Customer?.FullName,
                     GroupId = firstEntity.GroupId ?? 0
                 };
 
@@ -386,32 +404,29 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
                     // Table
                     column.Item().Table(table =>
                     {
-                        // Define columns
+                        // Define columns (10 columns matching Web and Excel)
                         table.ColumnsDefinition(columns =>
                         {
-                            columns.ConstantColumn(40);      // STT
-                            columns.RelativeColumn(1f);       // Mã điểm đo
-                            columns.RelativeColumn(1f);    // Mô tả điểm đo
-                            columns.RelativeColumn(1f);    // Tên KH
-                            columns.RelativeColumn(0.7f);    // Kết nối
-                            columns.RelativeColumn(0.5f);    // U
-                            columns.RelativeColumn(0.5f);    // I
-                            columns.RelativeColumn(0.5f);    // P
-                            columns.RelativeColumn(0.5f);    // Q
-                            columns.RelativeColumn(0.5f);    // PF
-                            columns.RelativeColumn(0.5f);    // F
-
+                            columns.ConstantColumn(35);      // STT
+                            columns.RelativeColumn(1.2f);    // Mã điểm đo
+                            columns.RelativeColumn(2.0f);    // Tên khách hàng
+                            columns.RelativeColumn(0.9f);    // Kết nối
+                            columns.RelativeColumn(0.8f);    // U
+                            columns.RelativeColumn(0.8f);    // I
+                            columns.RelativeColumn(0.8f);    // P
+                            columns.RelativeColumn(0.8f);    // Q
+                            columns.RelativeColumn(0.6f);    // PF
+                            columns.RelativeColumn(0.6f);    // F
                         });
 
                         // Table header
                         table.Header(header =>
                         {
-                            var headerStyle = TextStyle.Default.Size(11).Bold(); // Smaller font size for header
+                            var headerStyle = TextStyle.Default.Size(10).Bold();
 
                             header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).Text("STT").FontFamily(Fonts.Arial).Style(headerStyle);
                             header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).Text("Mã điểm đo").FontFamily(Fonts.Arial).Style(headerStyle);
-                            header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).Text("Mô tả điểm đo").FontFamily(Fonts.Arial).Style(headerStyle);
-                            header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).Text("Tên KH").FontFamily(Fonts.Arial).Style(headerStyle);
+                            header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).Text("Tên khách hàng").FontFamily(Fonts.Arial).Style(headerStyle);
                             header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).Text("Kết nối").FontFamily(Fonts.Arial).Style(headerStyle);
                             header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).Text("U").FontFamily(Fonts.Arial).Style(headerStyle);
                             header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).Text("I").FontFamily(Fonts.Arial).Style(headerStyle);
@@ -422,20 +437,19 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
                         });
 
                         // Add rows dynamically
-                        var rowStyle = TextStyle.Default.Size(11); // Smaller font size for rows
+                        var rowStyle = TextStyle.Default.Size(9);
                         foreach (var customer in measurementPointDtos)
                         {
                             table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(measurementPointDtos.IndexOf(customer) + 1).FontFamily(Fonts.Arial).Style(rowStyle);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.MeasurementPointCode).FontFamily(Fonts.Arial).Style(rowStyle);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.MeasurementPointDescription).FontFamily(Fonts.Arial).Style(rowStyle);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.CustomerName).FontFamily(Fonts.Arial).Style(rowStyle);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.MatKetNoi == null && customer.MatKetNoiQuanlity == null ? "????" : customer.MatKetNoi == true ? "Mất kết nối" : "Bình thường" ).FontFamily(Fonts.Arial).Style(rowStyle);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.DienApPhaA == null && customer.DienApPhaAQuanlity == null ? "????" : customer.DienApPhaA + " " + customer.DienApPhaAUnit).FontFamily(Fonts.Arial).Style(rowStyle);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.DongDienPhaA == null && customer.DongDienPhaAQuanlity == null ? "????" : customer.DongDienPhaA + " " + customer.DongDienPhaAUnit).FontFamily(Fonts.Arial).Style(rowStyle);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.CongSuatTacDungTong3Pha == null && customer.CongSuatTacDungTong3PhaQuanlity == null ? "????" : customer.CongSuatTacDungTong3Pha + " " + customer.CongSuatTacDungTong3PhaUnit).FontFamily(Fonts.Arial).Style(rowStyle);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.CongSuatPhanKhangTong3Pha == null && customer.CongSuatPhanKhangTong3PhaQuanlity == null ? "????" : customer.CongSuatPhanKhangTong3Pha + " " + customer.CongSuatPhanKhangTong3PhaUnit).FontFamily(Fonts.Arial).Style(rowStyle);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.HeSoCongSuatPFTrungBinh3Pha == null && customer.HeSoCongSuatPFTrungBinh3PhaQuanlity == null ? "????" : customer.HeSoCongSuatPFTrungBinh3Pha).FontFamily(Fonts.Arial).Style(rowStyle);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.TanSoHeThong == null && customer.TanSoHeThongQuanlity == null ? "????" : customer.TanSoHeThong + " " + customer.TanSoHeThongUnit).FontFamily(Fonts.Arial).Style(rowStyle);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.MeasurementPointCode ?? "").FontFamily(Fonts.Arial).Style(rowStyle);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.CustomerName ?? "").FontFamily(Fonts.Arial).Style(rowStyle);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.MatKetNoi == null ? "-" : customer.MatKetNoi == true ? "Mất kết nối" : "Bình thường").FontFamily(Fonts.Arial).Style(rowStyle);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.DienApPhaA == null ? "-" : customer.DienApPhaA + " " + customer.DienApPhaAUnit).FontFamily(Fonts.Arial).Style(rowStyle);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.DongDienPhaA == null ? "-" : customer.DongDienPhaA + " " + customer.DongDienPhaAUnit).FontFamily(Fonts.Arial).Style(rowStyle);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.CongSuatTacDungTong3Pha == null ? "-" : customer.CongSuatTacDungTong3Pha + " " + customer.CongSuatTacDungTong3PhaUnit).FontFamily(Fonts.Arial).Style(rowStyle);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.CongSuatPhanKhangTong3Pha == null ? "-" : customer.CongSuatPhanKhangTong3Pha + " " + customer.CongSuatPhanKhangTong3PhaUnit).FontFamily(Fonts.Arial).Style(rowStyle);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.HeSoCongSuatPFTrungBinh3Pha == null ? "-" : customer.HeSoCongSuatPFTrungBinh3Pha.ToString()).FontFamily(Fonts.Arial).Style(rowStyle);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.TanSoHeThong == null ? "-" : customer.TanSoHeThong + " " + customer.TanSoHeThongUnit).FontFamily(Fonts.Arial).Style(rowStyle);
                         }
                     });
                 });
@@ -464,116 +478,23 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
 
     public async Task<byte[]> ExportCsvMeasurementPointsMonitoringAsync(CancellationToken cancellationToken)
     {
-        // var latestGroupId = await _measurementPointMonitoringEntities.MaxAsync(e => e.GroupId, cancellationToken);
-        // var latestGroupByStatusId = await _measurementPointMonitoringByStatusEntities.MaxAsync(e => e.GroupId, cancellationToken);
         var cultureInfo = CultureInfo.InvariantCulture;
 
-        var measurementPointMonitoring = _measurementPointMonitoringEntities.AsNoTracking();
-        var measurementPointMonitoringByStatus = _measurementPointMonitoringByStatusEntities.AsNoTracking();
-
-        // Get base monitoring data
-        var query = measurementPointMonitoring
-            .Where(x => x.CreatedTime <= DateTime.UtcNow && x.CreatedTime >= DateTime.UtcNow.AddHours(-2))
-            .Include(x => x.MeasurementPoints)
-            .ThenInclude(x => x.Customer)
-            .OrderByDescending(x => x.CreatedTime)
-            .AsQueryable();
-
-        // Get status data separately
-        var statusQuery = measurementPointMonitoringByStatus
-            // .Where(x => x.CreatedTime <= DateTime.UtcNow && x.CreatedTime >= DateTime.UtcNow.AddDays(-5))
-            .OrderByDescending(x => x.CreatedTime)
-            .AsQueryable();
-
-        query = query.OrderBy(x => x.MeasurementPointsId);
-
-        var result = await query.ProjectTo<MeasurementPointMonitoringRawDto>(_mapper.ConfigurationProvider)
-                               .ToListAsync(cancellationToken);
-
-        // Get all relevant status data
-        var measurementPointIds = result.Select(x => x.MeasurementPointsId).Distinct().ToList();
-        var statusData = await statusQuery
-            .Where(x => measurementPointIds.Contains(x.MeasurementPointId))
+        var points = await _measurementPointsEntities.AsNoTracking()
+            .Include(x => x.Customer)
+            .Where(x => x.Status == EntityStatus.Active && !x.Deleted)
+            .OrderBy(x => x.Id)
             .ToListAsync(cancellationToken);
 
-        var measurementPointDtos = result
-            .GroupBy(x => x.MeasurementPointsId)
-            .Select(group =>
-            {
-                var firstEntity = group.FirstOrDefault();
-                if (firstEntity == null) return null;
+        var measurementPointDtos = await PopulateMonitoringDtosAsync(points, cultureInfo, cancellationToken);
 
-                var dto = new ListMeasurementPointMonitoringDto
-                {
-                    Id = firstEntity.MeasurementPointsId,
-                    MeasurementPointsId = firstEntity.MeasurementPointsId,
-                    MeasurementPointCode = firstEntity.MeasurementPoints.Code,
-                    MeasurementPointDescription = firstEntity.MeasurementPoints.Description,
-                    CustomerCode = firstEntity.MeasurementPoints.Customer.CustomerCode,
-                    CustomerName = firstEntity.MeasurementPoints.Customer.FullName,
-                    GroupId = firstEntity.GroupId ?? 0
-                };
-
-                // Get status data for this measurement point
-                var statusEntity = statusData.FirstOrDefault(s =>
-                    s.MeasurementPointId == dto.MeasurementPointsId &&
-                    s.TagNameDescription == ListDataMeasurementPoint.MatKetNoi);
-
-                if (statusEntity != null)
-                {
-                    dto.MatKetNoi = bool.Parse(statusEntity.Value);
-                    dto.MatKetNoiQuanlity = bool.Parse(statusEntity.Quanlity?.ToString() ?? "false");
-                }
-
-                foreach (var entity in group)
-                {
-                    var value = entity.Value;
-
-                    switch (entity.TagNameDescription)
-                    {
-                        case ListDataMeasurementPoint.DongDienPhaA:
-                            dto.DongDienPhaA = double.Parse(value, cultureInfo);
-                            dto.DongDienPhaAUnit = entity.TagName.Unit;
-                            dto.DongDienPhaAQuanlity = bool.Parse(entity.Quanlity?.ToString() ?? "false");
-                            break;
-                        case ListDataMeasurementPoint.DienApPhaA:
-                            dto.DienApPhaA = double.Parse(value, cultureInfo);
-                            dto.DienApPhaAUnit = entity.TagName.Unit;
-                            dto.DienApPhaAQuanlity = bool.Parse(entity.Quanlity?.ToString() ?? "false");
-                            break;
-                        case ListDataMeasurementPoint.CongSuatTacDungTong3Pha:
-                            dto.CongSuatTacDungTong3Pha = double.Parse(value, cultureInfo);
-                            dto.CongSuatTacDungTong3PhaUnit = entity.TagName.Unit;
-                            dto.CongSuatTacDungTong3PhaQuanlity = bool.Parse(entity.Quanlity?.ToString() ?? "false");
-                            break;
-                        case ListDataMeasurementPoint.CongSuatPhanKhangTong3Pha:
-                            dto.CongSuatPhanKhangTong3Pha = double.Parse(value, cultureInfo);
-                            dto.CongSuatPhanKhangTong3PhaUnit = entity.TagName.Unit;
-                            dto.CongSuatPhanKhangTong3PhaQuanlity = bool.Parse(entity.Quanlity?.ToString() ?? "false");
-                            break;
-                        case ListDataMeasurementPoint.HeSoCongSuatPFTrungBinh3Pha:
-                            dto.HeSoCongSuatPFTrungBinh3Pha = double.Parse(value, cultureInfo);
-                            dto.HeSoCongSuatPFTrungBinh3PhaQuanlity = bool.Parse(entity.Quanlity?.ToString() ?? "false");
-                            break;
-                        case ListDataMeasurementPoint.TanSoHeThong:
-                            dto.TanSoHeThong = double.Parse(value, cultureInfo);
-                            dto.TanSoHeThongUnit = entity.TagName.Unit;
-                            dto.TanSoHeThongQuanlity = bool.Parse(entity.Quanlity?.ToString() ?? "false");
-                            break;
-                    }
-                }
-
-                return dto;
-            })
-            .ToList();
         using var memoryStream = new MemoryStream();
         await using var streamWriter = new StreamWriter(memoryStream, Encoding.UTF8);
         await using var csvWriter = new CsvWriter(streamWriter, CultureInfo.InvariantCulture);
-        // Write headers
+        // Write headers matching Web
         csvWriter.WriteField("STT");
         csvWriter.WriteField("Mã điểm đo");
-        csvWriter.WriteField("Mô tả điểm đo");
-        csvWriter.WriteField("Tên KH");
+        csvWriter.WriteField("Tên khách hàng");
         csvWriter.WriteField("Kết nối");
         csvWriter.WriteField("U");
         csvWriter.WriteField("I");
@@ -588,33 +509,58 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
         {
             var customer = measurementPointDtos[i];
             csvWriter.WriteField(i + 1);
-            csvWriter.WriteField(customer.MeasurementPointCode);
-            csvWriter.WriteField(customer.MeasurementPointDescription);
-            csvWriter.WriteField(customer.CustomerName);
-            csvWriter.WriteField(customer.MatKetNoi == null && customer.MatKetNoiQuanlity == null ? "????" : customer.MatKetNoi == true ? "Mất kết nối" : "Bình thường" );
-            csvWriter.WriteField(customer.DienApPhaA == null && customer.DienApPhaAQuanlity == null ? "????" : customer.DienApPhaA + " " + customer.DienApPhaAUnit);
-            csvWriter.WriteField(customer.DongDienPhaA == null && customer.DongDienPhaAQuanlity == null ? "????" : customer.DongDienPhaA + " " + customer.DongDienPhaAUnit);
-            csvWriter.WriteField(customer.CongSuatTacDungTong3Pha == null && customer.CongSuatTacDungTong3PhaQuanlity == null ? "????" : customer.CongSuatTacDungTong3Pha + " " + customer.CongSuatTacDungTong3PhaUnit);
-            csvWriter.WriteField(customer.CongSuatPhanKhangTong3Pha == null && customer.CongSuatPhanKhangTong3PhaQuanlity == null ? "????" : customer.CongSuatPhanKhangTong3Pha + " " + customer.CongSuatPhanKhangTong3PhaUnit);
-            csvWriter.WriteField(customer.HeSoCongSuatPFTrungBinh3Pha == null && customer.HeSoCongSuatPFTrungBinh3PhaQuanlity == null ? "????" : customer.HeSoCongSuatPFTrungBinh3Pha.ToString());
-            csvWriter.WriteField(customer.TanSoHeThong == null && customer.TanSoHeThongQuanlity == null ? "????" : customer.TanSoHeThong + " " + customer.TanSoHeThongUnit);
+            csvWriter.WriteField(customer.MeasurementPointCode ?? "");
+            csvWriter.WriteField(customer.CustomerName ?? "");
+            string connectionText = "-";
+            bool hasRealData = customer.DienApPhaA != null || customer.DongDienPhaA != null || 
+                               customer.CongSuatTacDungTong3Pha != null || customer.TanSoHeThong != null;
+            if (customer.MatKetNoi.HasValue && hasRealData)
+            {
+                connectionText = customer.MatKetNoi.Value ? "Mất kết nối" : "Bình thường";
+            }
+            csvWriter.WriteField(connectionText);
+            csvWriter.WriteField(customer.DienApPhaA != null ? $"{customer.DienApPhaA} {customer.DienApPhaAUnit}".Trim() : "-");
+            csvWriter.WriteField(customer.DongDienPhaA != null ? $"{customer.DongDienPhaA} {customer.DongDienPhaAUnit}".Trim() : "-");
+            csvWriter.WriteField(customer.CongSuatTacDungTong3Pha != null ? $"{customer.CongSuatTacDungTong3Pha} {customer.CongSuatTacDungTong3PhaUnit}".Trim() : "-");
+            csvWriter.WriteField(customer.CongSuatPhanKhangTong3Pha != null ? $"{customer.CongSuatPhanKhangTong3Pha} {customer.CongSuatPhanKhangTong3PhaUnit}".Trim() : "-");
+            csvWriter.WriteField(customer.HeSoCongSuatPFTrungBinh3Pha != null ? customer.HeSoCongSuatPFTrungBinh3Pha.ToString() : "-");
+            csvWriter.WriteField(customer.TanSoHeThong != null ? $"{customer.TanSoHeThong} {customer.TanSoHeThongUnit}".Trim() : "-");
             await csvWriter.NextRecordAsync();
         }
         await streamWriter.FlushAsync(cancellationToken);
-        var csvBytes = memoryStream.ToArray();
-
-        return csvBytes;
+        return memoryStream.ToArray();
     }
 
     public async Task<MeasurementPointMonitoringDto?> GetMeasurementPointDetailAsync(string tagName, CancellationToken cancellationToken)
     {
-        // var latestGroupId = await _measurementPointMonitoringEntities.MaxAsync(e => e.GroupId, cancellationToken);
-        // var latestGroupDateTimeId = await _measurementPointMonitoringByDateTimeEntities.MaxAsync(e => e.GroupId, cancellationToken);
-        // var latestGroupStatusId = await _measurementPointMonitoringByStatusEntities.MaxAsync(e => e.GroupId, cancellationToken);
         var cultureInfo = CultureInfo.InvariantCulture;
+
+        var pointInfo = await _measurementPointsEntities
+            .AsNoTracking()
+            .Include(x => x.Customer)
+            .FirstOrDefaultAsync(x => x.Code == tagName && x.Status == EntityStatus.Active && !x.Deleted, cancellationToken);
+
+        if (pointInfo == null) return null;
+
+        var latestGroupId = await _measurementPointMonitoringEntities
+            .AsNoTracking()
+            .Where(x => x.MeasurementPoints.Code == tagName && x.GroupId.HasValue)
+            .MaxAsync(x => (long?)x.GroupId, cancellationToken);
+
         var query = _measurementPointMonitoringEntities
             .AsNoTracking()
-            .Where(x => x.CreatedTime <= DateTime.UtcNow && x.CreatedTime >= DateTime.UtcNow.AddHours(-2) && x.MeasurementPoints.Code == tagName)
+            .Where(x => x.MeasurementPoints.Code == tagName);
+
+        if (latestGroupId.HasValue)
+        {
+            query = query.Where(x => x.GroupId == latestGroupId.Value);
+        }
+        else
+        {
+            query = query.Where(x => x.CreatedTime <= DateTime.UtcNow && x.CreatedTime >= DateTime.UtcNow.AddHours(-2));
+        }
+
+        var projectedQuery = query
             .Include(x => x.MeasurementPoints)
             .ThenInclude(x => x.Customer)
             .OrderBy(x => x.MeasurementPointsId)
@@ -644,9 +590,25 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
                 }
             });
 
+        var latestDateTimeGroupId = await _measurementPointMonitoringByDateTimeEntities
+            .AsNoTracking()
+            .Where(x => x.MeasurementPoint.Code == tagName && x.GroupId.HasValue)
+            .MaxAsync(x => (long?)x.GroupId, cancellationToken);
+
         var queryByDateTime = _measurementPointMonitoringByDateTimeEntities
             .AsNoTracking()
-            .Where(x => x.CreatedTime <= DateTime.UtcNow && x.CreatedTime >= DateTime.UtcNow.AddHours(-2) && x.MeasurementPoint.Code == tagName)
+            .Where(x => x.MeasurementPoint.Code == tagName);
+
+        if (latestDateTimeGroupId.HasValue)
+        {
+            queryByDateTime = queryByDateTime.Where(x => x.GroupId == latestDateTimeGroupId.Value);
+        }
+        else
+        {
+            queryByDateTime = queryByDateTime.Where(x => x.CreatedTime <= DateTime.UtcNow && x.CreatedTime >= DateTime.UtcNow.AddHours(-2));
+        }
+
+        var projectedQueryByDateTime = queryByDateTime
             .OrderBy(x => x.MeasurementPointId)
             .ThenBy(x => x.CreatedTime)
             .Select(x => new MeasurementPointMonitoringByDateTimeEntity()
@@ -667,10 +629,25 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
             .OrderBy(x => x.MeasurementPointId)
             .ThenBy(x => x.CreatedTime);
 
-        var result = await query.ProjectTo<MeasurementPointMonitoringRawDto>(_mapper.ConfigurationProvider).ToListAsync(cancellationToken);
-        var resultByDateTime = await queryByDateTime.ProjectTo<MeasurementPointMonitoringByDateTimeRawDto>(_mapper.ConfigurationProvider).ToListAsync(cancellationToken);
+        var result = await projectedQuery.ProjectTo<MeasurementPointMonitoringRawDto>(_mapper.ConfigurationProvider).ToListAsync(cancellationToken);
+        var resultByDateTime = await projectedQueryByDateTime.ProjectTo<MeasurementPointMonitoringByDateTimeRawDto>(_mapper.ConfigurationProvider).ToListAsync(cancellationToken);
         var resultByStatus = await queryByStatus.ProjectTo<MeasurementPointMonitoringByDateTimeRawDto>(_mapper.ConfigurationProvider).ToListAsync(cancellationToken);
         var tagNameEntity = await _tagNameEntities.Where(x => x.MeasurementPoint.Code == tagName).ToListAsync(cancellationToken);
+
+        if (!result.Any())
+        {
+            return new MeasurementPointMonitoringDto
+            {
+                MeasurementPointsId = pointInfo.Id,
+                MeasurementPointCode = pointInfo.Code,
+                MeasurementPointDescription = pointInfo.Description,
+                CustomerCode = pointInfo.Customer?.CustomerCode,
+                CustomerName = pointInfo.Customer?.FullName,
+                MatKetNoi = true,
+                MatKetNoiQuanlity = true,
+                MatKetNoiCreatedTime = DateTimeOffset.UtcNow
+            };
+        }
 
         var measurementPointDtos = result
             .GroupBy(x => x.MeasurementPointsId)
@@ -682,10 +659,10 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
                 var dto = new MeasurementPointMonitoringDto()
                 {
                     MeasurementPointsId = firstEntity.MeasurementPointsId,
-                    MeasurementPointCode = firstEntity.MeasurementPoints.Code,
-                    MeasurementPointDescription = firstEntity.MeasurementPoints.Description,
-                    CustomerCode = firstEntity.MeasurementPoints.Customer.CustomerCode,
-                    CustomerName = firstEntity.MeasurementPoints.Customer.FullName,
+                    MeasurementPointCode = firstEntity.MeasurementPoints?.Code,
+                    MeasurementPointDescription = firstEntity.MeasurementPoints?.Description,
+                    CustomerCode = firstEntity.MeasurementPoints?.Customer?.CustomerCode,
+                    CustomerName = firstEntity.MeasurementPoints?.Customer?.FullName,
                     GroupId = firstEntity.GroupId ?? 0,
                     CreatedTime = firstEntity.CreatedTime
                 };
@@ -1249,9 +1226,25 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
     public async Task<MeasurementPointMonitoringByIoTDto?> GetMeasurementPointDetailByIoTAsync(string tagName, CancellationToken cancellationToken)
     {
         var cultureInfo = CultureInfo.InvariantCulture;
+        var latestGroupId = await _measurementPointMonitoringEntities
+            .AsNoTracking()
+            .Where(x => x.MeasurementPoints.Code == tagName && x.GroupId.HasValue)
+            .MaxAsync(x => (long?)x.GroupId, cancellationToken);
+
         var query = _measurementPointMonitoringEntities
             .AsNoTracking()
-            .Where(x => x.CreatedTime <= DateTime.UtcNow && x.CreatedTime >= DateTime.UtcNow.AddHours(-1) && x.MeasurementPoints.Code == tagName)
+            .Where(x => x.MeasurementPoints.Code == tagName);
+
+        if (latestGroupId.HasValue)
+        {
+            query = query.Where(x => x.GroupId == latestGroupId.Value);
+        }
+        else
+        {
+            query = query.Where(x => x.CreatedTime <= DateTime.UtcNow && x.CreatedTime >= DateTime.UtcNow.AddHours(-1));
+        }
+
+        query = query
             .Include(x => x.MeasurementPoints)
             .ThenInclude(x => x.Customer)
             .OrderBy(x => x.MeasurementPointsId)
@@ -1269,10 +1262,10 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
                 var dto = new MeasurementPointMonitoringByIoTDto()
                 {
                     MeasurementPointsId = firstEntity.MeasurementPointsId,
-                    MeasurementPointCode = firstEntity.MeasurementPoints.Code,
-                    MeasurementPointDescription = firstEntity.MeasurementPoints.Description,
-                    CustomerCode = firstEntity.MeasurementPoints.Customer.CustomerCode,
-                    CustomerName = firstEntity.MeasurementPoints.Customer.FullName,
+                    MeasurementPointCode = firstEntity.MeasurementPoints?.Code,
+                    MeasurementPointDescription = firstEntity.MeasurementPoints?.Description,
+                    CustomerCode = firstEntity.MeasurementPoints?.Customer?.CustomerCode,
+                    CustomerName = firstEntity.MeasurementPoints?.Customer?.FullName,
                     GroupId = firstEntity.GroupId ?? 0,
                     CreatedTime = firstEntity.CreatedTime
                 };
@@ -1603,19 +1596,35 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
         return measurementPointDtos;
     }
 
-    public Task<List<MeasurementPointEnergyReportDto>> GetListMeasurementEnergyReportAsync(CancellationToken cancellationToken)
+    private static DateTimeOffset GetNearestHalfHourSlot(DateTimeOffset time)
     {
-        return GetListMeasurementEnergyReportWithLookbackAsync(60, cancellationToken);
+        int minute = time.Minute;
+        int roundedMinute = minute < 15 ? 0 : (minute < 45 ? 30 : 0);
+        var baseTime = minute >= 45 ? time.AddHours(1) : time;
+        return new DateTimeOffset(baseTime.Year, baseTime.Month, baseTime.Day, baseTime.Hour, roundedMinute, 0, baseTime.Offset);
     }
 
-    public async Task<List<MeasurementPointEnergyReportDto>> GetListMeasurementEnergyReportWithLookbackAsync(int lookbackMinutes, CancellationToken cancellationToken)
+    public Task<List<MeasurementPointEnergyReportDto>> GetListMeasurementEnergyReportAsync(CancellationToken cancellationToken)
     {
-        if (lookbackMinutes <= 0) lookbackMinutes = 60;
-        var now = DateTimeOffset.UtcNow;
-        var primaryStart = now.AddMinutes(-5);
-        var lookbackStart = now.AddMinutes(-lookbackMinutes);
+        return GetListMeasurementEnergyReportWithLookbackAsync(120, cancellationToken);
+    }
 
-        // 1. Get all active measurement points to ensure all active meters are represented
+    public async Task<List<MeasurementPointEnergyReportDto>> GetListMeasurementEnergyReportWithLookbackAsync(
+        int lookbackMinutes, 
+        CancellationToken cancellationToken, 
+        DateTimeOffset? targetTime = null)
+    {
+        if (lookbackMinutes <= 0) lookbackMinutes = 120;
+        
+        // Xác định mốc chốt chu kỳ T (00:00, 00:30, 01:00...)
+        var target = targetTime ?? GetNearestHalfHourSlot(DateTimeOffset.UtcNow.AddMinutes(-5));
+        
+        // Cửa sổ dung sai đối xứng quanh mốc T ± 5 phút: [T - 5 phút, T + 5 phút]
+        var windowStart = target.AddMinutes(-5);
+        var windowEnd = target.AddMinutes(5);
+        var lookbackStart = target.AddMinutes(-Math.Max(lookbackMinutes, 60));
+
+        // 1. Lấy danh sách điểm đo đang hoạt động
         var activePoints = await _measurementPointsEntities
             .AsNoTracking()
             .Where(x => !x.Deleted && x.Status == "ACTIVE")
@@ -1629,26 +1638,25 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
 
         var activePointIds = activePoints.Select(x => x.Id).ToList();
 
-        // 2. Query primary 5-minute window telemetry
-        var primaryEntities = await _measurementPointMonitoringEntities
+        // 2. Truy vấn dữ liệu đo đếm trong cửa sổ T ± 5 phút
+        var windowEntities = await _measurementPointMonitoringEntities
             .AsNoTracking()
-            .Where(x => activePointIds.Contains(x.MeasurementPointsId) && x.CreatedTime >= primaryStart && x.CreatedTime <= now && x.Value != null && x.Value != "")
+            .Where(x => activePointIds.Contains(x.MeasurementPointsId) 
+                     && x.CreatedTime >= windowStart 
+                     && x.CreatedTime <= windowEnd 
+                     && x.Value != null && x.Value != "")
             .Include(x => x.TagName)
-            .OrderByDescending(x => x.CreatedTime)
             .ToListAsync(cancellationToken);
 
-        // Group primary telemetry by (MeasurementPointsId, TagNameDescription)
+        // Với mỗi (MeasurementPointsId, TagNameDescription): Chọn bản ghi có |t - T| nhỏ nhất (gần mốc T nhất)
         var primaryGrouped = new Dictionary<(long PointId, string TagDesc), MeasurementPointMonitoringEntity>();
-        foreach (var entity in primaryEntities)
+        foreach (var group in windowEntities.GroupBy(x => (x.MeasurementPointsId, TagDesc: x.TagNameDescription ?? "")))
         {
-            var key = (entity.MeasurementPointsId, entity.TagNameDescription ?? "");
-            if (!primaryGrouped.ContainsKey(key))
-            {
-                primaryGrouped[key] = entity;
-            }
+            var best = group.OrderBy(x => Math.Abs((x.CreatedTime.GetValueOrDefault() - target).TotalSeconds)).First();
+            primaryGrouped[(group.Key.MeasurementPointsId, group.Key.TagDesc)] = best;
         }
 
-        // Check which points have incomplete essential energy tags
+        // Các tag năng lượng thiết yếu
         var requiredTags = new[]
         {
             ListDataMeasurementPoint.ChiSoTichLuyDienNangTacDungAPBieuGioBT,
@@ -1658,6 +1666,7 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
             ListDataMeasurementPoint.ChiSoTichLuyDienNangPhanKhangAQTong
         };
 
+        // Điểm đo nào chưa có đủ các tag trong dải T ± 5 phút sẽ cần tìm kiếm lùi (Lookback)
         var pointsNeedingLookback = activePoints
             .Where(p => requiredTags.Any(tag => !primaryGrouped.ContainsKey((p.Id, tag))))
             .Select(p => p.Id)
@@ -1666,10 +1675,12 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
         var lookbackGrouped = new Dictionary<(long PointId, string TagDesc), MeasurementPointMonitoringEntity>();
         if (pointsNeedingLookback.Any())
         {
+            // Tìm các bản ghi trước cửa sổ chốt: CreatedTime < windowStart và >= lookbackStart
             var lookbackEntities = await _measurementPointMonitoringEntities
                 .AsNoTracking()
                 .Where(x => pointsNeedingLookback.Contains(x.MeasurementPointsId) 
-                         && x.CreatedTime >= lookbackStart && x.CreatedTime <= now 
+                         && x.CreatedTime >= lookbackStart 
+                         && x.CreatedTime < windowStart 
                          && x.Value != null && x.Value != "")
                 .Include(x => x.TagName)
                 .OrderByDescending(x => x.CreatedTime)
@@ -1684,7 +1695,7 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
                 }
             }
 
-            // Với các điểm đo mất kết nối kéo dài vượt quá lookbackMinutes: lấy số liệu Valid gần nhất từng có trong quá khứ
+            // Với điểm đo mất kết nối kéo dài vượt quá lookbackStart: lấy số liệu Valid gần nhất từng có trong quá khứ
             var stillNeedingLookback = pointsNeedingLookback
                 .Where(pId => requiredTags.Any(tag => !primaryGrouped.ContainsKey((pId, tag)) && !lookbackGrouped.ContainsKey((pId, tag))))
                 .ToList();
@@ -1694,7 +1705,7 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
                 var deepLookbackEntities = await _measurementPointMonitoringEntities
                     .AsNoTracking()
                     .Where(x => stillNeedingLookback.Contains(x.MeasurementPointsId) 
-                             && x.CreatedTime <= now 
+                             && x.CreatedTime < windowStart 
                              && x.Value != null && x.Value != "")
                     .Include(x => x.TagName)
                     .OrderByDescending(x => x.CreatedTime)
@@ -1712,24 +1723,28 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
             }
         }
 
-        // Helper to get value & unit with lookback fallback
+        // Helper lấy giá trị & đơn vị:
         (string? Value, string Unit) GetTagValue(long pointId, string tagDesc, string defaultUnit = "kWh")
         {
+            // 1. Có trong cửa sổ T ± 5 phút: Lấy số liệu quanh mốc chốt
             if (primaryGrouped.TryGetValue((pointId, tagDesc), out var primary) && !string.IsNullOrWhiteSpace(primary.Value))
             {
-                // Nếu Quality == Bad (Quanlity == false): giữ nguyên số liệu đọc được nhưng đánh dấu số liệu bị nghi ngờ (*)
+                // Nếu Quality == Bad (Quanlity == false): giữ nguyên số liệu nhưng đánh dấu bị nghi ngờ (*)
                 if (primary.Quanlity == false)
                 {
                     return ($"{primary.Value}*", primary.TagName?.Unit ?? defaultUnit);
                 }
+                // Số liệu hợp lệ trong dải T ± 5 phút -> Chuẩn, KHÔNG gắn '*'
                 return (primary.Value, primary.TagName?.Unit ?? defaultUnit);
             }
+
+            // 2. Không có trong T ± 5 phút, phải lấy từ quá khứ (T - 10, 15, 20... phút): BẮT BUỘC gắn cờ nghi ngờ (*)
             if (lookbackGrouped.TryGetValue((pointId, tagDesc), out var lookback) && !string.IsNullOrWhiteSpace(lookback.Value))
             {
-                // Số liệu quá khứ do mất tín hiệu hiện tại hoặc có Quanlity == false: đánh dấu Not Topical (*)
                 return ($"{lookback.Value}*", lookback.TagName?.Unit ?? defaultUnit);
             }
-            // Không có cấu hình liên kết dữ liệu trong DB: trả về null
+
+            // 3. Không có cấu hình liên kết dữ liệu / chưa từng có dữ liệu
             return (null, defaultUnit);
         }
 
@@ -1751,7 +1766,7 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
             result.Add(new MeasurementPointEnergyReportDto
             {
                 MeasurementPointId = point.Id,
-                CreatedTime = now,
+                CreatedTime = target.UtcDateTime,
                 ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao = btGiao.Value,
                 ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiaoUnit = btGiao.Unit,
                 ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao = cdGiao.Value,
@@ -1778,11 +1793,20 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
         return result;
     }
 
-    public async Task<List<MeasurementPointOperatingReportDto>> GetListMeasurementOperatingReportWithLookbackAsync(int lookbackMinutes, CancellationToken cancellationToken)
+    public async Task<List<MeasurementPointOperatingReportDto>> GetListMeasurementOperatingReportWithLookbackAsync(
+        int lookbackMinutes, 
+        CancellationToken cancellationToken, 
+        DateTimeOffset? targetTime = null)
     {
-        var now = DateTime.UtcNow;
-        var primaryWindowStart = now.AddMinutes(-10);
-        var lookbackStart = now.AddMinutes(-lookbackMinutes);
+        if (lookbackMinutes <= 0) lookbackMinutes = 120;
+        
+        // Xác định mốc chốt chu kỳ T (00:00, 00:30, 01:00...)
+        var target = targetTime ?? GetNearestHalfHourSlot(DateTimeOffset.UtcNow.AddMinutes(-5));
+        
+        // Cửa sổ dung sai đối xứng quanh mốc T ± 5 phút: [T - 5 phút, T + 5 phút]
+        var windowStart = target.AddMinutes(-5);
+        var windowEnd = target.AddMinutes(5);
+        var lookbackStart = target.AddMinutes(-Math.Max(lookbackMinutes, 60));
 
         var activePoints = await _measurementPointsEntities
             .AsNoTracking()
@@ -1797,21 +1821,22 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
 
         var activePointIds = activePoints.Select(x => x.Id).ToList();
 
-        var primaryEntities = await _measurementPointMonitoringEntities
+        // 1. Quét dữ liệu trong cửa sổ T ± 5 phút
+        var windowEntities = await _measurementPointMonitoringEntities
             .AsNoTracking()
-            .Where(x => activePointIds.Contains(x.MeasurementPointsId) && x.CreatedTime >= primaryWindowStart && x.CreatedTime <= now && x.Value != null && x.Value != "")
+            .Where(x => activePointIds.Contains(x.MeasurementPointsId) 
+                     && x.CreatedTime >= windowStart 
+                     && x.CreatedTime <= windowEnd 
+                     && x.Value != null && x.Value != "")
             .Include(x => x.TagName)
-            .OrderByDescending(x => x.CreatedTime)
             .ToListAsync(cancellationToken);
 
+        // Với mỗi tag: Chọn bản ghi có |t - T| nhỏ nhất (gần mốc T nhất)
         var primaryGrouped = new Dictionary<(long PointId, string TagDesc), MeasurementPointMonitoringEntity>();
-        foreach (var entity in primaryEntities)
+        foreach (var group in windowEntities.GroupBy(x => (x.MeasurementPointsId, TagDesc: x.TagNameDescription ?? "")))
         {
-            var key = (entity.MeasurementPointsId, entity.TagNameDescription ?? "");
-            if (!primaryGrouped.ContainsKey(key))
-            {
-                primaryGrouped[key] = entity;
-            }
+            var best = group.OrderBy(x => Math.Abs((x.CreatedTime.GetValueOrDefault() - target).TotalSeconds)).First();
+            primaryGrouped[(group.Key.MeasurementPointsId, group.Key.TagDesc)] = best;
         }
 
         var requiredTags = new HashSet<string>
@@ -1839,7 +1864,8 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
             var lookbackEntities = await _measurementPointMonitoringEntities
                 .AsNoTracking()
                 .Where(x => pointsNeedingLookback.Contains(x.MeasurementPointsId)
-                         && x.CreatedTime >= lookbackStart && x.CreatedTime <= now
+                         && x.CreatedTime >= lookbackStart 
+                         && x.CreatedTime < windowStart
                          && x.Value != null && x.Value != "")
                 .Include(x => x.TagName)
                 .OrderByDescending(x => x.CreatedTime)
@@ -1898,7 +1924,7 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
             result.Add(new MeasurementPointOperatingReportDto
             {
                 MeasurementPointId = point.Id,
-                CreatedTime = now,
+                CreatedTime = target.UtcDateTime,
                 DienApPhaA = ua.Value,
                 DienApPhaAUnit = ua.Unit,
                 DienApPhaB = ub.Value,

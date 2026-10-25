@@ -84,9 +84,9 @@ public class MeasurementPointMonitoringCommandHandler : IMeasurementPointMonitor
         {
             // Deserialize the request
             var request = JsonSerializer.Deserialize<MeasurementPointMonitoringCommand>(serializedRequest);
-            if (request == null)
+            if (request?.Request?.Values == null)
             {
-                _loggerService.LogError("Failed to deserialize request in background job");
+                _loggerService.LogError("Failed to deserialize request or request values is null in background job");
                 return;
             }
             
@@ -107,19 +107,19 @@ public class MeasurementPointMonitoringCommandHandler : IMeasurementPointMonitor
                     MeasurementPointsId = measurementPoint.Id,
                     MeasurementPointCode = measurementPoint.Code,
                     MeasurementPointDescription = measurementPoint.Description,
-                    CustomerCode = measurementPoint.Customer.CustomerCode,
-                    CustomerName = measurementPoint.Customer.FullName,
+                    CustomerCode = measurementPoint.Customer?.CustomerCode ?? string.Empty,
+                    CustomerName = measurementPoint.Customer?.FullName ?? string.Empty,
                     GroupId = groupId,
                 };
 
                 var count = 0;
 
                 var createdTime = _dateTimeService.Now();
-                if (measurementPoint.TagNames.Count > 0)
+                if (measurementPoint.TagNames != null && measurementPoint.TagNames.Count > 0)
                 {
                     foreach (var tagName in measurementPoint.TagNames)
                     {
-                        var iotDataValues = request.Request.Values.Where(v => v.Id == tagName.TagName);
+                        var iotDataValues = request.Request.Values.Where(v => v != null && v.Id == tagName.TagName);
 
                         foreach (var iotDataValue in iotDataValues)
                         {
@@ -138,7 +138,7 @@ public class MeasurementPointMonitoringCommandHandler : IMeasurementPointMonitor
                                 TagNameId = tagName.Id,
                                 TagNameDescription = tagName.Description,
                                 Value = convertedValue,
-                                Quanlity = bool.Parse(iotDataValue.Q),
+                                Quanlity = ParseQuality(iotDataValue.Q),
                                 GroupId = groupId,
                                 CreatedTime = DateTimeOffset.FromUnixTimeMilliseconds(iotDataValue.T)
                             };
@@ -184,12 +184,15 @@ public class MeasurementPointMonitoringCommandHandler : IMeasurementPointMonitor
                     PageSize = 1000
                 }, cancellationToken);
 
-            await _listHubContext.Clients.All.SendAsync("ReceiveUpdate", responseViewList, cancellationToken: cancellationToken);
+            if (_listHubContext?.Clients != null)
+            {
+                await _listHubContext.Clients.All.SendAsync("ReceiveUpdate", responseViewList, cancellationToken: cancellationToken);
+            }
             
             foreach (var item in viewDetailNotifications)
             {
                 var measurementPointCode = item.MeasurementPointCode;   
-                if (measurementPointCode != null)
+                if (!string.IsNullOrEmpty(measurementPointCode) && _detailHubContext?.Clients != null)
                 {
                     var measurementPointDetail = await _measurementPointMonitoringReadOnlyRepository.GetMeasurementPointDetailByIoTAsync(
                         measurementPointCode, cancellationToken);
@@ -264,5 +267,15 @@ public class MeasurementPointMonitoringCommandHandler : IMeasurementPointMonitor
         }
 
         return s;
+    }
+
+    private static bool ParseQuality(string? q)
+    {
+        if (string.IsNullOrWhiteSpace(q)) return true; // Mặc định Good nếu không gửi cờ Q
+        if (bool.TryParse(q, out var bVal)) return bVal;
+        var trimmed = q.Trim();
+        if (trimmed == "1" || trimmed == "192" || trimmed.Equals("Good", StringComparison.OrdinalIgnoreCase)) return true;
+        if (trimmed == "0" || trimmed.Equals("Bad", StringComparison.OrdinalIgnoreCase)) return false;
+        return true;
     }
 }

@@ -1,4 +1,4 @@
-﻿using Application.Commands.MeasurementPoints;
+using Application.Commands.MeasurementPoints;
 using Application.Common.Responses.Common.Responses;
 using Application.Common.ValueObjects;
 using Application.DataTransferObjects.Responses.Gcs;
@@ -53,7 +53,8 @@ public class UpdateMeasurementPointsCommandHandler : IUpdateMeasurementPointsCom
 
             if (command.Request.Status == EntityStatus.Active)
             {
-                if (measurementPoint.Gcs.Status != EntityStatus.Active || measurementPoint.Customer.Status != EntityStatus.Active)
+                if ((measurementPoint.Gcs != null && measurementPoint.Gcs.Status != EntityStatus.Active) || 
+                    (measurementPoint.Customer != null && measurementPoint.Customer.Status != EntityStatus.Active))
                 {
                     return RequestResult<MeasurementPointResponse>.Fail(new[]
                     {

@@ -16,6 +16,7 @@
 .dotnet*
 .dotnet*/
 scratch/
+test_*.ps1
 
 # Visual Studio & JetBrains Rider
 **/.vs/

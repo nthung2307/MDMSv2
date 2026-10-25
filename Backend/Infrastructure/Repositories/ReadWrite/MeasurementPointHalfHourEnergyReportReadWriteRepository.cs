@@ -233,14 +233,17 @@ public class MeasurementPointHalfHourEnergyReportReadWriteRepository :
     
     private string FormatValue(string? value)
     {
-        if (value == null) return "N/A";
+        if (string.IsNullOrWhiteSpace(value)) return "-";
         var viCulture = CultureInfo.GetCultureInfo("vi-VN");
-        double valueNumber = double.Parse(value, CultureInfo.InvariantCulture);
-        if (valueNumber % 1 == 0)
+        bool isSuspected = value.EndsWith("*") || value.Contains("Not Topical");
+        string clean = value.Replace("*", "").Replace("(Not Topical)", "").Trim();
+        if (double.TryParse(clean, NumberStyles.Any, CultureInfo.InvariantCulture, out double valueNumber) ||
+            double.TryParse(clean, NumberStyles.Any, viCulture, out valueNumber))
         {
-            return valueNumber.ToString("N0", viCulture);
+            string formatted = (valueNumber % 1 == 0) ? valueNumber.ToString("N0", viCulture) : valueNumber.ToString("N2", viCulture);
+            return isSuspected ? formatted + "*" : formatted;
         }
-        return valueNumber.ToString("N2", viCulture);
+        return value;
     }
 
     private static string FormatExportValue(string? value)

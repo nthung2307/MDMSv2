@@ -1,6 +1,6 @@
 import { Button, Card, DatePicker, Select } from 'antd';
 import dayjs from 'dayjs';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FiSearch, FiShare } from 'react-icons/fi';
 
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
@@ -82,7 +82,15 @@ const ActivePointsEnergyReport: React.FC = () => {
     );
   };
 
-  // Không tự động load dữ liệu khi vào trang, chỉ gọi khi bấm 'Truy vấn'
+  // Tự động truy vấn khi người dùng thay đổi Ngày hoặc Giờ lấy dữ liệu (Không tự động khi mới mở trang)
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    fetchReportData();
+  }, [selectedDate, selectedSlot]);
 
   // Chuẩn bị dữ liệu xuất file (gồm STT, Thời gian, Mã điểm đo, các chỉ số giao/nhận)
   const dataExport = useMemo(() => {
@@ -129,7 +137,7 @@ const ActivePointsEnergyReport: React.FC = () => {
   const exportConfig = useMemo(() => {
     return {
       title: 'Báo cáo chỉ số điện các điểm đo',
-      fileNameCsv: `bao-cao-chi-so-dien-cac-diem-do-${selectedDate.format('DDMMYYYY')}-${selectedSlot.replace(':', '')}`,
+      fileNameCsv: `BaoCao_ChiSoDien_CacDiemDo_${selectedDate.format('YYYYMMDD')}_${selectedSlot.replace(':', '')}`,
       typeExportAll: '',
       listHeader: Constants.listHeaderExport.ActivePointsEnergyReport,
       requestBody: {
@@ -210,6 +218,7 @@ const ActivePointsEnergyReport: React.FC = () => {
         listHeader={exportConfig.listHeader}
         fileNameCsv={exportConfig.fileNameCsv}
         typeExportAll={''}
+        extraInfo={[]}
       />
     </div>
   );

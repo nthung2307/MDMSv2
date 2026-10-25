@@ -211,6 +211,41 @@ if ($mysqlExe) {
 
             if ($proc.ExitCode -eq 0) {
                 Write-Host "   -> [PASS] Da import thanh cong co so du lieu 'amr' tu $dumpFileName!" -ForegroundColor Green
+
+                # Tu dong kiem tra va nap Master Data (Khach hang, So GCS, Diem do, Tags)
+                $candidateMaster = @(
+                    (Join-Path $databaseDir "amr_master_data.sql"),
+                    (Join-Path $scriptsDir "amr_master_data.sql"),
+                    (Join-Path $RootDeployPath "amr_master_data.sql"),
+                    (Join-Path $databaseDir "amr_data.sql")
+                )
+                $chosenMasterFile = $null
+                foreach ($cm in $candidateMaster) {
+                    if (Test-Path $cm) { $chosenMasterFile = (Resolve-Path $cm).Path; break }
+                }
+
+                if ($chosenMasterFile) {
+                    Write-Host "`n   --- NAP DU LIEU CO SO (KHACH HANG, SO GCS, DIEM DO, LIEN KET DU LIEU) ---" -ForegroundColor Cyan
+                    Write-Host "   Tim thay tap tin Master Data: $(Split-Path $chosenMasterFile -Leaf)" -ForegroundColor Green
+                    $importMaster = Read-Host "   Ban co muon Import danh muc Khach hang & Diem do thuc te vao moi truong trang? (Y/n) [Mac dinh: Y]"
+                    if ([string]::IsNullOrWhiteSpace($importMaster) -or $importMaster.Trim().ToUpper() -eq "Y") {
+                        $importScript = Join-Path $scriptsDir "Import_MasterData.ps1"
+                        if (-not (Test-Path $importScript)) {
+                            $importScript = Join-Path $PSScriptRoot "Import_MasterData.ps1"
+                        }
+                        if (Test-Path $importScript) {
+                            Write-Host "   Dang thuc thi Import_MasterData.ps1..." -ForegroundColor Cyan
+                            & $importScript -MySqlHost $inputHost -MySqlPort ([int]$inputPort) -MySqlUser $inputUser -MySqlPassword $mysqlPassword -DataFile $chosenMasterFile
+                        } else {
+                            Write-Warning "   Khong tim thay script Import_MasterData.ps1 tai: $importScript"
+                        }
+                    }
+                } else {
+                    Write-Host "`n   [LUU Y] Chua tim thay tap tin 'amr_master_data.sql' trong thu muc: $databaseDir" -ForegroundColor Yellow
+                    Write-Host "   CSDL 'amr' vua duoc tao la KHUNG BANG TRANG (chua co Khach hang va Diem do)." -ForegroundColor Gray
+                    Write-Host "   Sau khi copy amr_master_data.sql vao $databaseDir, ban co the chay:" -ForegroundColor White
+                    Write-Host "   cd $scriptsDir; .\Import_MasterData.ps1 de nap du lieu bat cu luc nao!" -ForegroundColor Cyan
+                }
             } else {
                 Write-Warning "   Lenh import co so du lieu ket thuc voi ma thoat: $($proc.ExitCode)"
             }

@@ -16,6 +16,8 @@ public class CustomerProfile : Profile
         CreateMap<UpdateCustomerRequest, UpdateCustomerCommand>();
         CreateMap<CustomerEntity, CustomerDto>()
             .ForMember(dest => dest.MeasurePoints, opt =>
+            {
+                opt.ExplicitExpansion();
                 opt.MapFrom(src => src.MeasurePoints.Where(x => x.Status != EntityStatus.Deleted && !x.Deleted).Select(uc => new MeasurementPointDto()
                 {
                     Id = uc.Id,
@@ -29,22 +31,24 @@ public class CustomerProfile : Profile
                     Email = uc.Email,
                     Email2 = uc.Email2,
                     Email3 = uc.Email3,
-                    Gcs = new GcsEntity()
+                    Gcs = uc.Gcs != null ? new GcsEntity()
                     {
                         Id = uc.Gcs.Id,
                         Name = uc.Gcs.Name,
                         Code = uc.Gcs.Code
-                    }
-                }))
-            )
+                    } : null
+                }));
+            })
             .ForMember(dest => dest.UserCustomer, opt =>
-                opt.MapFrom(src => src.UserCustomer.Where(x => x.User.Status != EntityStatus.Deleted && !x.User.Deleted).Select(uc => new UserCustomerEntity()
+            {
+                opt.ExplicitExpansion();
+                opt.MapFrom(src => src.UserCustomer.Where(x => x.User != null && x.User.Status != EntityStatus.Deleted && !x.User.Deleted).Select(uc => new UserCustomerEntity()
                 {
                     Id = uc.Id,
                     CustomerId = uc.CustomerId,
                     UserId = uc.UserId,
                     User = uc.User
-                }))
-            );
+                }));
+            });
     }
 }

@@ -406,11 +406,17 @@ const HalfHourFinalizedEnergyReport: React.FC<HalfHourFinalizedEnergyReportProps
   }, [tableData]);
 
   const exportConfig = useMemo(() => {
+    const point =
+      measurementPoints?.find((p: any) => p.value === dataForm?.measurementPointId)?.label ||
+      dataForm?.measurementPointId ||
+      '';
+    const pointPart = point ? `_${point}` : '';
+
     switch (reportType) {
       case 'daily':
         return {
           title: 'Báo cáo chỉ số điện hàng ngày',
-          fileNameCsv: `bao-cao-chi-so-dien-hang-ngay-${singleDate.format('DDMMYYYY')}`,
+          fileNameCsv: `BaoCao_ChiSoDien${pointPart}_${singleDate.format('YYYYMMDD')}`,
           typeExportAll: 'half-hour-finalized-energy',
           listHeader: Constants.listHeaderExport.HalfHourFinalizedEnergyReport,
           requestBody: {
@@ -423,7 +429,7 @@ const HalfHourFinalizedEnergyReport: React.FC<HalfHourFinalizedEnergyReportProps
       case 'range':
         return {
           title: 'Báo cáo chỉ số điện theo khoảng thời gian',
-          fileNameCsv: `bao-cao-chi-so-dien-${rangeDate[0].format('DDMMYYYY')}-${rangeDate[1].format('DDMMYYYY')}`,
+          fileNameCsv: `BaoCao_ChiSoDien${pointPart}_${rangeDate[0].format('YYYYMMDD')}_${rangeDate[1].format('YYYYMMDD')}`,
           typeExportAll: 'half-hour-finalized-energy',
           listHeader: Constants.listHeaderExport.HalfHourFinalizedEnergyReport,
           requestBody: {
@@ -436,7 +442,7 @@ const HalfHourFinalizedEnergyReport: React.FC<HalfHourFinalizedEnergyReportProps
       case 'monthly':
         return {
           title: 'Báo cáo chỉ số điện hàng tháng',
-          fileNameCsv: `bao-cao-chi-so-dien-thang-${selectedMonth.format('MM-YYYY')}`,
+          fileNameCsv: `BaoCao_ChiSoDien${pointPart}_${selectedMonth.format('YYYYMM')}`,
           typeExportAll: 'daily-finalized-energy',
           listHeader: Constants.listHeaderExport.DailyFinalizedEnergyReport,
           requestBody: {
@@ -449,7 +455,7 @@ const HalfHourFinalizedEnergyReport: React.FC<HalfHourFinalizedEnergyReportProps
       case 'yearly':
         return {
           title: 'Báo cáo chỉ số điện hàng năm',
-          fileNameCsv: `bao-cao-chi-so-dien-nam-${selectedYear.format('YYYY')}`,
+          fileNameCsv: `BaoCao_ChiSoDien${pointPart}_${selectedYear.format('YYYY')}`,
           typeExportAll: 'yearly-finalized-energy',
           listHeader: Constants.listHeaderExport.DailyFinalizedEnergyReport,
           requestBody: {
@@ -461,8 +467,45 @@ const HalfHourFinalizedEnergyReport: React.FC<HalfHourFinalizedEnergyReportProps
     }
   }, [
     reportType,
+    measurementPoints,
     dataForm.customerId,
     dataForm.measurementPointId,
+    singleDate,
+    rangeDate,
+    selectedMonth,
+    selectedYear,
+  ]);
+
+  const exportExtraInfo = useMemo(() => {
+    const customer =
+      customers?.find((c: any) => c.value === dataForm.customerId)?.label ||
+      dataForm.customerId ||
+      'Tất cả';
+    const point =
+      measurementPoints?.find((p: any) => p.value === dataForm.measurementPointId)?.label ||
+      dataForm.measurementPointId ||
+      'Tất cả';
+    let timeLabel = '';
+    if (reportType === 'daily') {
+      timeLabel = singleDate.format('DD/MM/YYYY');
+    } else if (reportType === 'range') {
+      timeLabel = `${rangeDate[0].format('DD/MM/YYYY')} - ${rangeDate[1].format('DD/MM/YYYY')}`;
+    } else if (reportType === 'monthly') {
+      timeLabel = selectedMonth.format('MM/YYYY');
+    } else {
+      timeLabel = selectedYear.format('YYYY');
+    }
+    return [
+      { label: 'Khách hàng', value: String(customer) },
+      { label: 'Điểm đo', value: String(point) },
+      { label: 'Thời gian', value: timeLabel },
+    ];
+  }, [
+    customers,
+    measurementPoints,
+    dataForm.customerId,
+    dataForm.measurementPointId,
+    reportType,
     singleDate,
     rangeDate,
     selectedMonth,
@@ -612,13 +655,12 @@ const HalfHourFinalizedEnergyReport: React.FC<HalfHourFinalizedEnergyReportProps
         handleCancel={() => {
           setIsShowExport(false);
         }}
-        title={exportConfig.title}
+        title='Báo cáo chỉ số điện'
         dataSource={dataExport}
         listHeader={exportConfig.listHeader}
         fileNameCsv={exportConfig.fileNameCsv}
-        typeExportAll={exportConfig.typeExportAll}
-        requestBody={exportConfig.requestBody}
-        onlyExportAll={true}
+        typeExportAll={''}
+        extraInfo={exportExtraInfo}
       />
     </div>
   );

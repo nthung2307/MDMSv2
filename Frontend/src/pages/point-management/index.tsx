@@ -204,7 +204,7 @@ const PointManagement = () => {
           <PrivateComponent roles={[Constants.Role.SuperAdmin.value, Constants.Role.Admin.value]}>
             <ButtonCommonCustomizable
               title={''}
-              tooltipText={'Nhập từ CSV'}
+              tooltipText={'Nhập từ Excel'}
               onClick={() => {
                 setIsShowImport(true);
               }}
@@ -303,7 +303,7 @@ const PointManagement = () => {
         title='Quản lý điểm đo'
         dataSource={dataExport}
         listHeader={Constants.listHeaderExport.PointManagement}
-        fileNameCsv={'diemdo'}
+        fileNameCsv={'DanhSachDiemDo'}
         typeExportAll={'measurement-points'}
         requestBody={getListMeasurementParamsRequest}
       />

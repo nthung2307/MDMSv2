@@ -41,6 +41,8 @@ const Header = (props: Props) => {
   const [getCountAlert] = useGetCountAlertHook();
   const role = getAccountRole();
 
+  const countState = useRecoilValue(CountState);
+
   const getListMeasurementPointAlertAsync = async () => {
     const params: GetListMeasurementPointMonitoringRequest = {
       pageSize: 10,
@@ -52,7 +54,12 @@ const Header = (props: Props) => {
       (res: DataResponse) => {
         const { data } = res;
         const result = data?.data;
-        setDataAlert(result);
+        setDataAlert(result || []);
+        if (typeof data?.totalCount === 'number') {
+          setCountAlert(data.totalCount);
+        } else if (Array.isArray(result)) {
+          setCountAlert(result.length);
+        }
       },
       () => {},
       () => {}
@@ -158,6 +165,12 @@ const Header = (props: Props) => {
       getListMeasurementPointAlertAsync();
     }
   }, [dataSocket, alertState]);
+
+  useEffect(() => {
+    if (typeof countState === 'number') {
+      setCountAlert(countState);
+    }
+  }, [countState]);
 
   return (
     <SocketCommon

@@ -138,7 +138,8 @@ const TotalOutputMeasurementPoints = () => {
   };
 
   const fileNameBuilder = () => {
-    return `Bang_tong_san_luong_tat_ca_cac_diem_do_${dataForm?.datePicker}`;
+    const timeStr = dataForm?.datePicker ? dataForm.datePicker.replace(/[^0-9]/g, '') : '';
+    return `BaoCao_TongSanLuong_CacDiemDo${timeStr ? `_${timeStr}` : ''}`;
   };
 
   useEffect(() => {
@@ -286,7 +287,7 @@ const TotalOutputMeasurementPoints = () => {
         handleCancel={() => {
           setIsShowExport(false);
         }}
-        onlyPDF={true}
+        chartRef={chartRef.current}
         title='Tổng sản lượng các điểm đo'
         dataSource={dataList}
         listHeader={Constants.listHeaderExport.TotalOutputPoint}

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Application.DataTransferObjects.Requests.Customers;
+using Application.DataTransferObjects.Requests.Users;
 using Application.Extensions;
 using Application.Repositories.ReadWrite;
 using CsvHelper;
@@ -168,11 +169,72 @@ public class UserReadWriteRepository : RestfulRepository<UserEntity, AppReadWrit
         return document.GeneratePdf();
     }
 
-    public async Task<byte[]> GenerateCustomerCsv(CancellationToken cancellationToken)
+    public Task<byte[]> GenerateCustomerCsv(CancellationToken cancellationToken)
+    {
+        return GenerateCustomerCsv(null, cancellationToken);
+    }
+
+    public async Task<byte[]> GenerateCustomerCsv(ExportUserCsvRequest? request, CancellationToken cancellationToken)
     {
         using var memoryStream = new MemoryStream();
-        await using var streamWriter = new StreamWriter(memoryStream, Encoding.UTF8);
-        var query = await _userEntities.Where(x => x.RoleName != DefaultRoles.SuperAdmin && !x.Deleted).ToListAsync(cancellationToken);
+        await using var streamWriter = new StreamWriter(memoryStream, new UTF8Encoding(true));
+        var query = _userEntities.AsNoTracking()
+            .Where(x => x.RoleName != DefaultRoles.SuperAdmin && !x.Deleted)
+            .AsQueryable();
+
+        if (request != null)
+        {
+            if (!string.IsNullOrWhiteSpace(request.UserName))
+            {
+                var u = request.UserName.Trim().ToLower();
+                query = query.Where(x => x.UserName.ToLower().Contains(u) || (x.FullName != null && x.FullName.ToLower().Contains(u)));
+            }
+            if (!string.IsNullOrWhiteSpace(request.FullName))
+            {
+                var f = request.FullName.Trim().ToLower();
+                query = query.Where(x => (x.FullName != null && x.FullName.ToLower().Contains(f)) || x.UserName.ToLower().Contains(f));
+            }
+            if (!string.IsNullOrWhiteSpace(request.RoleName))
+            {
+                var r = request.RoleName.Trim();
+                query = query.Where(x => x.RoleName == r);
+            }
+            if (!string.IsNullOrWhiteSpace(request.Status))
+            {
+                var s = request.Status.Trim();
+                query = query.Where(x => x.Status == s);
+            }
+            if (request.SearchByFields != null && request.SearchByFields.Count > 0)
+            {
+                foreach (var searchField in request.SearchByFields)
+                {
+                    if (searchField.SearchFieldName.Equals("fullName", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(searchField.SearchValue))
+                    {
+                        var nameVal = searchField.SearchValue.Trim().ToLower();
+                        query = query.Where(x => (x.FullName != null && x.FullName.ToLower().Contains(nameVal)) || x.UserName.ToLower().Contains(nameVal));
+                    }
+                    else if (searchField.SearchFieldName.Equals("userName", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(searchField.SearchValue))
+                    {
+                        var uVal = searchField.SearchValue.Trim().ToLower();
+                        query = query.Where(x => x.UserName.ToLower().Contains(uVal) || (x.FullName != null && x.FullName.ToLower().Contains(uVal)));
+                    }
+                    else if (searchField.SearchFieldName.Equals("roleName", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(searchField.SearchValue))
+                    {
+                        var roleVal = searchField.SearchValue.Trim();
+                        query = query.Where(x => x.RoleName == roleVal);
+                    }
+                    else if (searchField.SearchFieldName.Equals("status", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(searchField.SearchValue))
+                    {
+                        var statusVal = searchField.SearchValue.Trim();
+                        query = query.Where(x => x.Status == statusVal);
+                    }
+                }
+            }
+        }
+
+        var users = await query
+            .OrderBy(x => x.Id)
+            .ToListAsync(cancellationToken);
 
         await using var csvWriter = new CsvWriter(streamWriter, CultureInfo.InvariantCulture);
         // Write headers
@@ -180,29 +242,30 @@ public class UserReadWriteRepository : RestfulRepository<UserEntity, AppReadWrit
         csvWriter.WriteField("Tên đăng nhập");
         csvWriter.WriteField("Nhóm người dùng");
         csvWriter.WriteField("Họ và tên");
-        csvWriter.WriteField("SĐT");
+        csvWriter.WriteField("Điện thoại");
         csvWriter.WriteField("Email");
         csvWriter.WriteField("Trạng thái");
         await csvWriter.NextRecordAsync();
 
         // Write rows
-        for (var i = 0; i < query.Count; i++)
+        for (var i = 0; i < users.Count; i++)
         {
-            var customer = query[i];
+            var user = users[i];
             csvWriter.WriteField(i + 1);
-            csvWriter.WriteField(customer.UserName);
-            csvWriter.WriteField(customer.RoleName switch
+            csvWriter.WriteField(user.UserName);
+            csvWriter.WriteField(user.RoleName switch
             {
                 DefaultRoles.Admin => "Quản trị viên",
                 DefaultRoles.Staff => "Nhân viên",
                 _ => "Khách hàng"
             });
-            csvWriter.WriteField(customer.FullName);
-            csvWriter.WriteField(customer.PhoneNumber);
-            csvWriter.WriteField(customer.Email);
-            csvWriter.WriteField(customer.Status == EntityStatus.Active ? "Kích hoạt" : "Không kích hoạt");
+            csvWriter.WriteField(user.FullName ?? string.Empty);
+            csvWriter.WriteField(user.PhoneNumber ?? string.Empty);
+            csvWriter.WriteField(user.Email ?? string.Empty);
+            csvWriter.WriteField(user.Status == EntityStatus.Active ? "Đang hoạt động" : "Vô hiệu");
             await csvWriter.NextRecordAsync();
         }
+        await csvWriter.FlushAsync();
         await streamWriter.FlushAsync(cancellationToken);
         var csvBytes = memoryStream.ToArray();
 

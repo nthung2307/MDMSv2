@@ -1,5 +1,6 @@
 import { Table } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
 import React, { useMemo } from 'react';
 
 import { OperatingParameterItem } from '@/core/application/dto/reports/requests/GetOperatingParameterReportRequest';
@@ -39,14 +40,7 @@ export const OperatingParameterTable: React.FC<OperatingParameterTableProps> = (
       align: 'center',
       render: (val: string) => {
         if (!val) return '-';
-        const d = new Date(val);
-        return d.toLocaleString('vi-VN', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        });
+        return dayjs(val).format('DD/MM/YYYY HH:mm');
       },
     },
     {

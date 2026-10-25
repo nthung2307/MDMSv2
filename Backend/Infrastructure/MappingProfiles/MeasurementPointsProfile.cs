@@ -15,23 +15,21 @@ public class MeasurementPointsProfile : Profile
         CreateMap<MeasurementPointsEntity, ListMeasurementPointDto>();
         CreateMap<MeasurementPointsEntity, MeasurementPointDto>()
             .ForMember(dest => dest.Gcs, opt =>
-                opt.MapFrom(src => new GcsEntity()
+                opt.MapFrom(src => src.Gcs != null ? new GcsEntity()
                 {
-                    Id = src.Id,
+                    Id = src.Gcs.Id,
                     Code = src.Gcs.Code,
                     Name = src.Gcs.Name,
                     PeriodNumber = src.Gcs.PeriodNumber
-                })
-            )
+                } : null))
             .ForMember(dest => dest.Customer, opt =>
-                opt.MapFrom(src => new CustomerEntity()
+                opt.MapFrom(src => src.Customer != null ? new CustomerEntity()
                 {
-                    Id = src.Id,
+                    Id = src.Customer.Id,
                     CustomerCode = src.Customer.CustomerCode,
                     FullName = src.Customer.FullName,
                     Address = src.Customer.Address,
                     PhoneNumber = src.Customer.PhoneNumber
-                })
-            );
+                } : null));
     }
 }

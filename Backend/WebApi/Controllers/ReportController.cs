@@ -473,7 +473,7 @@ public class ReportController : ControllerBase
         try
         {
             var data = await _operatingReportReadWriteRepository.GenerateExcel(request, cancellationToken);
-            return File(data, "text/csv", $"Export-Operating-Parameter-{DateTime.Now.ToString("s")}.csv");
+            return File(data, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Export-Operating-Parameter-{DateTime.Now:yyyyMMdd_HHmmss}.xlsx");
         }
         catch (Exception e)
         {
@@ -546,7 +546,7 @@ public class ReportController : ControllerBase
         try
         {
             var data = await _consumptionReportReadWriteRepository.GenerateExcel(request, cancellationToken);
-            return File(data, "text/csv", $"Export-Energy-Consumption-{DateTime.Now.ToString("s")}.csv");
+            return File(data, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Export-Energy-Consumption-{DateTime.Now:yyyyMMdd_HHmmss}.xlsx");
         }
         catch (Exception e)
         {

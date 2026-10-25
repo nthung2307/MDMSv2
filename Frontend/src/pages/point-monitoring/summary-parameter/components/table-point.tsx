@@ -14,7 +14,7 @@ const TableSummary = (props: Props) => {
   const { dataSource, loading } = props;
 
   const renderValue = (val: number, quanlity: boolean, unit?: any) => {
-    if (!val && !quanlity) return `????`;
+    if (!val && !quanlity) return `-`;
 
     return (
       <>
@@ -62,8 +62,19 @@ const TableSummary = (props: Props) => {
       width: 100,
       dataIndex: 'matKetNoi',
       render: (val, record) => {
+        const hasMeasurementData =
+          record.dienApPhaA != null ||
+          record.dongDienPhaA != null ||
+          record.congSuatTacDungTong3Pha != null ||
+          record.congSuatPhanKhangTong3Pha != null ||
+          record.heSoCongSuatPFTrungBinh3Pha != null ||
+          record.tanSoHeThong != null;
+
+        if (!hasMeasurementData || val === null || val === undefined) {
+          return <span>-</span>;
+        }
         return (
-          <span>{!record.matKetNoiQuanlity ? '????' : val ? 'Mất kết nối' : 'Bình thường'}</span>
+          <span>{val ? 'Mất kết nối' : 'Bình thường'}</span>
         );
       },
     },

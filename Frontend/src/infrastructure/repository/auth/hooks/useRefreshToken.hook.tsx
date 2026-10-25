@@ -60,7 +60,7 @@ export const refreshTokenAsync = async (params: RefreshTokenRequest) => {
           notifyError(
             '',
             (res.errors?.length && res.errors[0]?.error) ||
-              'An error occurred. Please contact the administrator'
+              'Đã có lỗi xảy ra. Vui lòng liên hệ với quản trị viên hệ thống.'
           );
         }
 
@@ -70,7 +70,7 @@ export const refreshTokenAsync = async (params: RefreshTokenRequest) => {
         notifyError(
           '',
           (response as FailureResponse).message ||
-            'An error occurred. Please contact the administrator'
+            'Đã có lỗi xảy ra. Vui lòng liên hệ với quản trị viên hệ thống.'
         );
         const res = (response as SuccessResponse).data;
         if (!res?.success) {
@@ -83,7 +83,7 @@ export const refreshTokenAsync = async (params: RefreshTokenRequest) => {
         notifyError(
           '',
           (response as InvalidModelStateResponse).message ||
-            'An error occurred. Please contact the administrator'
+            'Đã có lỗi xảy ra. Vui lòng liên hệ với quản trị viên hệ thống.'
         );
         loggerService.info(response as InvalidModelStateResponse);
         break;
@@ -94,7 +94,7 @@ export const refreshTokenAsync = async (params: RefreshTokenRequest) => {
         break;
       }
       default: {
-        notifyError('', 'An error occurred. Please contact the administrator');
+        notifyError('', 'Đã có lỗi xảy ra. Vui lòng liên hệ với quản trị viên hệ thống.');
       }
     }
     return result;

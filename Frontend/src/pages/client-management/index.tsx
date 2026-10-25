@@ -255,7 +255,7 @@ const ClientManagement = () => {
           <PrivateComponent roles={[Constants.Role.Admin.value, Constants.Role.SuperAdmin.value]}>
             <ButtonCommonCustomizable
               title={''}
-              tooltipText={'Nhập từ CSV'}
+              tooltipText={'Nhập từ Excel'}
               onClick={() => {
                 setIsShowImport(true);
               }}
@@ -356,8 +356,9 @@ const ClientManagement = () => {
         title='Quản lý khách hàng'
         dataSource={tableDataSource}
         listHeader={Constants.listHeaderExport.clients}
-        fileNameCsv={'khachhang'}
+        fileNameCsv={'DanhSachKhachHang'}
         typeExportAll={'customers'}
+        requestBody={getListCustomerParamsRequest}
       />
       {/* Dialog import file */}
       <DialogImportCustomer

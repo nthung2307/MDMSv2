@@ -204,11 +204,11 @@ public class CustomerController : ControllerBase
     [HttpPost]
     [Route(Common.Url.Default.Customer.ExportCsv)]
     // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
-    public async Task<IActionResult> ExportCsvCustomersAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> ExportCsvCustomersAsync([FromBody] ExportCustomerCsvRequest? request, CancellationToken cancellationToken)
     {
         try
         {
-            var csvData = await _customerReadWriteRepository.GenerateCustomerCsv(cancellationToken);
+            var csvData = await _customerReadWriteRepository.GenerateCustomerCsv(request, cancellationToken);
             return File(
                 fileContents: csvData,
                 contentType: "text/csv; charset=utf-8",

@@ -117,7 +117,7 @@ public class MeasurementPointEventCommandHandler : IMeasurementPointEventCommand
                                 TagNameId = tagName.Id,
                                 EventName = tagName.Description == "MAT_KET_NOI" ? "Trạng thái kết nối" : tagName.CustomName,
                                 Value = convertedValue,
-                                Quanlity = bool.Parse(iotDataValue.Q),
+                                Quanlity = bool.TryParse(iotDataValue.Q, out var q1) ? q1 : (iotDataValue.Q == "1" || iotDataValue.Q == "192"),
                                 Status = !parsedV ? "NORMAL" : "ALARM",
                                 CreatedTime = DateTimeOffset.FromUnixTimeMilliseconds(iotDataValue.T)
                             };
@@ -144,10 +144,10 @@ public class MeasurementPointEventCommandHandler : IMeasurementPointEventCommand
                             {
                                 MeasurementPointsId = measurementPoint.Id,
                                 MeasurementPointCode = measurementPoint.Code,
-                                CustomerName = measurementPoint.Customer.FullName,
+                                CustomerName = measurementPoint.Customer?.FullName ?? string.Empty,
                                 EventName = tagName.Description == "MAT_KET_NOI" ? "Trạng thái kết nối" : tagName.CustomName,
                                 Status = !parsedV ? "NORMAL" : "ALARM",
-                                Quanlity = bool.Parse(iotDataValue.Q),
+                                Quanlity = bool.TryParse(iotDataValue.Q, out var q2) ? q2 : (iotDataValue.Q == "1" || iotDataValue.Q == "192"),
                                 Value = convertedValue,
                                 CreatedTime = DateTimeOffset.FromUnixTimeMilliseconds(iotDataValue.T),
                             };
@@ -163,7 +163,7 @@ public class MeasurementPointEventCommandHandler : IMeasurementPointEventCommand
                                 TagNameId = tagName.Id,
                                 EventName = tagName.Description == "MAT_KET_NOI" ? "Trạng thái kết nối" : tagName.CustomName,
                                 Value = convertedValue,
-                                Quanlity = bool.Parse(iotDataValue.Q),
+                                Quanlity = bool.TryParse(iotDataValue.Q, out var q3) ? q3 : (iotDataValue.Q == "1" || iotDataValue.Q == "192"),
                                 Status = !parsedV ? "NORMAL" : "ALARM",
                                 CreatedTime = DateTimeOffset.FromUnixTimeMilliseconds(iotDataValue.T)
                             };
@@ -183,7 +183,7 @@ public class MeasurementPointEventCommandHandler : IMeasurementPointEventCommand
                                     TagNameId = tagName.Id,
                                     EventName = tagName.Description == "MAT_KET_NOI" ? "Trạng thái kết nối" : tagName.CustomName,
                                     Value = convertedValue,
-                                    Quanlity = bool.Parse(iotDataValue.Q),
+                                    Quanlity = bool.TryParse(iotDataValue.Q, out var q4) ? q4 : (iotDataValue.Q == "1" || iotDataValue.Q == "192"),
                                     Status = "ALARM",
                                     CreatedTime = DateTimeOffset.FromUnixTimeMilliseconds(iotDataValue.T)
                                 };
@@ -193,11 +193,11 @@ public class MeasurementPointEventCommandHandler : IMeasurementPointEventCommand
                                 {
                                     MeasurementPointsId = measurementPoint.Id,
                                     MeasurementPointCode = measurementPoint.Code,
-                                    CustomerName = measurementPoint.Customer.FullName,
+                                    CustomerName = measurementPoint.Customer?.FullName ?? string.Empty,
                                     EventName = tagName.Description == "MAT_KET_NOI" ? "Trạng thái kết nối" : tagName.CustomName,
                                     Status = "ALARM",
                                     Value = convertedValue,
-                                    Quanlity = bool.Parse(iotDataValue.Q),
+                                    Quanlity = bool.TryParse(iotDataValue.Q, out var q5) ? q5 : (iotDataValue.Q == "1" || iotDataValue.Q == "192"),
                                     CreatedTime = DateTimeOffset.FromUnixTimeMilliseconds(iotDataValue.T),
                                 };
                                 viewListMeasurementPointAlertDto.Add(listAlert);
@@ -211,11 +211,11 @@ public class MeasurementPointEventCommandHandler : IMeasurementPointEventCommand
                             {
                                 MeasurementPointsId = measurementPoint.Id,
                                 MeasurementPointCode = measurementPoint.Code,
-                                CustomerName = measurementPoint.Customer.FullName,
+                                CustomerName = measurementPoint.Customer?.FullName ?? string.Empty,
                                 EventName = tagName.Description == "MAT_KET_NOI" ? "Trạng thái kết nối" : tagName.CustomName,
                                 Status = !parsedV ? "NORMAL" : "ALARM",
                                 Value = convertedValue,
-                                Quanlity = bool.Parse(iotDataValue.Q),
+                                Quanlity = bool.TryParse(iotDataValue.Q, out var q6) ? q6 : (iotDataValue.Q == "1" || iotDataValue.Q == "192"),
                                 CreatedTime = DateTimeOffset.FromUnixTimeMilliseconds(iotDataValue.T),
                             };
                             viewListEventDto.Add(dto);

@@ -102,9 +102,9 @@ public class BackgroundJobService
 
     public async Task<DateTime> GenerateEnergyReportDaily(CancellationToken cancellationToken)
     {
-        _logger?.LogInformation("Bắt đầu sinh báo cáo đo đếm ngày với Smart Lookback (60 phút)...");
-        var reportDtos = await _measurementPointMonitoringReadOnlyRepository.GetListMeasurementEnergyReportWithLookbackAsync(60, cancellationToken);
-        var createdTime = DateTimeOffset.UtcNow.AddMinutes(-5);
+        _logger?.LogInformation("Bắt đầu sinh báo cáo đo đếm ngày với Smart Lookback (120 phút)...");
+        var createdTime = GetNearestHalfHourSlot(DateTimeOffset.UtcNow.AddMinutes(-5));
+        var reportDtos = await _measurementPointMonitoringReadOnlyRepository.GetListMeasurementEnergyReportWithLookbackAsync(120, cancellationToken, createdTime);
         foreach (var dto in reportDtos)
         {
             var entity = _mapper.Map<MeasurementPointDailyEnergyReportEntity>(dto);
@@ -114,7 +114,7 @@ public class BackgroundJobService
         }
 
         await _measurementPointDailyEnergyReportReadWriteRepository.SaveChangesAsync(cancellationToken);
-        _logger?.LogInformation("Đã hoàn tất lưu báo cáo đo đếm ngày cho {Count} điểm đo.", reportDtos.Count);
+        _logger?.LogInformation("Đã hoàn tất lưu báo cáo đo đếm ngày cho {Count} điểm đo lúc {Slot}.", reportDtos.Count, createdTime);
         return new DateTime();
     }
     
@@ -128,9 +128,9 @@ public class BackgroundJobService
 
     public async Task<DateTime> GenerateEnergyReportHalfHour(CancellationToken cancellationToken)
     {
-        _logger?.LogInformation("Bắt đầu sinh báo cáo đo đếm nửa giờ với Smart Lookback (60 phút)...");
-        var reportDtos = await _measurementPointMonitoringReadOnlyRepository.GetListMeasurementEnergyReportWithLookbackAsync(60, cancellationToken);
+        _logger?.LogInformation("Bắt đầu sinh báo cáo đo đếm nửa giờ với Smart Lookback (120 phút)...");
         var createdTime = GetNearestHalfHourSlot(DateTimeOffset.UtcNow.AddMinutes(-5));
+        var reportDtos = await _measurementPointMonitoringReadOnlyRepository.GetListMeasurementEnergyReportWithLookbackAsync(120, cancellationToken, createdTime);
         foreach (var dto in reportDtos)
         {
             var entity = _mapper.Map<MeasurementPointHalfHourEnergyReportEntity>(dto);
@@ -146,9 +146,9 @@ public class BackgroundJobService
 
     public async Task<DateTime> GenerateOperatingReportHalfHour(CancellationToken cancellationToken)
     {
-        _logger?.LogInformation("Bắt đầu sinh báo cáo thông số vận hành nửa giờ với Smart Lookback (60 phút)...");
-        var reportDtos = await _measurementPointMonitoringReadOnlyRepository.GetListMeasurementOperatingReportWithLookbackAsync(60, cancellationToken);
+        _logger?.LogInformation("Bắt đầu sinh báo cáo thông số vận hành nửa giờ với Smart Lookback (120 phút)...");
         var createdTime = GetNearestHalfHourSlot(DateTimeOffset.UtcNow.AddMinutes(-5));
+        var reportDtos = await _measurementPointMonitoringReadOnlyRepository.GetListMeasurementOperatingReportWithLookbackAsync(120, cancellationToken, createdTime);
         foreach (var dto in reportDtos)
         {
             var entity = _mapper.Map<MeasurementPointHalfHourOperatingReportEntity>(dto);
@@ -158,7 +158,7 @@ public class BackgroundJobService
         }
 
         await _measurementPointHalfHourOperatingReportReadWriteRepository.SaveChangesAsync(cancellationToken);
-        _logger?.LogInformation("Đã hoàn tất lưu báo cáo thông số vận hành nửa giờ cho {Count} điểm đo.", reportDtos.Count);
+        _logger?.LogInformation("Đã hoàn tất lưu báo cáo thông số vận hành nửa giờ cho {Count} điểm đo lúc {Slot}.", reportDtos.Count, createdTime);
         return new DateTime();
     }
 
