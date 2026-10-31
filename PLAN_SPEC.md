@@ -851,6 +851,126 @@ Thay vì bố trí dàn trải 5 menu con rời rạc như hiện tại, cấu t
   * Gán `MatKetNoi = null` khi không có `hasRealMeasurementData` ($U, I, P, Q, PF, F$), xuất ra `'-'` trong file CSV.
 - [x] **Task 15.6**: [QA & Build] Biên dịch kiểm tra: Backend .NET 8 (0 Errors) và Frontend React Vite (0 Errors).
 
+---
 
+## 30. ĐẶC TẢ KỸ THUẬT: CONTEXTMENU CHO SIDEBAR & CHUYỂN ĐỔI NÚT "CHI TIẾT" THÀNH HYPERLINK (PHASE 14)
 
+### 30.1. Mục Tiêu Nghiệp Vụ & Trải Nghiệm Người Dùng (UX)
+1. **Side Bar (Menu điều hướng)**:
+   - Cho phép người vận hành click chuột phải vào bất kỳ mục menu nào để mở **ContextMenu** với các lựa chọn:
+     * **Mở liên kết trong tab mới**: Mở trang trong một tab trình duyệt mới (`window.open(url, '_blank')`).
+     * **Mở liên kết trong cửa sổ mới**: Mở trang trong một cửa sổ popup độc lập (`window.open(url, '_blank', 'popup=yes,width=1280,height=800')`) tiện cho hệ thống đa màn hình (Multi-monitor).
+     * **Mở liên kết ở dạng phân tách**: Mở chế độ xem phân tách hai màn hình song song ngay trong ứng dụng (**In-App Split View**), cho phép đối soát 2 chức năng cùng lúc trên 1 tab trình duyệt.
+     * **Sao chép địa chỉ liên kết**: Copy URL đầy đủ vào clipboard.
+   - Vẫn duy trì cơ chế **Click chuột trái trực tiếp** điều hướng SPA mượt mà qua React Router `navigate()`.
+   - Hỗ trợ phím tắt chuẩn trình duyệt: `Ctrl + Click` hoặc click con lăn chuột (Middle Click) để mở tab mới tự nhiên.
+
+2. **Các Nút "Chi Tiết" Trong Danh Sách (Table Action Hyperlinks)**:
+   - Chuyển đổi các nút hành động dạng menu 3 chấm (`...`) chứa "Chi tiết" thành **Hyperlink văn bản "Chi tiết" trực quan**:
+     * Định dạng Hyperlink màu xanh nổi bật (`text-blue-600 hover:text-blue-800 font-medium hover:underline`), dễ nhận biết và thao tác tức thì chỉ với 1 click chuột.
+     * Click chuột trái trực tiếp: Điều hướng nhanh đến trang chi tiết.
+     * Click chuột phải: Mở **ContextMenu** đồng bộ với Side Bar (Tab mới, Cửa sổ mới, Mở ở dạng phân tách, Sao chép liên kết).
+     * Phím tắt `Ctrl + Click` / Middle Click mở tab mới trong nền.
+
+### 30.2. Thiết Kế Kiến Trúc Kỹ Thuật (Architecture & Components)
+
+```mermaid
+flowchart TD
+    A[Người dùng click chuột phải] --> B{Vị trí thao tác}
+    B -->|Sidebar Menu Item| C[NavContextMenu]
+    B -->|Nút Chi tiết trong bảng| D[ActionDetailLink]
+    C --> E[Ant Design ContextMenu]
+    D --> E
+    E -->|Mở trong tab mới| F[window.open _blank]
+    E -->|Mở trong cửa sổ mới| G[window.open popup=yes]
+    E -->|Mở ở dạng phân tách| H[splitViewState Recoil Atom]
+    H --> I[MainLayout In-App Split Pane]
+    I --> J[Iframe view with embed=true mode]
+    E -->|Sao chép liên kết| K[navigator.clipboard.writeText]
+```
+
+1. **State Quản Lý Chế Độ Phân Tách (`splitViewState`)**:
+   - Sử dụng Recoil Atom lưu trữ trạng thái `{ isOpen: boolean, url: string | null, title: string, widthPercent: number }`.
+2. **Khung Giao Diện Phân Tách Song Song Trong `MainLayout.tsx`**:
+   - Khi `splitView.isOpen = true`, khu vực nội dung chính chia thành 2 phần:
+     * Cột trái: Trang hiện tại đang hoạt động.
+     * Thanh ngăn cách chia màn hình (Split Divider).
+     * Cột phải: Khung phân tách với thanh công cụ điều khiển (Tiêu đề trang, Nút mở tab mới, Nút chuyển tỉ lệ độ rộng 50%/70%, Nút đóng ✕) và `iframe` nhúng trang mục tiêu với tham số `embed=true`.
+   - Trong `MainLayout`, khi phát hiện cờ nhúng `embed=true` hoặc `window.self !== window.top`, tự động ẩn Header và LeftMenu để hiển thị nội dung thuần túy, sạch đẹp, không bị lặp thanh điều hướng.
+3. **Các Component Dùng Chung**:
+   - `NavContextMenu`: Bọc các `Menu.Item` trong `LeftMenu.tsx`.
+   - `ActionDetailLink`: Dùng cho cột "Thao tác" trên các bảng quản lý.
+
+---
+
+## 31. DANH SÁCH CÔNG VIỆC PHASE 14 (TASK BREAKDOWN)
+- [x] **Task 16.1**: [Frontend/State] Tạo Recoil Atom `splitViewState` quản lý trạng thái mở phân tách màn hình.
+- [x] **Task 16.2**: [Frontend/Component] Xây dựng component `NavContextMenu` và `ActionDetailLink` hỗ trợ click trực tiếp và ContextMenu (Tab mới, Cửa sổ mới, Dạng phân tách, Sao chép liên kết).
+- [x] **Task 16.3**: [Frontend/Layout] Nâng cấp `MainLayout.tsx` tích hợp In-App Split View và hỗ trợ chế độ nhúng `embed=true`.
+- [x] **Task 16.4**: [Frontend/Sidebar] Tích hợp `NavContextMenu` vào toàn bộ Menu Item và SubMenu Item trong `LeftMenu.tsx`.
+- [x] **Task 16.5**: [Frontend/Tables] Thay thế các nút thao tác "Chi tiết" dạng 3 chấm bằng `ActionDetailLink` trên:
+  * [summary-parameter/components/table-point.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/point-monitoring/summary-parameter/components/table-point.tsx)
+  * [point-management/components/table-point.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/point-management/components/table-point.tsx)
+  * [client-management/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/client-management/index.tsx)
+  * [gcs-management/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/gcs-management/index.tsx)
+  * [gcs-management/components/table-check-gcs.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/gcs-management/components/table-check-gcs.tsx)
+  * [notice-management/components/table/table-detail-gcs.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/notice-management/components/table/table-detail-gcs.tsx)
+  * [config/components/table-config.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/config/components/table-config.tsx)
+  * [account-management/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/account-management/index.tsx)
+- [x] **Task 16.6**: [QA & Build] Biên dịch kiểm tra toàn bộ mã nguồn Frontend và Backend: 0 Errors.
+
+---
+
+## 32. ĐẶC TẢ KỸ THUẬT: HIỆU CHỈNH UI/UX VÀ LOGIC LIÊN KẾT ĐIỂM ĐO - KHÁCH HÀNG & KHÁCH HÀNG - TÀI KHOẢN (PHASE 15)
+
+### 32.1. Mục Tiêu & Nghiệp Vụ
+1. **Liên kết Điểm đo $\leftrightarrow$ Khách hàng (`PointForm`)**:
+   - Loại bỏ cơ chế tải tĩnh 500 khách hàng vào Dropdown không thể tìm kiếm.
+   - Hiện thực hóa **Giải pháp 3 lớp**:
+     * **Lớp 1 - Remote Search Select**: Gõ phím tìm kiếm realtime (debounce 300ms) đa trường (Mã KH, Tên KH, SĐT), rich option hiển thị đầy đủ tên, mã, số điện thoại, địa chỉ, trạng thái.
+     * **Lớp 2 - Modal Tra Cứu Khách Hàng (`CustomerSearchModal`)**: Nút `[🔍 Tra cứu]` mở Modal bảng dữ liệu đầy đủ có tìm kiếm, lọc, phân trang, cho phép click chọn trực tiếp.
+     * **Lớp 3 - Thẻ xem trước thông tin khách hàng (`CustomerPreviewCard`)**: Hiển thị thẻ tóm tắt chi tiết (Mã KH, Tên KH, SĐT, Địa chỉ, Trạng thái, nút xem chi tiết ↗ và nút ✕ bỏ chọn) ngay bên dưới trường chọn để Admin kiểm tra tính chính xác 100% trước khi lưu.
+2. **Liên kết Khách hàng $\leftrightarrow$ Tài khoản người dùng (`ClientForm`)**:
+   - Sửa triệt để bug logic phân trang: Gửi điều kiện `roleName: 'CUSTOMER'` và `status: 'ACTIVE'` trực tiếp lên Backend API, loại bỏ tình trạng danh sách bị nuốt chửng bởi tài khoản Admin/Staff.
+   - Hỗ trợ tìm kiếm theo Username, Họ và tên, Email.
+   - **Modal Tra Cứu Tài Khoản (`AccountSearchModal`)**: Hỗ trợ xem bảng danh sách tài khoản khách hàng, checkbox chọn nhiều tài khoản cùng lúc.
+   - **Thẻ danh sách tài khoản liên kết (`LinkedAccountsList`)**: Thay thế các tag chữ nhỏ xíu bằng danh sách thẻ tài khoản trực quan gồm Avatar, Username, Họ tên, Email, SĐT và nút gỡ bỏ $\boldsymbol{\times}$.
+
+### 32.2. Kiến Trúc Kỹ Thuật (Architecture)
+
+```mermaid
+flowchart TD
+    subgraph PointForm [Form Điểm Đo]
+        A[CustomerSelector] --> B[Remote Search Select]
+        A --> C[Nút Tra cứu -> CustomerSearchModal]
+        A --> D[CustomerPreviewCard]
+        B -->|Chọn KH| D
+        C -->|Chọn KH từ bảng| D
+        D -->|Cập nhật| E[data.customerId & customer object]
+    end
+
+    subgraph ClientForm [Form Khách Hàng]
+        F[UserAccountSelector] --> G[Multi-Select Account with Server-side Search]
+        F --> H[Nút Tra cứu -> AccountSearchModal]
+        F --> I[LinkedAccountsList]
+        G -->|Thêm tài khoản| I
+        H -->|Chọn nhiều tài khoản| I
+        I -->|Cập nhật| J[data.userIds & account objects]
+    end
+```
+
+---
+
+## 33. DANH SÁCH CÔNG VIỆC PHASE 15 (TASK BREAKDOWN)
+- [x] **Task 17.1**: [Frontend/Component] Xây dựng component `CustomerSelector`:
+  * Tích hợp Remote Search Select (tìm kiếm Mã KH, Tên KH, SĐT).
+  * Xây dựng Modal tra cứu `CustomerSearchModal` (Bảng phân trang, bộ lọc nhanh).
+  * Xây dựng thẻ xem trước `CustomerPreviewCard` (Hiển thị chi tiết khách hàng, nút xem chi tiết ↗, nút ✕ bỏ chọn).
+- [x] **Task 17.2**: [Frontend/PointManagement] Tích hợp `CustomerSelector` vào `PointForm` (`point-management/components/point-form.tsx`), đồng bộ `customerId` và đối tượng `customer` khi thêm mới và sửa.
+- [x] **Task 17.3**: [Frontend/Component] Xây dựng component `UserAccountSelector`:
+  * Multi-Select tìm kiếm tài khoản theo Username, Họ tên, Email.
+  * Xây dựng Modal tra cứu `AccountSearchModal` (Bảng danh sách tài khoản Customer, checkbox chọn nhiều).
+  * Xây dựng danh sách thẻ `LinkedAccountsList` (Avatar, Username, Tên, Email, nút gỡ bỏ).
+- [x] **Task 17.4**: [Frontend/ClientManagement] Sửa logic gọi API trong `add-client` và `edit-client` (lọc `CUSTOMER` trên server), tích hợp `UserAccountSelector` vào `ClientForm` (`client-management/components/client-form.tsx`).
+- [x] **Task 17.5**: [QA & Build] Kiểm thử và biên dịch toàn bộ solution Frontend và Backend: 0 Errors.
 

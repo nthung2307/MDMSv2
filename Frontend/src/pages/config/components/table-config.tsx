@@ -1,11 +1,9 @@
-import { Dropdown, MenuProps, TableProps, Tooltip } from 'antd';
-// import { FaRegEdit } from 'react-icons/fa';
-// import { FiEye } from 'react-icons/fi';
-import { BsThreeDots } from 'react-icons/bs';
+import { TableProps, Tooltip } from 'antd';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
 import Constants from '@/core/application/common/constants.ts';
+import { ActionDetailLink } from '@/infrastructure/common/components/context-menu/ActionDetailLink';
 import StatusTagCommon from '@/infrastructure/common/components/status-tag/status-tag-common.tsx';
 import TableCommon from '@/infrastructure/common/components/table/table-common';
 
@@ -95,32 +93,22 @@ const TableConfigManagement = (props: Props) => {
       },
     },
     {
-      title: '',
+      title: 'Thao tác',
       fixed: 'right',
       key: 'action',
       align: 'center',
-      width: 60,
+      width: 90,
       render: (_, record) => {
-        const items: MenuProps['items'] = [
-          {
-            key: '1',
-            label: 'Chi tiết',
-            onClick: () => {
-              const url = `${ROUTE_PATH.DATA_MEASUREMENT_POINT.replace(
-                Constants.ReplaceRouterConfig.id,
-                record.key
-              )}?code=${encodeURIComponent(record.code || '')}&name=${encodeURIComponent(record.customer?.fullName || '')}`;
-              window.open(url, '_blank');
-            },
-          },
-        ];
+        const url = `${ROUTE_PATH.DATA_MEASUREMENT_POINT.replace(
+          Constants.ReplaceRouterConfig.id,
+          record.key
+        )}?code=${encodeURIComponent(record.code || '')}&name=${encodeURIComponent(record.customer?.fullName || '')}`;
 
         return (
-          <div className={'flex justify-center cursor-pointer'}>
-            <Dropdown menu={{ items }}>
-              <BsThreeDots />
-            </Dropdown>
-          </div>
+          <ActionDetailLink
+            href={url}
+            title={`Cấu hình điểm đo: ${record.code}`}
+          />
         );
       },
     },

@@ -1,7 +1,6 @@
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
-import { Card, Dropdown, MenuProps, TableProps } from 'antd';
+import { Card, TableProps } from 'antd';
 import { useEffect, useState } from 'react';
-import { BsThreeDots } from 'react-icons/bs';
 import { FiDownload, FiShare } from 'react-icons/fi';
 import { IoBackspaceOutline, IoSearch } from 'react-icons/io5';
 import { useNavigate } from 'react-router-dom';
@@ -12,6 +11,7 @@ import { DataResponse } from '@/core/application/dto/common/responses/successRes
 import { GetListCustomerRequest } from '@/core/application/dto/customer/request/GetListCustomerRequest';
 import { ICustomerListResponseInterface } from '@/core/application/interfaces/response/customer/customerResponse.interface';
 import { ButtonCommonCustomizable } from '@/infrastructure/common/components/button/button-common-customizable.tsx';
+import { ActionDetailLink } from '@/infrastructure/common/components/context-menu/ActionDetailLink';
 import DialogExportForm from '@/infrastructure/common/components/dialog-export/dialog-export';
 import InputSelectCommon from '@/infrastructure/common/components/input/input-select-common.tsx';
 import InputTextCommon from '@/infrastructure/common/components/input/input-text-common';
@@ -148,32 +148,21 @@ const ClientManagement = () => {
       },
     },
     {
-      title: '',
+      title: 'Thao tác',
       key: 'action',
       align: 'center',
       fixed: 'right',
-      width: 50,
+      width: 90,
       render: (_, record) => {
-        const items: MenuProps['items'] = [
-          {
-            key: '1',
-            label: 'Chi tiết',
-            onClick: () => {
-              const url = ROUTE_PATH.CUSTOMER_DETAIL.replace(
-                Constants.ReplaceRouterConfig.id,
-                record.key
-              );
-              window.open(url, '_blank');
-            },
-          },
-        ];
-
+        const url = ROUTE_PATH.CUSTOMER_DETAIL.replace(
+          Constants.ReplaceRouterConfig.id,
+          record.key
+        );
         return (
-          <div className={'flex justify-center cursor-pointer'}>
-            <Dropdown menu={{ items }}>
-              <BsThreeDots />
-            </Dropdown>
-          </div>
+          <ActionDetailLink
+            href={url}
+            title={`Chi tiết khách hàng: ${record.name || record.code}`}
+          />
         );
       },
     },

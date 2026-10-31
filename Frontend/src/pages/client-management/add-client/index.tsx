@@ -79,9 +79,17 @@ const AddClient = () => {
 
     setSubmittedTime(new Date());
 
-    const userIds = data.userIds?.[0]?.value
-      ? data.userIds.map((item: any) => item.value)
-      : data.userIds;
+    const rawUserIds = data.userIds || [];
+    const userIds = Array.isArray(rawUserIds)
+      ? rawUserIds
+          .map((item: any) => {
+            if (typeof item === 'object' && item !== null) {
+              return Number(item.id || item.value);
+            }
+            return Number(item);
+          })
+          .filter((val: number) => !isNaN(val) && val > 0)
+      : [];
 
     const requestBody = new CreateCustomerRequest({
       ...data,

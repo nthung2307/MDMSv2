@@ -1,9 +1,8 @@
-import { Dropdown, MenuProps, TableProps } from 'antd';
-import { BsThreeDots } from 'react-icons/bs';
+import { TableProps } from 'antd';
 import { useNavigate } from 'react-router-dom';
 
-// import Constants from '@/core/application/common/constants.ts';
 import { ROUTE_PATH } from '@/core/application/common/appRouters';
+import { ActionDetailLink } from '@/infrastructure/common/components/context-menu/ActionDetailLink';
 import TableCommon from '@/infrastructure/common/components/table/table-common';
 import { convertDateTime } from '@/infrastructure/utils/helpers';
 
@@ -57,28 +56,21 @@ const TableCheckGcs = (props: Props) => {
       },
     },
     {
-      title: <div className={'text-center'}></div>,
+      title: 'Thao tác',
       key: 'action',
       fixed: 'right',
-      align: 'left',
-      width: 50,
+      align: 'center',
+      width: 90,
       render: (_, record) => {
-        const items: MenuProps['items'] = [
-          {
-            key: '1',
-            label: 'Chi tiết',
-            onClick: () => {
-              navigate(ROUTE_PATH.GCS_CHECK_DETAIL, { state: { record, GCSName, gcs } });
-            },
-          },
-        ];
-
+        const url = `${ROUTE_PATH.GCS_CHECK_DETAIL}?cycleId=${record.id}&month=${record.month || ''}&year=${record.year || ''}&period=${record.periodNumber || ''}&gcsName=${encodeURIComponent(GCSName || '')}&gcsId=${gcs?.id || ''}`;
         return (
-          <div className={'flex justify-center cursor-pointer'}>
-            <Dropdown menu={{ items }}>
-              <BsThreeDots />
-            </Dropdown>
-          </div>
+          <ActionDetailLink
+            href={url}
+            title={`Chi tiết kì chốt: Tháng ${record.month}/${record.year} kì ${record.periodNumber}`}
+            onClick={() => {
+              navigate(url, { state: { record, GCSName, gcs } });
+            }}
+          />
         );
       },
     },

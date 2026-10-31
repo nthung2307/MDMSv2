@@ -8,6 +8,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Constants from '@/core/application/common/constants';
 import GroupedMenuItem from '@/core/application/common/models/left-menu/GroupedMenuItem';
 import MenuItem from '@/core/application/common/models/left-menu/MenuItem';
+import { NavContextMenu } from '@/infrastructure/common/components/context-menu/NavContextMenu';
 import { getAccountRole } from '@/infrastructure/utils/helpers.ts';
 
 const LeftMenu = () => {
@@ -89,7 +90,16 @@ const LeftMenu = () => {
                   icon={item.icon && <item.icon size={20} />} // react-icons
                   onClick={() => navigate(item.hyperlink)}
                 >
-                  <p className='text-14-20'>{item.displayText}</p>
+                  <NavContextMenu
+                    href={item.hyperlink}
+                    title={item.displayText}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(item.hyperlink);
+                    }}
+                  >
+                    <span className='text-14-20 select-none'>{item.displayText}</span>
+                  </NavContextMenu>
                 </Menu.Item>
               );
             } else if (value.type === 'group') {
@@ -118,7 +128,16 @@ const LeftMenu = () => {
                       icon={subItem.icon && <subItem.icon size={20} />}
                       onClick={() => navigate(subItem.hyperlink)}
                     >
-                      <p className='text-14-20'>{subItem.displayText}</p>
+                      <NavContextMenu
+                        href={subItem.hyperlink}
+                        title={subItem.displayText}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(subItem.hyperlink);
+                        }}
+                      >
+                        <span className='text-14-20 select-none'>{subItem.displayText}</span>
+                      </NavContextMenu>
                     </Menu.Item>
                   ))}
                 </SubMenu>

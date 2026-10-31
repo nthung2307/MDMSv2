@@ -1,8 +1,8 @@
-import { Dropdown, MenuProps, TableProps, Tooltip } from 'antd';
-import { BsThreeDots } from 'react-icons/bs';
+import { TableProps, Tooltip } from 'antd';
 
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
 import Constants from '@/core/application/common/constants.ts';
+import { ActionDetailLink } from '@/infrastructure/common/components/context-menu/ActionDetailLink';
 import StatusTagCommon from '@/infrastructure/common/components/status-tag/status-tag-common.tsx';
 import TableCommon from '@/infrastructure/common/components/table/table-common';
 
@@ -82,29 +82,18 @@ const TablePointManagement = (props: Props) => {
       },
     },
     {
-      title: '',
+      title: 'Thao tác',
       key: 'action',
       fixed: 'right',
       align: 'center',
-      width: 50,
+      width: 90,
       render: (_, record) => {
-        const items: MenuProps['items'] = [
-          {
-            key: '1',
-            label: 'Chi tiết',
-            onClick: () => {
-              const url = ROUTE_PATH.POINT_DETAIL.replace(':id', record.key.toString());
-              window.open(url, '_blank');
-            },
-          },
-        ];
-
+        const url = ROUTE_PATH.POINT_DETAIL.replace(':id', record.key.toString());
         return (
-          <div className={'flex justify-center cursor-pointer'}>
-            <Dropdown menu={{ items }}>
-              <BsThreeDots />
-            </Dropdown>
-          </div>
+          <ActionDetailLink
+            href={url}
+            title={`Chi tiết điểm đo: ${record.code}`}
+          />
         );
       },
     },

@@ -2,14 +2,13 @@ import { useEffect, useState } from 'react';
 
 import Constants from '@/core/application/common/constants';
 import { DataResponse } from '@/core/application/dto/common/responses/successResponse';
-import { GetListCustomerRequest } from '@/core/application/dto/customer/request/GetListCustomerRequest.ts';
 import { GetListGCSRequest } from '@/core/application/dto/gcs/request/GetListGCSRequest.ts';
+import { CustomerSelector } from '@/infrastructure/common/components/customer-selector/CustomerSelector';
 import InputNumberCalculateCommon from '@/infrastructure/common/components/input/input-number-calculate-common';
 import InputSelectCommon from '@/infrastructure/common/components/input/input-select-common.tsx';
 import InputTextAreaCommon from '@/infrastructure/common/components/input/input-text-area-common';
 import InputTextCommon from '@/infrastructure/common/components/input/input-text-common';
 import SwitchTextValue from '@/infrastructure/common/components/switch/switch-text-value';
-import useGetListCustomerHook from '@/infrastructure/repository/customer/hooks/useGetCustomerList.hook';
 import useGetListGCSHook from '@/infrastructure/repository/gcs/hooks/useGetGCSList.hook';
 import { _t } from '@/infrastructure/utils/translation';
 
@@ -40,45 +39,9 @@ const PointForm = (props: IPointForm) => {
     title = 'Thêm điểm đo',
     editMode = false,
   } = props;
-  const [customerCode, setCustomerCode] = useState<any>();
   const [GCSCode, setGCSCode] = useState<any>();
   const [getListGCS] = useGetListGCSHook();
-  const [getListCustomer] = useGetListCustomerHook();
 
-  const getListCustomerAsync = async () => {
-    const params: GetListCustomerRequest = {
-      pageSize: 500,
-      searchByFields: [],
-      sortByFields: [],
-    };
-    await getListCustomer(
-      params as any,
-      (res: DataResponse) => {
-        const { data } = res;
-        const result = data.data;
-        const listActive = result.filter((item: any) => item.status === 'ACTIVE');
-        const listDeactive = result.filter((item: any) => item.status !== 'ACTIVE');
-        setCustomerCode([
-          {
-            label: <span>Đang hoạt động</span>,
-            title: 'Đang hoạt động',
-            options: listActive.map((item: any) => {
-              return { value: item.id, label: `${item.customerCode} - ${item.fullName}` };
-            }),
-          },
-          {
-            label: <span>Ngừng hoạt động</span>,
-            title: 'Ngừng hoạt động',
-            options: listDeactive.map((item: any) => {
-              return { value: item.id, label: `${item.customerCode} - ${item.fullName}` };
-            }),
-          },
-        ]);
-      },
-      () => {},
-      () => {}
-    );
-  };
   const getListGCSAsync = async () => {
     const params: GetListGCSRequest = {
       pageSize: 500,
@@ -141,7 +104,6 @@ const PointForm = (props: IPointForm) => {
   };
 
   useEffect(() => {
-    getListCustomerAsync();
     getListGCSAsync();
   }, []);
   return (
@@ -237,20 +199,19 @@ const PointForm = (props: IPointForm) => {
             />
           </div>
         </div>
-        <div className='flex gap-2'>
+        <div className='flex gap-2 items-start'>
           <div className='basis-1/2'>
-            <InputSelectCommon
+            <CustomerSelector
               label={'Mã khách hàng'}
               attribute={'customerId'}
               setData={setData}
               dataAttribute={data?.customerId}
+              customerData={data?.customer}
               isRequired={editMode}
               validate={validate}
               setValidate={setValidate}
-              listDataItem={customerCode ?? []}
+              submittedTime={submittedTime}
               disabled={disabled}
-              placeholder={'Nhập mã khách hàng'}
-              allowClear={true}
             />
           </div>
           <div className='basis-1/2'>

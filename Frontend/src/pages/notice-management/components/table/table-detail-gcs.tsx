@@ -1,8 +1,9 @@
-import { Dropdown, MenuProps, TableProps } from 'antd';
-import { BsThreeDots } from 'react-icons/bs';
+import { TableProps } from 'antd';
+import { useNavigate } from 'react-router-dom';
 
 // import Constants from '@/core/application/common/constants.ts';
 import { ROUTE_PATH } from '@/core/application/common/appRouters';
+import { ActionDetailLink } from '@/infrastructure/common/components/context-menu/ActionDetailLink';
 import TableCommon from '@/infrastructure/common/components/table/table-common';
 import { convertDateTime, renderTextNumber } from '@/infrastructure/utils/helpers';
 
@@ -16,6 +17,7 @@ interface Props {
 
 const TableDetailGcs = (props: Props) => {
   const { dataSource, GCSName, gcsId, loading } = props;
+  const navigate = useNavigate();
   const getPreviousDate = (day: number, month: number, year: number) => {
     let date = new Date(year, month - 1, day);
     date.setDate(date.getDate() - 1);
@@ -60,44 +62,41 @@ const TableDetailGcs = (props: Props) => {
       },
     },
     {
-      title: <div className={'text-center'}></div>,
+      title: 'Thao tác',
       key: 'action',
       align: 'center',
       fixed: 'right',
-      width: 50,
+      width: 90,
       render: (_, record) => {
         const previousTime =
           record.previousDay !== 0
             ? `${renderTextNumber(record.previousDay)}/${renderTextNumber(record.previousMonth)}/${record.previousYear}`
             : convertDateTime(record.createdTime, 'dd/mm/yyyy');
         const date = `Từ ${previousTime} đến ${getPreviousDate(record.day, record.month, record.year)}`;
-        const items: MenuProps['items'] = [
-          {
-            key: '1',
-            label: 'Chi tiết',
-            onClick: () => {
-              const stateData = { record, GCSName, gcsId, breadcumbDate: date };
-              const storageKey = `notice_detail_${gcsId}_${record.id}`;
-              try {
-                sessionStorage.setItem(storageKey, JSON.stringify(stateData));
-                localStorage.setItem(storageKey, JSON.stringify(stateData));
-                sessionStorage.setItem('notice_detail_state', JSON.stringify(stateData));
-                localStorage.setItem('notice_detail_state', JSON.stringify(stateData));
-              } catch {
-                // Ignore storage error
-              }
-              const url = `${ROUTE_PATH.NOTICE_DETAIl}?gcsId=${gcsId}&cycleId=${record.id}`;
-              window.open(url, '_blank');
-            },
-          },
-        ];
+        const url = `${ROUTE_PATH.NOTICE_DETAIl}?gcsId=${gcsId}&cycleId=${record.id}`;
+
+        const handlePrepareStorage = () => {
+          const stateData = { record, GCSName, gcsId, breadcumbDate: date };
+          const storageKey = `notice_detail_${gcsId}_${record.id}`;
+          try {
+            sessionStorage.setItem(storageKey, JSON.stringify(stateData));
+            localStorage.setItem(storageKey, JSON.stringify(stateData));
+            sessionStorage.setItem('notice_detail_state', JSON.stringify(stateData));
+            localStorage.setItem('notice_detail_state', JSON.stringify(stateData));
+          } catch {
+            // Ignore storage error
+          }
+        };
 
         return (
-          <div className={'flex justify-center cursor-pointer'}>
-            <Dropdown menu={{ items }}>
-              <BsThreeDots />
-            </Dropdown>
-          </div>
+          <ActionDetailLink
+            href={url}
+            title={`Chi tiết cảnh báo: Sổ ${GCSName} - Kì ${record.periodNumber}`}
+            onClick={() => {
+              handlePrepareStorage();
+              navigate(url, { state: { record, GCSName, gcsId, breadcumbDate: date } });
+            }}
+          />
         );
       },
     },

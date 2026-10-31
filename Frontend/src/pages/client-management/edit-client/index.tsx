@@ -104,9 +104,17 @@ const EditClient = () => {
 
     if (!isValidData(validate)) return;
 
-    const userIds = dataForm.userIds?.[0]?.value
-      ? dataForm.userIds.map((item: any) => item.value)
-      : dataForm.userIds;
+    const rawUserIds = dataForm.userIds || [];
+    const userIds = Array.isArray(rawUserIds)
+      ? rawUserIds
+          .map((item: any) => {
+            if (typeof item === 'object' && item !== null) {
+              return Number(item.id || item.value);
+            }
+            return Number(item);
+          })
+          .filter((val: number) => !isNaN(val) && val > 0)
+      : [];
 
     const requestBody = new UpdateCustomerRequest({
       fullName: dataForm.fullName,
@@ -191,6 +199,8 @@ const EditClient = () => {
             submittedTime={submittedTime}
             accountData={accountData}
             onSearch={onSearch}
+            title={'Sửa thông tin khách hàng'}
+            initialAccounts={data?.userCustomer}
           />
           <div className='flex flex-row gap-2 justify-center mt-5'>
             <ButtonCommon

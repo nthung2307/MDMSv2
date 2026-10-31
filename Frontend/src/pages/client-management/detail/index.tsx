@@ -125,6 +125,7 @@ const ClientDetail = () => {
             setValidate={setValidate}
             submittedTime={submittedTime}
             disabled={true}
+            initialAccounts={data?.userCustomer}
           />
         </Card>
       </div>

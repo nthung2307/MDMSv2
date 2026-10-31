@@ -1,8 +1,7 @@
 import { PlusOutlined } from '@ant-design/icons';
-import { Card, Dropdown, MenuProps, TableProps } from 'antd';
+import { Card, TableProps } from 'antd';
 import { useEffect, useState } from 'react';
-import { BsThreeDots } from 'react-icons/bs';
-import { FiShare } from 'react-icons/fi';
+import { FiCheckSquare, FiShare } from 'react-icons/fi';
 import { IoBackspaceOutline, IoSearch } from 'react-icons/io5';
 import { useNavigate } from 'react-router-dom';
 
@@ -12,6 +11,7 @@ import { DataResponse } from '@/core/application/dto/common/responses/successRes
 import { GetListGCSRequest } from '@/core/application/dto/gcs/request/GetListGCSRequest';
 import { IGCSListResponseInterface } from '@/core/application/interfaces/response/gcs/gcsResponse.interface';
 import { ButtonCommonCustomizable } from '@/infrastructure/common/components/button/button-common-customizable.tsx';
+import { ActionDetailLink } from '@/infrastructure/common/components/context-menu/ActionDetailLink';
 import DialogExportForm from '@/infrastructure/common/components/dialog-export/dialog-export';
 import InputSelectCommon from '@/infrastructure/common/components/input/input-select-common.tsx';
 import InputTextCommon from '@/infrastructure/common/components/input/input-text-common.tsx';
@@ -144,39 +144,32 @@ const GCSManagement = () => {
       },
     },
     {
-      title: <div className={'text-center'}></div>,
+      title: 'Thao tác',
       key: 'action',
-      align: 'left',
+      align: 'center',
       fixed: 'right',
-      width: 50,
+      width: 170,
       render: (_, record) => {
-        const items: MenuProps['items'] = [
-          {
-            key: '1',
-            label: 'Chi tiết',
-            onClick: () => {
-              const url = ROUTE_PATH.GCS_DETAILS.replace(
-                Constants.ReplaceRouterConfig.id,
-                record.id
-              );
-              window.open(url, '_blank');
-            },
-          },
-          {
-            key: '3',
-            label: 'Tra soát',
-            onClick: () => {
-              const url = `${ROUTE_PATH.GCS_CHECK}?id=${record.id}&name=${encodeURIComponent(record.name || '')}&code=${encodeURIComponent(record.code || '')}`;
-              window.open(url, '_blank');
-            },
-          },
-        ];
+        const detailUrl = ROUTE_PATH.GCS_DETAILS.replace(
+          Constants.ReplaceRouterConfig.id,
+          record.id
+        );
+        const checkUrl = `${ROUTE_PATH.GCS_CHECK}?id=${record.id}&name=${encodeURIComponent(record.name || '')}&code=${encodeURIComponent(record.code || '')}`;
 
         return (
-          <div className={'flex justify-center cursor-pointer'}>
-            <Dropdown menu={{ items }}>
-              <BsThreeDots />
-            </Dropdown>
+          <div className='flex items-center justify-center gap-3'>
+            <ActionDetailLink
+              href={detailUrl}
+              title={`Chi tiết sổ: ${record.name || record.code}`}
+              label='Chi tiết'
+            />
+            <ActionDetailLink
+              href={checkUrl}
+              title={`Tra soát sổ: ${record.name || record.code}`}
+              label='Tra soát'
+              className='text-emerald-600 hover:text-emerald-800 font-medium hover:underline inline-flex items-center gap-1.5 cursor-pointer select-none text-13-18'
+              icon={<FiCheckSquare size={14} className='flex-shrink-0' />}
+            />
           </div>
         );
       },

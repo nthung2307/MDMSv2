@@ -1,7 +1,7 @@
 import { Card } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { FiShare } from 'react-icons/fi';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 
 import { ROUTE_PATH } from '@/core/application/common/appRouters';
 import Constants from '@/core/application/common/constants';
@@ -23,7 +23,17 @@ import TableCheckDetail from '@/pages/gcs-management/components/table-check-deta
 const GCSCheckDetail = () => {
   // const navigate = useNavigate();
   const location = useLocation();
-  const { record, GCSName, gcs } = location.state;
+  const [searchParams] = useSearchParams();
+  const navState = (location.state as any) || {};
+
+  const record = navState.record || {
+    id: searchParams.get('cycleId') || 0,
+    month: searchParams.get('month') || '',
+    year: searchParams.get('year') || '',
+    periodNumber: searchParams.get('period') || '',
+  };
+  const GCSName = navState.GCSName || searchParams.get('gcsName') || '';
+  const gcs = navState.gcs || { id: searchParams.get('gcsId') || '' };
 
   const [isShowExport, setIsShowExport] = useState<boolean>(false);
   const [dataForm, setDataForm] = useStateDataForm({});

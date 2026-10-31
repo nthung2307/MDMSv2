@@ -1,4 +1,5 @@
 import Constants from '@/core/application/common/constants';
+import { UserAccountSelector } from '@/infrastructure/common/components/account-selector/UserAccountSelector';
 import InputNumberCommon from '@/infrastructure/common/components/input/input-number-common.tsx';
 import InputSelectCommon from '@/infrastructure/common/components/input/input-select-common.tsx';
 import InputTextCommon from '@/infrastructure/common/components/input/input-text-common';
@@ -17,6 +18,7 @@ interface IClientForm {
   onSearch?: (value: string) => void;
   createMode?: boolean;
   title?: string;
+  initialAccounts?: any[];
 }
 
 const ClientForm = (props: IClientForm) => {
@@ -31,6 +33,7 @@ const ClientForm = (props: IClientForm) => {
     onSearch,
     title = 'Thông tin khách hàng',
     createMode = false,
+    initialAccounts,
   } = props;
   return (
     <div>
@@ -153,15 +156,13 @@ const ClientForm = (props: IClientForm) => {
         </div>
 
         <div>
-          <InputSelectCommon
+          <UserAccountSelector
             dataAttribute={data?.userIds}
             label={'Liên kết tài khoản'}
             attribute={'userIds'}
             setData={setData}
             isRequired={false}
-            listDataItem={accountData}
-            mode={'multiple'}
-            onSearch={onSearch}
+            initialAccounts={initialAccounts || data?.userCustomer}
             disabled={disabled}
           />
         </div>

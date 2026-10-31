@@ -29,7 +29,9 @@ public class MeasurementPointsProfile : Profile
                     CustomerCode = src.Customer.CustomerCode,
                     FullName = src.Customer.FullName,
                     Address = src.Customer.Address,
-                    PhoneNumber = src.Customer.PhoneNumber
+                    PhoneNumber = src.Customer.PhoneNumber,
+                    Email = src.Customer.Email,
+                    Status = src.Customer.Status
                 } : null));
     }
 }
