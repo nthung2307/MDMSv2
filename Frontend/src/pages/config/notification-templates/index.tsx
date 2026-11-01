@@ -20,12 +20,10 @@ import {
   message,
 } from 'antd';
 import {
-  CheckCircleOutlined,
   CopyOutlined,
   DeleteOutlined,
   EditOutlined,
   EyeOutlined,
-  MailOutlined,
   PlusOutlined,
   StarFilled,
   StarOutlined,
@@ -37,10 +35,15 @@ import {
   CreateNotificationTemplateRequest,
   UpdateNotificationTemplateRequest,
   PreviewNotificationTemplateResponse,
-} from '@/core/application/interfaces/methods/templates/templateManagement.interface.ts';
-import { TemplateManagementService } from '@/infrastructure/repository/templates/services/templateManagement.service.ts';
+} from '@/core/application/interfaces/methods/templates/templateManagement.interface';
+import { ButtonCommonCustomizable } from '@/infrastructure/common/components/button/button-common-customizable';
+import { BreadcrumbUI } from '@/infrastructure/common/components/controls/BreadcrumbUI';
+import { FullPageLoading } from '@/infrastructure/common/components/controls/Loading';
+import PageTitle from '@/infrastructure/common/components/title/page-title';
+import { TemplateManagementService } from '@/infrastructure/repository/templates/services/templateManagement.service';
+import { _t } from '@/infrastructure/utils/translation';
 
-const { Title, Text, Paragraph } = Typography;
+const { Text, Paragraph } = Typography;
 const { TextArea } = Input;
 
 const TEMPLATE_CODES = [
@@ -55,14 +58,17 @@ const MERGE_TAGS_BY_GROUP = [
     tags: [
       { tag: '{{CustomerName}}', desc: 'Tên khách hàng' },
       { tag: '{{PointCode}}', desc: 'Mã điểm đo' },
-      { tag: '{{SerialNumber}}', desc: 'Số phiếu báo / Serial' },
-      { tag: '{{Address}}', desc: 'Địa chỉ điểm đo' },
+      { tag: '{{PointName}}', desc: 'Tên điểm đo' },
+      { tag: '{{CustomerCode}}', desc: 'Mã khách hàng' },
+      { tag: '{{MeterSerial}}', desc: 'Số chế tạo công tơ' },
+      { tag: '{{Multiplier}}', desc: 'Hệ số nhân (HSN)' },
+      { tag: '{{CompanyName}}', desc: 'Tên đơn vị phát hành' },
     ],
   },
   {
     group: 'Thời gian & Chu kỳ',
     tags: [
-      { tag: '{{Period}}', desc: 'Tên chu kỳ chốt (vd: Kỳ 1 Tháng 10/2026)' },
+      { tag: '{{CycleName}}', desc: 'Tên chu kỳ chốt (vd: Kỳ 1 Tháng 10/2026)' },
       { tag: '{{FromDate}}', desc: 'Từ ngày (dd/MM/yyyy)' },
       { tag: '{{ToDate}}', desc: 'Đến ngày (dd/MM/yyyy)' },
       { tag: '{{Month}}', desc: 'Tháng' },
@@ -70,32 +76,25 @@ const MERGE_TAGS_BY_GROUP = [
     ],
   },
   {
-    group: 'Chỉ số & Sản lượng (kWh)',
+    group: 'Chỉ số & Sản lượng',
     tags: [
-      { tag: '{{PreviousBt}}', desc: 'Chỉ số cũ BT' },
-      { tag: '{{Bt}}', desc: 'Chỉ số mới BT' },
-      { tag: '{{ConsumtionBt}}', desc: 'Sản lượng BT' },
-      { tag: '{{PreviousCd}}', desc: 'Chỉ số cũ CD' },
-      { tag: '{{Cd}}', desc: 'Chỉ số mới CD' },
-      { tag: '{{ConsumtionCd}}', desc: 'Sản lượng CD' },
-      { tag: '{{PreviousTd}}', desc: 'Chỉ số cũ TD' },
-      { tag: '{{Td}}', desc: 'Chỉ số mới TD' },
-      { tag: '{{ConsumtionTd}}', desc: 'Sản lượng TD' },
-      { tag: '{{ConsumtionTotal}}', desc: 'Tổng sản lượng hữu công' },
-      { tag: '{{ConsumtionVc}}', desc: 'Sản lượng vô công (kVARh)' },
-      { tag: '{{Pmax}}', desc: 'Công suất Pmax (kW)' },
-      { tag: '{{PmaxTime}}', desc: 'Thời điểm ghi nhận Pmax' },
+      { tag: '{{OutputBt}}', desc: 'Sản lượng BT (kWh)' },
+      { tag: '{{OutputCd}}', desc: 'Sản lượng CD (kWh)' },
+      { tag: '{{OutputTd}}', desc: 'Sản lượng TD (kWh)' },
+      { tag: '{{OutputSg}}', desc: 'Tổng điện năng hữu công (kWh)' },
+      { tag: '{{OutputVc}}', desc: 'Điện năng vô công (kVARh)' },
+      { tag: '{{Pmax}}', desc: 'Công suất cực đại Pmax (kW)' },
+      { tag: '{{CosPhi}}', desc: 'Hệ số công suất Cos φ' },
     ],
   },
   {
-    group: 'Chăm sóc khách hàng & Tài khoản',
+    group: 'Tài khoản & Xác thực',
     tags: [
-      { tag: '{{CareFullname}}', desc: 'Tên đơn vị CSKH' },
-      { tag: '{{CareEmail}}', desc: 'Email CSKH' },
-      { tag: '{{CarePhone}}', desc: 'Hotline CSKH' },
-      { tag: '{{Username}}', desc: 'Tên đăng nhập' },
-      { tag: '{{Password}}', desc: 'Mật khẩu khởi tạo' },
-      { tag: '{{ResetLink}}', desc: 'Liên kết đặt lại mật khẩu' },
+      { tag: '{{FullName}}', desc: 'Họ và tên người dùng' },
+      { tag: '{{Username}}', desc: 'Tên đăng nhập hệ thống' },
+      { tag: '{{Password}}', desc: 'Mật khẩu khởi tạo / OTP' },
+      { tag: '{{SystemEmail}}', desc: 'Email quản trị hệ thống' },
+      { tag: '{{SupportPhone}}', desc: 'Số điện thoại hỗ trợ CSKH' },
     ],
   },
 ];
@@ -123,12 +122,13 @@ export const NotificationTemplatesPage: React.FC = () => {
       const code = codeFilter === 'ALL' ? undefined : codeFilter;
       const res: any = await service.getNotificationTemplates(code);
       if (res?.data) {
-        setTemplates(res.data);
+        setTemplates(Array.isArray(res.data) ? res.data : []);
       } else {
         setTemplates([]);
       }
     } catch (err: any) {
-      message.error(`Lỗi khi tải danh sách mẫu email: ${err?.message || err}`);
+      message.error(`Không thể tải danh sách mẫu email: ${err?.message || err}`);
+      setTemplates([]);
     } finally {
       setLoading(false);
     }
@@ -145,8 +145,8 @@ export const NotificationTemplatesPage: React.FC = () => {
       code: activeTab !== 'ALL' ? activeTab : 'STATEMENT_NOTIFICATION',
       isDefault: false,
       isActive: true,
-      subjectTemplate: 'Thông báo từ hệ thống MDMS - {{CustomerName}}',
-      bodyHtmlTemplate: '<p>Kính gửi {{CustomerName}},</p>\n<p>Nội dung thông báo...</p>',
+      subjectTemplate: '[VSIP Hải Phòng] Thông báo chỉ số & sản lượng điện kỳ {{CycleName}} - Điểm đo {{PointName}}',
+      bodyHtmlTemplate: '<p>Kính gửi Quý khách hàng: <b>{{CustomerName}}</b>,</p>\n<p>Phòng Cơ Điện trân trọng gửi tới Quý khách thông tin chỉ số điện năng...</p>',
     });
     setDrawerOpen(true);
   };
@@ -169,7 +169,7 @@ export const NotificationTemplatesPage: React.FC = () => {
   const handleSetDefault = async (record: NotificationTemplateDto) => {
     try {
       await service.setDefaultNotificationTemplate(record.id);
-      message.success(`Đã thiết lập mẫu "${record.name}" làm mặc định cho ${record.code}`);
+      message.success(`Đã thiết lập mẫu "${record.name}" làm mặc định cho nghiệp vụ ${record.code}`);
       fetchTemplates(activeTab);
     } catch (err: any) {
       message.error(`Không thể đặt mặc định: ${err?.message || err}`);
@@ -270,7 +270,7 @@ export const NotificationTemplatesPage: React.FC = () => {
       bodyHtmlTemplate: currentBody + tag,
     });
     navigator.clipboard?.writeText(tag);
-    message.success(`Đã sao chép và chèn thẻ ${tag}`);
+    message.success(`Đã chèn thẻ biến ${tag}`);
   };
 
   const columns: ColumnsType<NotificationTemplateDto> = [
@@ -279,9 +279,9 @@ export const NotificationTemplatesPage: React.FC = () => {
       dataIndex: 'name',
       key: 'name',
       render: (name, record) => (
-        <Space orientation="vertical" size={2}>
+        <Space direction="vertical" size={2}>
           <Space>
-            <Text strong>{name}</Text>
+            <Text strong className='text-gray-800'>{name}</Text>
             {record.isDefault && (
               <Tag color="gold" icon={<StarFilled />}>
                 Mặc định
@@ -296,7 +296,7 @@ export const NotificationTemplatesPage: React.FC = () => {
       title: 'Nghiệp vụ (Code)',
       dataIndex: 'code',
       key: 'code',
-      width: 230,
+      width: 220,
       render: (code) => {
         let color = 'blue';
         let label = code;
@@ -311,7 +311,7 @@ export const NotificationTemplatesPage: React.FC = () => {
           label = 'Cấp tài khoản mới';
         }
         return (
-          <Space orientation="vertical" size={1}>
+          <Space direction="vertical" size={1}>
             <Tag color={color}>{label}</Tag>
             <Text code style={{ fontSize: 11 }}>{code}</Text>
           </Space>
@@ -319,38 +319,39 @@ export const NotificationTemplatesPage: React.FC = () => {
       },
     },
     {
-      title: 'Tiêu đề email (Subject)',
+      title: 'Tiêu đề Email (Subject)',
       dataIndex: 'subjectTemplate',
       key: 'subjectTemplate',
       ellipsis: true,
-      render: (text) => <Text italic>{text}</Text>,
+      render: (text) => <Text italic className='text-gray-600'>{text}</Text>,
     },
     {
       title: 'Trạng thái',
       dataIndex: 'isActive',
       key: 'isActive',
       width: 110,
+      align: 'center',
       render: (active) =>
         active ? <Tag color="success">Kích hoạt</Tag> : <Tag color="default">Vô hiệu</Tag>,
     },
     {
       title: 'Thao tác',
       key: 'action',
-      width: 220,
+      width: 200,
       align: 'center',
       render: (_, record) => (
         <Space size="middle">
-          <Tooltip title="Xem trước nội dung rendered">
+          <Tooltip title="Xem trước nội dung đã bind dữ liệu">
             <Button
               type="text"
-              icon={<EyeOutlined style={{ color: '#1890ff' }} />}
+              icon={<EyeOutlined style={{ color: '#1890ff', fontSize: 16 }} />}
               onClick={() => handlePreviewDirect(record)}
             />
           </Tooltip>
           <Tooltip title="Chỉnh sửa mẫu">
             <Button
               type="text"
-              icon={<EditOutlined style={{ color: '#fa8c16' }} />}
+              icon={<EditOutlined style={{ color: '#52c41a', fontSize: 16 }} />}
               onClick={() => handleOpenEdit(record)}
             />
           </Tooltip>
@@ -358,21 +359,22 @@ export const NotificationTemplatesPage: React.FC = () => {
             <Tooltip title="Đặt làm mẫu mặc định">
               <Button
                 type="text"
-                icon={<StarOutlined style={{ color: '#faad14' }} />}
+                icon={<StarOutlined style={{ color: '#faad14', fontSize: 16 }} />}
                 onClick={() => handleSetDefault(record)}
               />
             </Tooltip>
           )}
           {!record.isDefault && (
             <Popconfirm
-              title="Bạn có chắc chắn muốn xóa mẫu này không?"
+              title="Xóa mẫu email"
+              description={`Bạn có chắc chắn muốn xóa mẫu "${record.name}" không?`}
+              onConfirm={() => handleDelete(record)}
               okText="Xóa"
               cancelText="Hủy"
               okButtonProps={{ danger: true }}
-              onConfirm={() => handleDelete(record)}
             >
               <Tooltip title="Xóa mẫu">
-                <Button type="text" danger icon={<DeleteOutlined />} />
+                <Button type="text" danger icon={<DeleteOutlined style={{ fontSize: 16 }} />} />
               </Tooltip>
             </Popconfirm>
           )}
@@ -382,51 +384,56 @@ export const NotificationTemplatesPage: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '24px', background: '#f0f2f5', minHeight: '100vh' }}>
-      <Card
-        style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
-        title={
-          <Space>
-            <MailOutlined style={{ color: '#b22222', fontSize: 20 }} />
-            <Title level={4} style={{ margin: 0 }}>
-              Quản lý Đa Mẫu Email Thông Báo
-            </Title>
-          </Space>
-        }
-        extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
+    <div>
+      <PageTitle title={'Cài đặt hệ thống'} />
+      <div className='flex justify-between items-center'>
+        <BreadcrumbUI items={[{ name: 'Cài đặt hệ thống' }, { name: 'Mẫu Email thông báo' }]} />
+        <div className='flex'>
+          <ButtonCommonCustomizable
+            title={_t('Thêm mới')}
+            tooltipText={'Tạo mẫu email mới'}
+            classButton='text-button-variant'
             onClick={handleOpenCreate}
-            style={{ backgroundColor: '#b22222', borderColor: '#b22222' }}
-          >
-            Tạo Mẫu Mới
-          </Button>
-        }
-      >
-        <Paragraph type="secondary" style={{ marginBottom: 16 }}>
-          Hệ thống cho phép định nghĩa nhiều profile mẫu email cho từng nghiệp vụ (Gửi phiếu báo điện năng hàng tháng, Cấp mật khẩu mới, Quên mật khẩu). Mẫu được đánh dấu <strong>Mặc định</strong> sẽ tự động được sử dụng trong các tiến trình gửi hàng loạt của hệ thống.
-        </Paragraph>
+            icon={<PlusOutlined />}
+          />
+        </div>
+      </div>
 
-        <Tabs
-          activeKey={activeTab}
-          onChange={(key) => setActiveTab(key)}
-          items={[
-            { key: 'ALL', label: 'Tất cả mẫu' },
-            { key: 'STATEMENT_NOTIFICATION', label: 'Phiếu báo điện năng' },
-            { key: 'FORGOT_PASSWORD', label: 'Đặt lại mật khẩu' },
-            { key: 'USER_CREDENTIAL', label: 'Cấp tài khoản mới' },
-          ]}
-        />
+      <div className='mt-10'>
+        <Card className={'shadow-custom'}>
+          <div>
+            <div className={'flex justify-between items-center mb-4'}>
+              <h1 className='font-bold text-20-20'>{'Mẫu Email thông báo'}</h1>
+            </div>
 
-        <Table
-          columns={columns}
-          dataSource={templates}
-          rowKey="id"
-          loading={loading}
-          pagination={{ pageSize: 10, showSizeChanger: true }}
-        />
-      </Card>
+            <Paragraph type="secondary" className="mb-4">
+              Hệ thống cho phép tùy biến nhiều profile mẫu email cho từng nghiệp vụ (Gửi thông báo chỉ số & phiếu báo điện năng hàng tháng, Cấp mật khẩu mới, Quên mật khẩu). Mẫu được đánh dấu <strong>Mặc định</strong> sẽ tự động được sử dụng trong các tiến trình gửi email của hệ thống.
+            </Paragraph>
+
+            <Tabs
+              activeKey={activeTab}
+              onChange={(key) => setActiveTab(key)}
+              items={[
+                { key: 'ALL', label: 'Tất cả mẫu' },
+                { key: 'STATEMENT_NOTIFICATION', label: 'Phiếu báo điện năng' },
+                { key: 'FORGOT_PASSWORD', label: 'Đặt lại mật khẩu' },
+                { key: 'USER_CREDENTIAL', label: 'Cấp tài khoản mới' },
+              ]}
+              className='mb-4'
+            />
+
+            <Table
+              columns={columns}
+              dataSource={templates}
+              rowKey="id"
+              loading={loading}
+              pagination={{ pageSize: 10, showSizeChanger: true }}
+            />
+          </div>
+        </Card>
+      </div>
+
+      <FullPageLoading isLoading={loading} />
 
       {/* Drawer Create / Edit */}
       <Drawer
@@ -437,10 +444,15 @@ export const NotificationTemplatesPage: React.FC = () => {
         extra={
           <Space>
             <Button icon={<EyeOutlined />} onClick={handlePreviewFromForm}>
-              Xem Trước (Preview)
+              Xem Trước
             </Button>
             <Button onClick={() => setDrawerOpen(false)}>Hủy</Button>
-            <Button type="primary" onClick={handleSubmit} loading={submitting} style={{ backgroundColor: '#b22222', borderColor: '#b22222' }}>
+            <Button
+              type="primary"
+              onClick={handleSubmit}
+              loading={submitting}
+              style={{ backgroundColor: '#003366', borderColor: '#003366' }}
+            >
               Lưu Mẫu
             </Button>
           </Space>
@@ -454,7 +466,7 @@ export const NotificationTemplatesPage: React.FC = () => {
                 label="Tên mẫu email"
                 rules={[{ required: true, message: 'Vui lòng nhập tên mẫu email' }]}
               >
-                <Input placeholder="Ví dụ: Mẫu Phiếu Báo Tháng KCN VSIP Chuẩn" />
+                <Input placeholder="Ví dụ: Mẫu Thông Báo Phiếu Báo Tháng VSIP Hải Phòng" />
               </Form.Item>
             </Col>
             <Col span={10}>
@@ -472,9 +484,9 @@ export const NotificationTemplatesPage: React.FC = () => {
             name="subjectTemplate"
             label="Tiêu đề Email (Subject)"
             rules={[{ required: true, message: 'Vui lòng nhập tiêu đề email' }]}
-            tooltip="Hỗ trợ các thẻ biến như {{CustomerName}}, {{SerialNumber}}, {{Period}}..."
+            tooltip="Hỗ trợ các thẻ biến như {{CustomerName}}, {{PointName}}, {{CycleName}}..."
           >
-            <Input placeholder="Ví dụ: Phiếu Báo Số {{SerialNumber}} - {{CustomerName}}" />
+            <Input placeholder="Ví dụ: [VSIP Hải Phòng] Phiếu báo chỉ số điện kỳ {{CycleName}} - Điểm đo {{PointName}}" />
           </Form.Item>
 
           <Row gutter={16}>
@@ -501,7 +513,7 @@ export const NotificationTemplatesPage: React.FC = () => {
             style={{ marginBottom: 16, background: '#fafafa', border: '1px dashed #d9d9d9' }}
             title={
               <Space>
-                <CopyOutlined style={{ color: '#b22222' }} />
+                <CopyOutlined style={{ color: '#003366' }} />
                 <Text strong style={{ fontSize: 13 }}>
                   Danh mục Thẻ Biến Nghiệp Vụ (Nhấp vào thẻ để tự động chèn vào nội dung)
                 </Text>
@@ -533,22 +545,23 @@ export const NotificationTemplatesPage: React.FC = () => {
           <Form.Item
             name="bodyHtmlTemplate"
             label="Nội dung Email (HTML Template)"
-            rules={[{ required: true, message: 'Vui lòng nhập nội dung HTML của email' }]}
+            rules={[{ required: true, message: 'Vui lòng nhập nội dung mẫu email' }]}
+            tooltip="Hỗ trợ mã HTML hoàn chỉnh và các thẻ biến {{Key}}"
           >
             <TextArea
-              rows={14}
+              rows={12}
               style={{ fontFamily: 'Consolas, monospace', fontSize: 13 }}
-              placeholder="Nhập mã HTML của email tại đây..."
+              placeholder="Nhập mã HTML của mẫu email..."
             />
           </Form.Item>
         </Form>
       </Drawer>
 
-      {/* Preview Modal */}
+      {/* Modal Live Preview */}
       <Modal
         title={
           <Space>
-            <EyeOutlined style={{ color: '#b22222' }} />
+            <EyeOutlined style={{ color: '#003366' }} />
             <Text strong>Xem trước Email (Live Preview)</Text>
           </Space>
         }
@@ -567,7 +580,7 @@ export const NotificationTemplatesPage: React.FC = () => {
           <div>
             <div style={{ padding: '8px 12px', background: '#f5f5f5', borderRadius: 6, marginBottom: 12 }}>
               <Text strong>Tiêu đề: </Text>
-              <Text style={{ color: '#b22222', fontWeight: 600 }}>{previewData.subject}</Text>
+              <Text style={{ color: '#003366', fontWeight: 600 }}>{previewData.subject}</Text>
             </div>
             <div
               style={{

@@ -1,8 +1,8 @@
 import { CancelToken } from 'axios';
 
-import { Endpoint } from '@/core/application/common/endPoint.ts';
-import FailureResponse from '@/core/application/dto/common/responses/failureResponse.ts';
-import SuccessResponse from '@/core/application/dto/common/responses/successResponse.ts';
+import { Endpoint } from '@/core/application/common/endPoint';
+import FailureResponse from '@/core/application/dto/common/responses/failureResponse';
+import SuccessResponse from '@/core/application/dto/common/responses/successResponse';
 import {
   CreateNotificationTemplateRequest,
   CreateStatementPdfTemplateRequest,
@@ -10,18 +10,18 @@ import {
   PreviewStatementPdfTemplateRequest,
   UpdateNotificationTemplateRequest,
   UpdateStatementPdfTemplateRequest,
-} from '@/core/application/interfaces/methods/templates/templateManagement.interface.ts';
-import axiosInstance from '@/infrastructure/common/libs/axios/interceptors.ts';
-import Constants from '@/core/application/common/constants.ts';
-import LocalStorageService from '@/infrastructure/services/localStorage.service.ts';
-import LoggerService from '@/infrastructure/services/logger.service.ts';
-import RequestService from '@/infrastructure/services/request.service.ts';
+} from '@/core/application/interfaces/methods/templates/templateManagement.interface';
+import axiosInstance from '@/infrastructure/common/libs/axios/interceptors';
+import Constants from '@/core/application/common/constants';
+import LocalStorageService from '@/infrastructure/services/localStorage.service';
+import LoggerService from '@/infrastructure/services/logger.service';
+import RequestService from '@/infrastructure/services/request.service';
 
 export class TemplateManagementService {
   private readonly loggerService = new LoggerService();
   private readonly requestService = new RequestService();
   private readonly localStorageService = new LocalStorageService();
-  private readonly baseURL = `${import.meta.env.VITE_APP_API_URL}`;
+  private readonly baseURL = `${import.meta.env.VITE_APP_API_URL || ''}`;
 
   // ==================== NOTIFICATION TEMPLATES ====================
 
@@ -173,7 +173,8 @@ export class TemplateManagementService {
 
   public async previewStatementPdfTemplate(data: PreviewStatementPdfTemplateRequest, cancellationToken?: CancelToken): Promise<Blob> {
     try {
-      const url = `${this.baseURL}/${Endpoint.Config.PreviewStatementPdfTemplate}`;
+      const apiPath = Endpoint.Config.PreviewStatementPdfTemplate.replace(/^\//, '');
+      const url = this.baseURL ? `${this.baseURL}/${apiPath}` : `/${apiPath}`;
       const token = this.localStorageService.readStorage(Constants.API_TOKEN_STORAGE);
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',

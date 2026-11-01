@@ -490,8 +490,8 @@ export default class Constants {
             [],
             MenuKeys.StatementPdfTemplates,
             null,
-            'Mẫu Phiếu báo PDF',
-            'Mẫu Phiếu báo PDF',
+            'Mẫu phiếu báo chỉ số điện',
+            'Mẫu phiếu báo chỉ số điện',
             [Constants.Role.SuperAdmin.value, Constants.Role.Admin.value],
             ROUTE_PATH.STATEMENT_PDF_TEMPLATES,
             MenuKeys.MonitoringPoints
