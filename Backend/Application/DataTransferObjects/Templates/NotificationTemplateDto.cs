@@ -50,3 +50,11 @@ public class PreviewNotificationTemplateResponse
     public string Subject { get; set; } = string.Empty;
     public string BodyHtml { get; set; } = string.Empty;
 }
+
+public class TestSendNotificationTemplateRequest
+{
+    public string? Code { get; set; }
+    public string ToEmail { get; set; } = string.Empty;
+    public string? SubjectTemplate { get; set; }
+    public string? BodyHtmlTemplate { get; set; }
+}

@@ -82,11 +82,8 @@ export const StatementPdfTemplatesPage: React.FC = () => {
     setLoading(true);
     try {
       const res: any = await service.getStatementPdfTemplates();
-      if (res?.data) {
-        setTemplates(Array.isArray(res.data) ? res.data : []);
-      } else {
-        setTemplates([]);
-      }
+      const rawData = res?.data?.data !== undefined ? res.data.data : res?.data;
+      setTemplates(Array.isArray(rawData) ? rawData : []);
     } catch (err: any) {
       message.error(`Không thể tải danh sách mẫu phiếu báo: ${err?.message || err}`);
       setTemplates([]);

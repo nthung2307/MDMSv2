@@ -97,6 +97,7 @@ export class Endpoint {
     static DeleteNotificationTemplate: string = 'notification-templates/delete';
     static SetDefaultNotificationTemplate: string = 'notification-templates/set-default';
     static PreviewNotificationTemplate: string = 'notification-templates/preview';
+    static TestSendNotificationTemplate: string = 'notification-templates/test-send';
 
     // Statement PDF Templates
     static GetStatementPdfTemplates: string = 'statement-pdf-templates/get-list';

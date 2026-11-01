@@ -8,6 +8,7 @@ import {
   CreateStatementPdfTemplateRequest,
   PreviewNotificationTemplateRequest,
   PreviewStatementPdfTemplateRequest,
+  TestSendNotificationTemplateRequest,
   UpdateNotificationTemplateRequest,
   UpdateStatementPdfTemplateRequest,
 } from '@/core/application/interfaces/methods/templates/templateManagement.interface';
@@ -95,6 +96,17 @@ export class TemplateManagementService {
   public async previewNotificationTemplate(data: PreviewNotificationTemplateRequest, cancellationToken?: CancelToken) {
     try {
       const endpoint = Endpoint.Config.PreviewNotificationTemplate;
+      const res = await this.requestService.makePostRequestAsync(endpoint, data, cancellationToken);
+      return res;
+    } catch (e) {
+      this.loggerService.error(e);
+      throw e;
+    }
+  }
+
+  public async testSendNotificationTemplate(data: TestSendNotificationTemplateRequest, cancellationToken?: CancelToken) {
+    try {
+      const endpoint = Endpoint.Config.TestSendNotificationTemplate;
       const res = await this.requestService.makePostRequestAsync(endpoint, data, cancellationToken);
       return res;
     } catch (e) {

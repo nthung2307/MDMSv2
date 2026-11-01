@@ -96,15 +96,26 @@ public class NotificationTemplateService : INotificationTemplateService
     {
         var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
+            // Khách hàng & Điểm đo
             ["CustomerName"] = "CÔNG TY TNHH KYOCERA VIỆT NAM",
             ["PointCode"] = "101.402.001",
-            ["SerialNumber"] = "PB-202610-001",
+            ["PointName"] = "Điểm đo Trạm Biến Áp TBA 1",
+            ["CustomerCode"] = "KH_KYOCERA_01",
+            ["MeterSerial"] = "23098172",
+            ["Multiplier"] = "120",
+            ["CompanyName"] = "CÔNG TY TNHH VSIP HẢI PHÒNG",
             ["Address"] = "Lô đất số IN1-4, KCN VSIP Hải Phòng, Xã An Lư, Huyện Thủy Nguyên, TP. Hải Phòng",
+            ["SerialNumber"] = "PB-202610-001",
+
+            // Thời gian & Chu kỳ
+            ["CycleName"] = "Kỳ 1 Tháng 10/2026",
             ["FromDate"] = "01/10/2026",
             ["ToDate"] = "31/10/2026",
             ["Month"] = "10",
             ["Year"] = "2026",
             ["Period"] = "Kỳ 1 Tháng 10/2026",
+
+            // Chỉ số công tơ
             ["PreviousBt"] = "1,245,670",
             ["PreviousCd"] = "345,120",
             ["PreviousTd"] = "560,890",
@@ -113,6 +124,13 @@ public class NotificationTemplateService : INotificationTemplateService
             ["Cd"] = "362,450",
             ["Td"] = "581,200",
             ["Sg"] = "2,239,080",
+
+            // Sản lượng & Thông số vận hành
+            ["OutputBt"] = "49,760",
+            ["OutputCd"] = "17,330",
+            ["OutputTd"] = "20,310",
+            ["OutputSg"] = "87,400",
+            ["OutputVc"] = "12,450",
             ["ConsumtionBt"] = "49,760",
             ["ConsumtionCd"] = "17,330",
             ["ConsumtionTd"] = "20,310",
@@ -121,12 +139,21 @@ public class NotificationTemplateService : INotificationTemplateService
             ["ConsumtionVc"] = "12,450",
             ["Pmax"] = "1,450.85 kW",
             ["PmaxTime"] = "15/10/2026 14:30:00",
-            ["CareFullname"] = "Phòng Quản Lý Vận Hành Cơ Điện VSIP",
-            ["CareEmail"] = "noreply.hoadondientu.hp@vsip.com.vn",
-            ["CarePhone"] = "0225 3959868",
-            ["Username"] = "kyocera_user",
+            ["CosPhi"] = "0.98",
+
+            // Tài khoản & Xác thực
+            ["FullName"] = "Nguyễn Văn An",
+            ["Username"] = "an.nguyen",
             ["Password"] = "Vsip@2026#",
+            ["Email"] = "an.nguyen@vsip.com.vn",
+            ["LoginUrl"] = "https://amr.nobisoft.vn/login",
             ["ResetLink"] = "https://amr.nobisoft.vn/reset-password?token=sample_demo_token&email=admin@kyocera.com.vn",
+            ["Token"] = "984210",
+            ["CareFullname"] = "Phòng Quản Lý Vận Hành Cơ Điện VSIP",
+            ["CareEmail"] = "noreply.mdms@vsip.com.vn",
+            ["CarePhone"] = "0225 3959868",
+            ["SystemEmail"] = "noreply.mdms@vsip.com.vn",
+            ["SupportPhone"] = "0225 3959868",
             ["CurrentDate"] = DateTime.Now.ToString("dd/MM/yyyy")
         };
 

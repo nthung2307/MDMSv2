@@ -29,6 +29,7 @@ public class NotificationTemplatesController : ControllerBase
     private readonly INotificationTemplateReadOnlyRepository _readOnlyRepository;
     private readonly INotificationTemplateReadWriteRepository _readWriteRepository;
     private readonly INotificationTemplateService _templateService;
+    private readonly IEmailProviderFactory _emailProviderFactory;
     private readonly ISnowflakeIdService _snowflakeIdService;
     private readonly IMapper _mapper;
     private readonly ILogger<NotificationTemplatesController> _logger;
@@ -37,6 +38,7 @@ public class NotificationTemplatesController : ControllerBase
         INotificationTemplateReadOnlyRepository readOnlyRepository,
         INotificationTemplateReadWriteRepository readWriteRepository,
         INotificationTemplateService templateService,
+        IEmailProviderFactory emailProviderFactory,
         ISnowflakeIdService snowflakeIdService,
         IMapper mapper,
         ILogger<NotificationTemplatesController> logger)
@@ -44,6 +46,7 @@ public class NotificationTemplatesController : ControllerBase
         _readOnlyRepository = readOnlyRepository;
         _readWriteRepository = readWriteRepository;
         _templateService = templateService;
+        _emailProviderFactory = emailProviderFactory;
         _snowflakeIdService = snowflakeIdService;
         _mapper = mapper;
         _logger = logger;
@@ -273,6 +276,46 @@ public class NotificationTemplatesController : ControllerBase
         {
             _logger.LogError(ex, "Lỗi khi xem trước mẫu thông báo: {Message}", ex.Message);
             return RequestResult<PreviewNotificationTemplateResponse>.Fail(new[]
+            {
+                new ErrorItem { FieldName = "System", Error = ex.Message }
+            });
+        }
+    }
+
+    [HttpPost]
+    [Route(Common.Url.Default.NotificationTemplates.TestSend)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin])]
+    public async Task<RequestResult<bool>> TestSendTemplateAsync([FromBody] TestSendNotificationTemplateRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(request.ToEmail))
+            {
+                return RequestResult<bool>.Fail(new[]
+                {
+                    new ErrorItem { FieldName = nameof(request.ToEmail), Error = "Vui lòng nhập địa chỉ email nhận kiểm tra." }
+                });
+            }
+
+            var sampleContext = Infrastructure.Services.Templates.NotificationTemplateService.GetSampleVariablesForCode(request.Code);
+            var subject = _templateService.Render(request.SubjectTemplate ?? string.Empty, sampleContext);
+            var bodyHtml = _templateService.Render(request.BodyHtmlTemplate ?? string.Empty, sampleContext);
+
+            var provider = await _emailProviderFactory.GetActiveProviderAsync();
+            await provider.SendEmailAsync(new Application.DataTransferObjects.Email.EmailMessageDto
+            {
+                To = new List<string> { request.ToEmail.Trim() },
+                Subject = !string.IsNullOrWhiteSpace(subject) ? subject : "[MDMS Test] Thử nghiệm mẫu email",
+                BodyHtml = bodyHtml
+            });
+
+            _logger.LogInformation("Gửi email thử nghiệm thành công tới {ToEmail} cho mã {Code}", request.ToEmail, request.Code);
+            return RequestResult<bool>.Succeed(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Lỗi khi gửi email thử nghiệm mẫu: {Message}", ex.Message);
+            return RequestResult<bool>.Fail(new[]
             {
                 new ErrorItem { FieldName = "System", Error = ex.Message }
             });

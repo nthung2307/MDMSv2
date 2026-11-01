@@ -42,6 +42,13 @@ export interface PreviewNotificationTemplateResponse {
   bodyHtml: string;
 }
 
+export interface TestSendNotificationTemplateRequest {
+  code?: string;
+  toEmail: string;
+  subjectTemplate?: string;
+  bodyHtmlTemplate?: string;
+}
+
 export interface StatementPdfTemplateDto {
   id: number | string;
   code: string;

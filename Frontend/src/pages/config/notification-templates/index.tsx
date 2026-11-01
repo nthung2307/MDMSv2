@@ -25,6 +25,7 @@ import {
   EditOutlined,
   EyeOutlined,
   PlusOutlined,
+  SendOutlined,
   StarFilled,
   StarOutlined,
 } from '@ant-design/icons';
@@ -121,11 +122,8 @@ export const NotificationTemplatesPage: React.FC = () => {
     try {
       const code = codeFilter === 'ALL' ? undefined : codeFilter;
       const res: any = await service.getNotificationTemplates(code);
-      if (res?.data) {
-        setTemplates(Array.isArray(res.data) ? res.data : []);
-      } else {
-        setTemplates([]);
-      }
+      const rawData = res?.data?.data !== undefined ? res.data.data : res?.data;
+      setTemplates(Array.isArray(rawData) ? rawData : []);
     } catch (err: any) {
       message.error(`Không thể tải danh sách mẫu email: ${err?.message || err}`);
       setTemplates([]);
@@ -234,8 +232,12 @@ export const NotificationTemplatesPage: React.FC = () => {
         subjectTemplate: record.subjectTemplate,
         bodyHtmlTemplate: record.bodyHtmlTemplate,
       });
-      if (res?.data) {
-        setPreviewData(res.data);
+      const data = res?.data?.data !== undefined ? res.data.data : res?.data;
+      if (data) {
+        setPreviewData({
+          subject: data.subject || data.Subject || '',
+          bodyHtml: data.bodyHtml || data.BodyHtml || '',
+        });
       }
     } catch (err: any) {
       message.error(`Không thể xem trước mẫu: ${err?.message || err}`);
@@ -254,13 +256,74 @@ export const NotificationTemplatesPage: React.FC = () => {
         subjectTemplate: values.subjectTemplate || '',
         bodyHtmlTemplate: values.bodyHtmlTemplate || '',
       });
-      if (res?.data) {
-        setPreviewData(res.data);
+      const data = res?.data?.data !== undefined ? res.data.data : res?.data;
+      if (data) {
+        setPreviewData({
+          subject: data.subject || data.Subject || '',
+          bodyHtml: data.bodyHtml || data.BodyHtml || '',
+        });
       }
     } catch (err: any) {
       message.error(`Không thể xem trước mẫu: ${err?.message || err}`);
     } finally {
       setPreviewLoading(false);
+    }
+  };
+
+  // Test Email Sending State & Handlers
+  const [testSendOpen, setTestSendOpen] = useState<boolean>(false);
+  const [testEmailTarget, setTestEmailTarget] = useState<string>('');
+  const [testSending, setTestSending] = useState<boolean>(false);
+  const [testSendPayload, setTestSendPayload] = useState<{
+    code?: string;
+    subjectTemplate?: string;
+    bodyHtmlTemplate?: string;
+  } | null>(null);
+
+  const handleOpenTestSendFromForm = () => {
+    const values = form.getFieldsValue();
+    setTestSendPayload({
+      code: values.code,
+      subjectTemplate: values.subjectTemplate || '',
+      bodyHtmlTemplate: values.bodyHtmlTemplate || '',
+    });
+    setTestSendOpen(true);
+  };
+
+  const handleOpenTestSendFromRecord = (record: NotificationTemplateDto) => {
+    setTestSendPayload({
+      code: record.code,
+      subjectTemplate: record.subjectTemplate,
+      bodyHtmlTemplate: record.bodyHtmlTemplate,
+    });
+    setTestSendOpen(true);
+  };
+
+  const handleSendTest = async () => {
+    if (!testEmailTarget || !testEmailTarget.includes('@')) {
+      message.warning('Vui lòng nhập địa chỉ email hợp lệ');
+      return;
+    }
+    if (!testSendPayload) return;
+    setTestSending(true);
+    try {
+      const res: any = await service.testSendNotificationTemplate({
+        code: testSendPayload.code,
+        toEmail: testEmailTarget.trim(),
+        subjectTemplate: testSendPayload.subjectTemplate,
+        bodyHtmlTemplate: testSendPayload.bodyHtmlTemplate,
+      });
+      const data = res?.data?.data !== undefined ? res.data.data : res?.data;
+      if (res?.status === 200 || data === true || res?.success) {
+        message.success(`Đã gửi email thử nghiệm thành công tới ${testEmailTarget}`);
+        setTestSendOpen(false);
+      } else {
+        message.error('Không thể gửi email thử nghiệm, vui lòng kiểm tra cấu hình Email');
+      }
+    } catch (err: any) {
+      message.error(`Lỗi khi gửi email thử nghiệm: ${err?.message || err}`);
+    } finally {
+      setTestSending(false);
     }
   };
 
@@ -337,15 +400,22 @@ export const NotificationTemplatesPage: React.FC = () => {
     {
       title: 'Thao tác',
       key: 'action',
-      width: 200,
+      width: 220,
       align: 'center',
       render: (_, record) => (
-        <Space size="middle">
+        <Space size="small">
           <Tooltip title="Xem trước nội dung đã bind dữ liệu">
             <Button
               type="text"
               icon={<EyeOutlined style={{ color: '#1890ff', fontSize: 16 }} />}
               onClick={() => handlePreviewDirect(record)}
+            />
+          </Tooltip>
+          <Tooltip title="Gửi email thử nghiệm">
+            <Button
+              type="text"
+              icon={<SendOutlined style={{ color: '#722ed1', fontSize: 16 }} />}
+              onClick={() => handleOpenTestSendFromRecord(record)}
             />
           </Tooltip>
           <Tooltip title="Chỉnh sửa mẫu">
@@ -445,6 +515,9 @@ export const NotificationTemplatesPage: React.FC = () => {
           <Space>
             <Button icon={<EyeOutlined />} onClick={handlePreviewFromForm}>
               Xem Trước
+            </Button>
+            <Button icon={<SendOutlined />} onClick={handleOpenTestSendFromForm}>
+              Gửi Thử Nghiệm
             </Button>
             <Button onClick={() => setDrawerOpen(false)}>Hủy</Button>
             <Button
@@ -597,6 +670,42 @@ export const NotificationTemplatesPage: React.FC = () => {
         ) : (
           <div>Không có dữ liệu xem trước</div>
         )}
+      </Modal>
+
+      {/* Modal Test Send Email */}
+      <Modal
+        title={
+          <Space>
+            <SendOutlined style={{ color: '#003366' }} />
+            <Text strong>Gửi Email Thử Nghiệm (Live Test Mail)</Text>
+          </Space>
+        }
+        open={testSendOpen}
+        onCancel={() => setTestSendOpen(false)}
+        onOk={handleSendTest}
+        confirmLoading={testSending}
+        okText="Gửi Ngay"
+        cancelText="Hủy"
+        okButtonProps={{ style: { backgroundColor: '#003366', borderColor: '#003366' } }}
+        width={520}
+      >
+        <Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 16 }}>
+          Hệ thống sẽ biên dịch mẫu email này cùng bộ dữ liệu mẫu thực tế và gửi trực tiếp qua hạ tầng Email hiện tại tới hòm thư cá nhân của bạn để kiểm tra hiển thị.
+        </Paragraph>
+        <Form layout="vertical">
+          <Form.Item
+            label="Địa chỉ Email người nhận thử nghiệm"
+            required
+            tooltip="Hệ thống sẽ gửi email thật tới địa chỉ này"
+          >
+            <Input
+              placeholder="ví dụ: admin@company.com"
+              value={testEmailTarget}
+              onChange={(e) => setTestEmailTarget(e.target.value)}
+              prefix={<SendOutlined style={{ color: '#8c8c8c' }} />}
+            />
+          </Form.Item>
+        </Form>
       </Modal>
     </div>
   );

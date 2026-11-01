@@ -33,6 +33,7 @@ public static class Url
             public const string Delete = "Notification-Templates/Delete/{id}";
             public const string SetDefault = "Notification-Templates/Set-Default/{id}";
             public const string Preview = "Notification-Templates/Preview";
+            public const string TestSend = "Notification-Templates/Test-Send";
         }
 
         public static class StatementPdfTemplates
