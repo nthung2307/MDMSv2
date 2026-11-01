@@ -751,6 +751,69 @@ CREATE TABLE `measurementpoints` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `meterreplacements`
+--
+
+DROP TABLE IF EXISTS `meterreplacements`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `meterreplacements` (
+  `Id` bigint NOT NULL,
+  `MeasurementPointId` bigint NOT NULL,
+  `ReplacementDate` datetime(6) NOT NULL,
+  `Reason` varchar(500) DEFAULT NULL,
+  `OldMeterSerial` varchar(100) NOT NULL,
+  `OldMeterMultiplier` double NOT NULL DEFAULT '1',
+  `OldBt` double NOT NULL DEFAULT '0',
+  `OldCd` double NOT NULL DEFAULT '0',
+  `OldTd` double NOT NULL DEFAULT '0',
+  `OldSg` double NOT NULL DEFAULT '0',
+  `OldVc` double NOT NULL DEFAULT '0',
+  `OldPmax` double NOT NULL DEFAULT '0',
+  `NewMeterSerial` varchar(100) NOT NULL,
+  `NewMeterMultiplier` double NOT NULL DEFAULT '1',
+  `NewBt` double NOT NULL DEFAULT '0',
+  `NewCd` double NOT NULL DEFAULT '0',
+  `NewTd` double NOT NULL DEFAULT '0',
+  `NewSg` double NOT NULL DEFAULT '0',
+  `NewVc` double NOT NULL DEFAULT '0',
+  `NewPmax` double NOT NULL DEFAULT '0',
+  `DocumentUrl` varchar(1000) DEFAULT NULL,
+  `Status` varchar(50) NOT NULL DEFAULT 'APPROVED',
+  `CreatedTime` datetime(6) NOT NULL,
+  `CreatedBy` bigint DEFAULT NULL,
+  `CreatedName` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`Id`),
+  KEY `IX_MeterReplacements_MeasurementPointId` (`MeasurementPointId`),
+  KEY `IX_MeterReplacements_ReplacementDate` (`ReplacementDate`),
+  CONSTRAINT `FK_MeterReplacements_MeasurementPoints` FOREIGN KEY (`MeasurementPointId`) REFERENCES `measurementpoints` (`Id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `notificationtemplates`
+--
+
+DROP TABLE IF EXISTS `notificationtemplates`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `notificationtemplates` (
+  `Id` bigint NOT NULL,
+  `Code` varchar(100) NOT NULL,
+  `Name` varchar(255) NOT NULL,
+  `SubjectTemplate` varchar(500) NOT NULL,
+  `BodyHtmlTemplate` longtext NOT NULL,
+  `Description` varchar(1000) DEFAULT NULL,
+  `IsDefault` tinyint(1) NOT NULL DEFAULT '0',
+  `IsActive` tinyint(1) NOT NULL DEFAULT '1',
+  `CreatedTime` datetime(6) NOT NULL,
+  `ModifiedTime` datetime(6) DEFAULT NULL,
+  PRIMARY KEY (`Id`),
+  KEY `IX_NotificationTemplates_Code` (`Code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `periodicenergystatement`
 --
 
@@ -792,12 +855,48 @@ CREATE TABLE `periodicenergystatement` (
   `Pmax` double NOT NULL DEFAULT '0',
   `PreviousPmax` double NOT NULL DEFAULT '0',
   `ConsumtionPmax` double NOT NULL DEFAULT '0',
+  `PmaxTime` datetime(6) DEFAULT NULL,
+  `PreviousPmaxTime` datetime(6) DEFAULT NULL,
+  `BillingTimestamp` datetime(6) DEFAULT NULL,
+  `HasMeterReplacement` tinyint(1) NOT NULL DEFAULT '0',
+  `MeterReplacementId` bigint DEFAULT NULL,
+  `StatementPdfTemplateId` bigint DEFAULT NULL,
   PRIMARY KEY (`Id`),
   KEY `IX_PeriodicEnergyStatement_GcsId` (`GcsId`),
   KEY `IX_PeriodicEnergyStatement_MeasurementPointId` (`MeasurementPointId`),
   CONSTRAINT `FK_PeriodicEnergyStatement_Gcs_GcsId` FOREIGN KEY (`GcsId`) REFERENCES `gcs` (`Id`) ON DELETE CASCADE,
   CONSTRAINT `FK_PeriodicEnergyStatement_MeasurementPoints_MeasurementPointId` FOREIGN KEY (`MeasurementPointId`) REFERENCES `measurementpoints` (`Id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=1530019139117059 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `statementpdftemplates`
+--
+
+DROP TABLE IF EXISTS `statementpdftemplates`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `statementpdftemplates` (
+  `Id` bigint NOT NULL,
+  `Code` varchar(100) NOT NULL,
+  `Name` varchar(255) NOT NULL,
+  `HeaderTitle` varchar(255) DEFAULT NULL,
+  `SubHeaderTitle` varchar(255) DEFAULT NULL,
+  `CompanyName` varchar(255) DEFAULT NULL,
+  `CompanyAddress` varchar(500) DEFAULT NULL,
+  `ContactPhone` varchar(255) DEFAULT NULL,
+  `LogoBase64` longtext,
+  `PaperSize` varchar(50) DEFAULT NULL,
+  `DisplayColumnsJson` varchar(1000) DEFAULT NULL,
+  `FooterNotes` varchar(2000) DEFAULT NULL,
+  `RequireDualSignatures` tinyint(1) NOT NULL DEFAULT '1',
+  `IsDefault` tinyint(1) NOT NULL DEFAULT '0',
+  `IsActive` tinyint(1) NOT NULL DEFAULT '1',
+  `CreatedTime` datetime(6) NOT NULL,
+  `ModifiedTime` datetime(6) DEFAULT NULL,
+  PRIMARY KEY (`Id`),
+  KEY `IX_StatementPdfTemplates_Code` (`Code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -813,6 +912,34 @@ CREATE TABLE `systemconfig` (
   `Value` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   PRIMARY KEY (`Id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1431228722995204 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `systememailconfigs`
+--
+
+DROP TABLE IF EXISTS `systememailconfigs`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `systememailconfigs` (
+  `Id` bigint NOT NULL,
+  `ProviderType` varchar(50) NOT NULL,
+  `SenderEmail` varchar(255) NOT NULL,
+  `SenderDisplayName` varchar(255) DEFAULT NULL,
+  `TenantId` varchar(100) DEFAULT NULL,
+  `ClientId` varchar(100) DEFAULT NULL,
+  `EncryptedClientSecret` varchar(1000) DEFAULT NULL,
+  `SmtpHost` varchar(255) DEFAULT NULL,
+  `SmtpPort` int DEFAULT NULL,
+  `SecurityMode` varchar(50) DEFAULT NULL,
+  `RequireAuth` tinyint(1) NOT NULL DEFAULT '1',
+  `SmtpUsername` varchar(255) DEFAULT NULL,
+  `EncryptedSmtpPassword` varchar(1000) DEFAULT NULL,
+  `IsActive` tinyint(1) NOT NULL DEFAULT '1',
+  `CreatedTime` datetime(6) NOT NULL,
+  `ModifiedTime` datetime(6) DEFAULT NULL,
+  PRIMARY KEY (`Id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1160,3 +1287,10 @@ INSERT INTO `amr`.`systemconfig` (`Id`, `Key`, `Value`) VALUES
   (7, 'CUSTOMERCAREPHONE', '19001006'),
   (8, 'CUSTOMERCAREEMAIL', 'cskh@mdms.vn')
 ON DUPLICATE KEY UPDATE `Value` = VALUES(`Value`);
+
+-- Khoi tao cau hinh email mac dinh cho bang systememailconfigs
+INSERT INTO `amr`.`systememailconfigs`
+(`Id`, `ProviderType`, `SenderEmail`, `SenderDisplayName`, `TenantId`, `ClientId`, `EncryptedClientSecret`, `SmtpHost`, `SmtpPort`, `SecurityMode`, `RequireAuth`, `SmtpUsername`, `EncryptedSmtpPassword`, `IsActive`, `CreatedTime`)
+VALUES
+(1, 'MICROSOFT_GRAPH', 'noreply.hoadondientu.hp@vsip.com.vn', 'VSIP Hải Phòng - Phòng Cơ Điện', '5e5bd7f8-2adb-4595-956a-a03d68ea32a6', '6a86904e-3153-496f-8c1b-986ae398747a', '[AZURE_CLIENT_SECRET]', 'smtp.gmail.com', 587, 'StartTls', 1, '', '', 1, NOW())
+ON DUPLICATE KEY UPDATE `ProviderType` = VALUES(`ProviderType`);

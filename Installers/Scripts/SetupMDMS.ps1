@@ -212,6 +212,17 @@ if ($mysqlExe) {
             if ($proc.ExitCode -eq 0) {
                 Write-Host "   -> [PASS] Da import thanh cong co so du lieu 'amr' tu $dumpFileName!" -ForegroundColor Green
 
+                # Tu dong kiem tra va dong bo cac migration bo sung (neu co)
+                $migrationFiles = Get-ChildItem -Path $databaseDir -Filter "2026*.sql" -ErrorAction SilentlyContinue | Sort-Object Name
+                foreach ($mFile in $migrationFiles) {
+                    Write-Host "   -> Dang dong bo bo sung schema tu: $($mFile.Name)..." -ForegroundColor Gray
+                    $migBatch = Join-Path $env:TEMP "mig_$($mFile.BaseName).bat"
+                    $migContent = "@echo off`r`n`"$mysqlExe`" -h $inputHost -P $inputPort -u $inputUser `"-p$mysqlPassword`" --default-character-set=utf8mb4 amr < `"$($mFile.FullName)`""
+                    Set-Content -Path $migBatch -Value $migContent -Encoding ASCII
+                    $migProc = Start-Process -FilePath $migBatch -Wait -PassThru -NoNewWindow
+                    Remove-Item -Path $migBatch -Force -ErrorAction SilentlyContinue
+                }
+
                 # Tu dong kiem tra va nap Master Data (Khach hang, So GCS, Diem do, Tags)
                 $candidateMaster = @(
                     (Join-Path $databaseDir "amr_master_data.sql"),
