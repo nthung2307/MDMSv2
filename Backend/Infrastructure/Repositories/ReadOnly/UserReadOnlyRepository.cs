@@ -29,7 +29,7 @@ public class UserReadOnlyRepository : RestfulRepository<UserEntity, AppReadOnlyD
         var result = new List<string>();
         var userProfile = await _userEntities
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.UserName == userName, cancellationToken);
+            .FirstOrDefaultAsync(x => x.UserName == userName && !x.Deleted, cancellationToken);
         if (userProfile == null)
             return result;
 
@@ -70,14 +70,14 @@ public class UserReadOnlyRepository : RestfulRepository<UserEntity, AppReadOnlyD
     public async Task<bool> IsDuplicateEmail(string email, long? id, CancellationToken cancellationToken)
     {
         if(id != null)
-            return await _userEntities.AsNoTracking().AnyAsync(x => x.Email == email && x.Id != id, cancellationToken);
-        return await _userEntities.AsNoTracking().AnyAsync(x => x.Email == email, cancellationToken);
+            return await _userEntities.AsNoTracking().AnyAsync(x => x.Email == email && x.Id != id && !x.Deleted, cancellationToken);
+        return await _userEntities.AsNoTracking().AnyAsync(x => x.Email == email && !x.Deleted, cancellationToken);
     }
 
     public async Task<bool> IsDuplicateUserName(string userName, long? id, CancellationToken cancellationToken)
     {
         if(id != null)
-            return await _userEntities.AsNoTracking().AnyAsync(x => x.UserName == userName && x.Id != id, cancellationToken);
-        return await _userEntities.AsNoTracking().AnyAsync(x => x.UserName == userName, cancellationToken);
+            return await _userEntities.AsNoTracking().AnyAsync(x => x.UserName == userName && x.Id != id && !x.Deleted, cancellationToken);
+        return await _userEntities.AsNoTracking().AnyAsync(x => x.UserName == userName && !x.Deleted, cancellationToken);
     }
 }

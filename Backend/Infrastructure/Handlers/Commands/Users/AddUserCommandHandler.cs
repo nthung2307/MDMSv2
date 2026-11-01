@@ -76,6 +76,26 @@ public class AddUserCommandHandler : ICreateUserCommandHandler
                 });
             }
 
+            // Dọn dẹp các tài khoản cũ đã bị xóa (soft-deleted) nhưng vẫn còn chiếm giữ UserName hoặc Email từ trước
+            var oldDeletedUsers = await _userReadWriteRepository.GetDeletedUsersByUserNameOrEmailAsync(request.UserName, request.Email, cancellationToken);
+            if (oldDeletedUsers.Count > 0)
+            {
+                var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                foreach (var oldUser in oldDeletedUsers)
+                {
+                    if (string.Equals(oldUser.UserName, request.UserName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        oldUser.UserName = $"{oldUser.UserName}_deleted_{timestamp}_{oldUser.Id}";
+                    }
+                    if (string.Equals(oldUser.Email, request.Email, StringComparison.OrdinalIgnoreCase))
+                    {
+                        oldUser.Email = $"{oldUser.Email}_deleted_{timestamp}_{oldUser.Id}";
+                    }
+                    await _userReadWriteRepository.UpdateAsync(oldUser, cancellationToken);
+                }
+                await _userReadWriteRepository.SaveChangesAsync(cancellationToken);
+            }
+
             var userId = await _snowflakeIdService.GenerateId(cancellationToken);
             var response = new UserEntity()
             {

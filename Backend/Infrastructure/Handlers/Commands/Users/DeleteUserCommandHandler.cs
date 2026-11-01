@@ -1,4 +1,4 @@
-﻿using Application.Commands.Users;
+using Application.Commands.Users;
 using Application.Common.Responses.Common.Responses;
 using Application.Common.ValueObjects;
 using Application.DataTransferObjects.Responses.Users;
@@ -57,11 +57,15 @@ public class DeleteUserCommandHandler : IDeleteUserCommandHandler
                 });
             }
 
+            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             profile.Status = EntityStatus.Deleted;
             profile.Deleted = true;
             profile.DeletedBy = currentId;
             profile.DeletedTime = DateTimeOffset.Now;
             profile.DeletedName = userName;
+            // Giải phóng UserName và Email để người dùng có thể tạo lại tài khoản với username/email này ngay lập tức
+            profile.UserName = $"{profile.UserName}_deleted_{timestamp}";
+            profile.Email = $"{profile.Email}_deleted_{timestamp}";
             await _userReadWriteRepository.UpdateAsync(profile, cancellationToken);
 
             // Save all changes

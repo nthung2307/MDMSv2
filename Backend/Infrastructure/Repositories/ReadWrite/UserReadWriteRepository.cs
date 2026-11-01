@@ -271,4 +271,11 @@ public class UserReadWriteRepository : RestfulRepository<UserEntity, AppReadWrit
 
         return csvBytes;
     }
+
+    public async Task<List<UserEntity>> GetDeletedUsersByUserNameOrEmailAsync(string userName, string email, CancellationToken cancellationToken)
+    {
+        return await _userEntities
+            .Where(x => (x.UserName == userName || x.Email == email) && x.Deleted)
+            .ToListAsync(cancellationToken);
+    }
 }

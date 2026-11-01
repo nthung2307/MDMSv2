@@ -14,4 +14,5 @@ public interface IUserReadWriteRepository : IRepository<UserEntity>
     Task<byte[]> GenerateCustomerPdf(ExportPdfAndExcelRequest request, CancellationToken cancellationToken);
     Task<byte[]> GenerateCustomerCsv(ExportUserCsvRequest? request, CancellationToken cancellationToken);
     Task<byte[]> GenerateCustomerCsv(CancellationToken cancellationToken);
+    Task<List<UserEntity>> GetDeletedUsersByUserNameOrEmailAsync(string userName, string email, CancellationToken cancellationToken);
 }
