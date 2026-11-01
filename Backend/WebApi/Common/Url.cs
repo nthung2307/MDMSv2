@@ -18,10 +18,34 @@ public static class Url
         public const string SystemConfig = "SystemConfig";
         public const string PeriodicEnergyStatement = "PeriodicEnergyStatement";
         public const string EmailConfig = "EmailConfig";
+        public const string NotificationTemplates = "NotificationTemplates";
+        public const string StatementPdfTemplates = "StatementPdfTemplates";
     }
 
     public static class Default
     {
+        public static class NotificationTemplates
+        {
+            public const string List = "Notification-Templates/Get-List";
+            public const string View = "Notification-Templates/Get-Detail/{id}";
+            public const string Create = "Notification-Templates/Create";
+            public const string Update = "Notification-Templates/Update/{id}";
+            public const string Delete = "Notification-Templates/Delete/{id}";
+            public const string SetDefault = "Notification-Templates/Set-Default/{id}";
+            public const string Preview = "Notification-Templates/Preview";
+        }
+
+        public static class StatementPdfTemplates
+        {
+            public const string List = "Statement-Pdf-Templates/Get-List";
+            public const string View = "Statement-Pdf-Templates/Get-Detail/{id}";
+            public const string Create = "Statement-Pdf-Templates/Create";
+            public const string Update = "Statement-Pdf-Templates/Update/{id}";
+            public const string Delete = "Statement-Pdf-Templates/Delete/{id}";
+            public const string SetDefault = "Statement-Pdf-Templates/Set-Default/{id}";
+            public const string PreviewPdf = "Statement-Pdf-Templates/Preview-Pdf";
+        }
+
         public static class Account
         {
             public const string Create = "User/Create-User";

@@ -434,7 +434,7 @@ export default class Constants {
         IoSettingsOutline,
         'Cài đặt hệ thống',
         'Cài đặt hệ thống',
-        [Constants.Role.SuperAdmin.value],
+        [Constants.Role.SuperAdmin.value, Constants.Role.Admin.value],
         [
           new MenuItem(
             [],
@@ -474,6 +474,26 @@ export default class Constants {
             'Cấu hình Email',
             [Constants.Role.SuperAdmin.value],
             ROUTE_PATH.EMAIL_CONFIG,
+            MenuKeys.MonitoringPoints
+          ),
+          new MenuItem(
+            [],
+            MenuKeys.NotificationTemplates,
+            null,
+            'Mẫu Email thông báo',
+            'Mẫu Email thông báo',
+            [Constants.Role.SuperAdmin.value, Constants.Role.Admin.value],
+            ROUTE_PATH.NOTIFICATION_TEMPLATES,
+            MenuKeys.MonitoringPoints
+          ),
+          new MenuItem(
+            [],
+            MenuKeys.StatementPdfTemplates,
+            null,
+            'Mẫu Phiếu báo PDF',
+            'Mẫu Phiếu báo PDF',
+            [Constants.Role.SuperAdmin.value, Constants.Role.Admin.value],
+            ROUTE_PATH.STATEMENT_PDF_TEMPLATES,
             MenuKeys.MonitoringPoints
           ),
         ]

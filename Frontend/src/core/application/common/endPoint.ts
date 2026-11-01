@@ -88,6 +88,24 @@ export class Endpoint {
     static GetActiveEmailConfig: string = 'email-config/get-active-email-config';
     static UpdateEmailConfig: string = 'email-config/update-email-config';
     static TestEmailConnection: string = 'email-config/test-connection';
+
+    // Notification Email Templates
+    static GetNotificationTemplates: string = 'notification-templates/get-list';
+    static GetNotificationTemplateDetail: string = 'notification-templates/get-detail';
+    static CreateNotificationTemplate: string = 'notification-templates/create';
+    static UpdateNotificationTemplate: string = 'notification-templates/update';
+    static DeleteNotificationTemplate: string = 'notification-templates/delete';
+    static SetDefaultNotificationTemplate: string = 'notification-templates/set-default';
+    static PreviewNotificationTemplate: string = 'notification-templates/preview';
+
+    // Statement PDF Templates
+    static GetStatementPdfTemplates: string = 'statement-pdf-templates/get-list';
+    static GetStatementPdfTemplateDetail: string = 'statement-pdf-templates/get-detail';
+    static CreateStatementPdfTemplate: string = 'statement-pdf-templates/create';
+    static UpdateStatementPdfTemplate: string = 'statement-pdf-templates/update';
+    static DeleteStatementPdfTemplate: string = 'statement-pdf-templates/delete';
+    static SetDefaultStatementPdfTemplate: string = 'statement-pdf-templates/set-default';
+    static PreviewStatementPdfTemplate: string = 'statement-pdf-templates/preview-pdf';
   };
 
   static Report = class {

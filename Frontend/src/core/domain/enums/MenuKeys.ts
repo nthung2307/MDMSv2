@@ -41,6 +41,8 @@ export enum MenuKeys {
   authLock = 'auth-lock',
   Contact = 'contact',
   EmailConfig = 'email-config',
+  NotificationTemplates = 'notification-templates',
+  StatementPdfTemplates = 'statement-pdf-templates',
 }
 
 export const MenuSubKeys = [];

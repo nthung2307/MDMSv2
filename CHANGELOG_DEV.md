@@ -60,22 +60,75 @@
 
 ---
 
-## 2. Hướng dẫn Kiểm thử (Test Cases for MDMS-Tester)
+## 2. Hoàn thành Phase 2: Đa Mẫu Email Thông Báo & Phiếu Báo PDF QuestPDF
+
+### 2.1. Backend (.NET 8 Clean Architecture)
+1. **Quản lý Mẫu Email Thông báo (`NotificationTemplates`)**:
+   - [NotificationTemplateDto.cs](file:///e:/sources/MDMSv2/Backend/Application/DataTransferObjects/Templates/NotificationTemplateDto.cs): Khai báo hợp đồng CRUD, Preview request/response cho các loại mẫu: `STATEMENT_NOTIFICATION`, `FORGOT_PASSWORD`, `USER_CREDENTIAL`.
+   - [INotificationTemplateService.cs](file:///e:/sources/MDMSv2/Backend/Application/Services/INotificationTemplateService.cs) & [NotificationTemplateService.cs](file:///e:/sources/MDMSv2/Backend/Infrastructure/Services/Templates/NotificationTemplateService.cs): Bộ parser linh hoạt Regex biên dịch `{{Key}}` (không phân biệt chữ hoa/thường, tự động loại bỏ khoảng trắng dư thừa, hỗ trợ format specifier, tích hợp bộ fallback templates mặc định sẵn có).
+   - [NotificationTemplatesController.cs](file:///e:/sources/MDMSv2/Backend/WebApi/Controllers/NotificationTemplatesController.cs): Cung cấp RESTful API đầy đủ CRUD, thiết lập mẫu mặc định (`/set-default`), và xem trước email động (`/preview`).
+2. **Quản lý Mẫu Phiếu Báo PDF Modular (`StatementPdfTemplates`)**:
+   - [StatementPdfTemplateDto.cs](file:///e:/sources/MDMSv2/Backend/Application/DataTransferObjects/Templates/StatementPdfTemplateDto.cs): Định nghĩa profile cấu hình phiếu báo PDF: khổ giấy (`A5_LANDSCAPE` 595x420 pt chuẩn VSIP hoặc `A4_PORTRAIT` 595x842 pt chuẩn kế toán), tùy biến tiêu đề, tên/địa chỉ/SĐT đơn vị phát hành (Bên A), upload logo Base64, danh sách cột hiển thị linh hoạt dạng JSON (`BT`, `CD`, `TD`, `SG`, `VC`, `PMAX`, `COSPHI`), tùy chọn 1 chữ ký (Bên A) hoặc 2 chữ ký song song (Bên A & Bên B), ghi chú chân trang.
+   - [IStatementPdfGenerator.cs](file:///e:/sources/MDMSv2/Backend/Application/Services/IStatementPdfGenerator.cs) & [StatementPdfGenerator.cs](file:///e:/sources/MDMSv2/Backend/Infrastructure/Services/Templates/StatementPdfGenerator.cs): Hiện thực hóa render PDF bằng thư viện QuestPDF chất lượng cao, chia lưới bảng thông số chính xác, tự động tính toán tỷ lệ theo khổ giấy và render tức thời.
+   - [StatementPdfTemplatesController.cs](file:///e:/sources/MDMSv2/Backend/WebApi/Controllers/StatementPdfTemplatesController.cs): Cung cấp các API CRUD, `/set-default`, và `/preview-pdf` trả về luồng nhị phân `application/pdf` phục vụ xem trước trực tiếp trên trình duyệt.
+3. **Tích hợp Tự động hóa Gửi Phiếu báo**:
+   - [EmailSenderService.cs](file:///e:/sources/MDMSv2/Backend/Infrastructure/Services/EmailSenderService.cs): Được tái cấu trúc để nạp mẫu PDF và mẫu Email mặc định từ cơ sở dữ liệu. Tạo file PDF động qua `IStatementPdfGenerator` và biên dịch tiêu đề/nội dung qua `INotificationTemplateService`, sau đó gửi đính kèm file PDF qua `IEmailProviderFactory`.
+   - [EmailService.cs](file:///e:/sources/MDMSv2/Backend/Infrastructure/Services/EmailService.cs): Kết nối với `NotificationTemplateService` cho các luồng gửi email tài khoản và quên mật khẩu.
+   - [Program.cs](file:///e:/sources/MDMSv2/Backend/WebApi/Program.cs): Đăng ký bản quyền QuestPDF Community License và đăng ký DI cho `INotificationTemplateService` và `IStatementPdfGenerator`.
+
+---
+
+### 2.2. Frontend (React 18 + TypeScript + Ant Design 5)
+1. **Routing, Menu & Navigation**:
+   - [MenuKeys.ts](file:///e:/sources/MDMSv2/Frontend/src/core/domain/enums/MenuKeys.ts): Khai báo menu keys `NotificationTemplates` và `StatementPdfTemplates`.
+   - [appRouters.ts](file:///e:/sources/MDMSv2/Frontend/src/core/application/common/appRouters.ts): Thêm routes `/notification-templates` và `/statement-pdf-templates`.
+   - [constants.ts](file:///e:/sources/MDMSv2/Frontend/src/core/application/common/constants.ts): Bổ sung 2 mục menu "Mẫu Email thông báo" và "Mẫu Phiếu báo PDF" dưới nhóm "Cài đặt hệ thống".
+   - [admin/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/admin/index.tsx): Đăng ký Route bảo vệ cho cả 2 màn hình.
+2. **Services & Repositories**:
+   - [templateManagement.interface.ts](file:///e:/sources/MDMSv2/Frontend/src/core/application/interfaces/methods/templates/templateManagement.interface.ts): Định nghĩa kiểu dữ liệu và request contract đầy đủ.
+   - [templateManagement.service.ts](file:///e:/sources/MDMSv2/Frontend/src/infrastructure/repository/templates/services/templateManagement.service.ts): Tầng dịch vụ gọi API, xử lý nhận file PDF dưới dạng `Blob` cho việc xem trước trực tiếp.
+3. **Màn hình Quản trị Mẫu Email Thông Báo**:
+   - [notification-templates/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/config/notification-templates/index.tsx):
+     * Giao diện chia Tabs theo loại mẫu: Thông báo phiếu báo, Quên mật khẩu, Cấp tài khoản.
+     * Bảng danh sách mẫu kèm trạng thái Mặc định (Default Tag với ngôi sao vàng), thao tác Đặt làm mặc định, Sửa, Xóa.
+     * Drawer thêm mới/chỉnh sửa mẫu với bảng thẻ Merge Tags thông minh (bấm vào thẻ là tự động chèn vào vị trí con trỏ).
+     * Modal Live Preview xem trước email thực tế sau khi bind biến dữ liệu.
+4. **Màn hình Quản trị Mẫu Phiếu Báo PDF**:
+   - [statement-pdf-templates/index.tsx](file:///e:/sources/MDMSv2/Frontend/src/pages/config/statement-pdf-templates/index.tsx):
+     * Bảng danh sách Profile mẫu phiếu báo kèm Tag khổ giấy A5/A4, số lượng cột hiển thị, trạng thái mặc định.
+     * Drawer cấu hình toàn diện: Radio button chọn khổ giấy A5 Ngang / A4 Đứng, Checkbox danh sách cột hiển thị (BT, CD, TD, SG, VC, PMAX, COSPHI), Switch chuyển đổi chế độ ký xác nhận (Chỉ bên A vs Hai bên A & B), Upload Logo kèm xem trước.
+     * Modal Live Preview xem file PDF trực tiếp thông qua thẻ iframe với dữ liệu render từ backend trong thời gian thực, có nút tải file PDF mẫu về máy.
+
+---
+
+### 2.3. Cơ sở dữ liệu (Database Scripts)
+- Đã cập nhật [amr_full.sql](file:///e:/sources/MDMSv2/Installers/Database/amr_full.sql) và [20261031_create_email_config_and_metering_tables.sql](file:///e:/sources/MDMSv2/Installers/Database/20261031_create_email_config_and_metering_tables.sql) (đồng bộ cả thư mục `Publish/MDMSv2_InstallPackage/Database`):
+  * DDL bảng `NotificationTemplates` & `StatementPdfTemplates`.
+  * DDL bảng `MeterReplacements` (sẵn sàng cho Phase 3).
+  * Khởi tạo sẵn các mẫu mặc định: Mẫu email gửi phiếu báo VSIP Hải Phòng, mẫu email quên mật khẩu, mẫu email tạo tài khoản, mẫu phiếu báo PDF A5 Ngang (VSIP Hải Phòng) và mẫu A4 Đứng.
+
+---
+
+## 3. Hướng dẫn Kiểm thử (Test Cases for MDMS-Tester)
 
 | STT | Kịch bản kiểm thử | Dữ liệu đầu vào | Kết quả kỳ vọng |
 |---|---|---|---|
 | 1 | Truy cập trang Cấu hình Email | Đăng nhập tài khoản `SuperAdmin` $\to$ Cài đặt hệ thống $\to$ Cấu hình Email | Màn hình hiển thị đầy đủ các lựa chọn nhà cung cấp và thông tin cấu hình hiện hành |
 | 2 | Kiểm tra kết nối Microsoft Graph API với VSIP HP | Chọn `Microsoft 365`, nhập thông số của VSIP HP (Tenant ID, Client ID, Secret, `noreply.hoadondientu.hp@vsip.com.vn`), nhập email nhận test | Gửi thư thành công, hộp thư nhận được email test từ `noreply.hoadondientu.hp@vsip.com.vn` |
 | 3 | Lưu cấu hình Microsoft Graph API | Bấm nút "Lưu cấu hình" | Thông báo thành công, dữ liệu được lưu vào bảng `SystemEmailConfigs` |
-| 4 | Kiểm tra gửi email mật khẩu / reset mật khẩu | Thực hiện tính năng cấp lại mật khẩu cho tài khoản | Email reset mật khẩu được gửi tự động qua Microsoft Graph API thay vì Gmail cũ |
-| 5 | Kiểm tra kết nối SMTP / Gmail | Chọn `Custom SMTP` hoặc `Gmail`, nhập Host, Port, tài khoản $\to$ Bấm kiểm tra kết nối | Thư kiểm tra gửi thành công qua máy chủ SMTP |
-| 6 | Kiểm tra phân quyền và cách ly dữ liệu Khách hàng | Đăng nhập tài khoản vai trò `Customer` (ví dụ `hungnt` liên kết `KYOCERA`) | Chỉ xem được các điểm đo, sự kiện, cảnh báo thuộc khách hàng đã liên kết; không xuất hiện điểm đo của khách hàng khác (`AUTEL ENERGY`) |
-| 7 | Kiểm tra xóa liên kết tài khoản Khách hàng | Trên trang Chỉnh sửa khách hàng, bấm nút (x) xóa tài khoản liên kết | Thẻ tài khoản biến mất tức thì trên giao diện và đồng bộ form thành công |
-| 8 | Kiểm tra hiển thị Trạng thái kết nối | Vào trang "Thông số tổng hợp" | Tiêu đề cột hiển thị "Trạng thái kết nối"; hiển thị "Kết nối" (0), "Mất kết nối" (1), hoặc "-" (chưa cấu hình hoặc REST API chưa cập nhật) |
+| 4 | Quản lý Mẫu Email Thông Báo | Cài đặt hệ thống $\to$ Mẫu Email thông báo | Hiển thị các tab mẫu `STATEMENT_NOTIFICATION`, `FORGOT_PASSWORD`, `USER_CREDENTIAL`. Chức năng sửa mẫu, bấm chèn merge tag hoạt động chuẩn xác |
+| 5 | Live Preview Mẫu Email | Tại form sửa mẫu email, bấm "Xem trước" | Modal mở ra hiển thị nội dung HTML đã được bind các biến dữ liệu giả lập thực tế |
+| 6 | Đặt Mẫu Email Mặc Định | Bấm nút "Đặt làm mặc định" trên bảng mẫu | Icon ngôi sao vàng sáng lên, mẫu trở thành mặc định và các mẫu cùng loại bị hủy mặc định |
+| 7 | Quản lý Mẫu Phiếu Báo PDF | Cài đặt hệ thống $\to$ Mẫu Phiếu báo PDF | Danh sách mẫu A5/A4 hiển thị rõ ràng các cột được cấu hình bật/tắt |
+| 8 | Live Preview Phiếu Báo PDF | Bấm "Xem trước PDF" trên danh sách mẫu hoặc trong Drawer chỉnh sửa | Iframe hiển thị file PDF render thời gian thực từ QuestPDF đúng chuẩn kích thước A5/A4 và các cột đã chọn |
+| 9 | Kiểm tra gửi phiếu báo tự động | Chạy tiến trình gửi phiếu báo hàng tháng | Email được gửi qua Microsoft Graph API đính kèm file PDF định dạng theo template mặc định |
 
 ---
 
-## 3. Hoàn tất & Đóng gói Phase 1 (Phase 1 Sign-Off)
-- **Tình trạng:** Hoàn thành 100% các tiêu chí nghiệm thu của Phase 1.
+## 4. Hoàn tất & Đóng gói (Sign-Off Status)
+- **Phase 1 (Nền tảng Email Đa Dịch vụ):** Hoàn thành 100%.
+- **Phase 2 (Đa Mẫu Email & Phiếu Báo PDF Modular QuestPDF):** Hoàn thành 100%.
 - **Biên dịch:** Backend và Frontend đều đạt 0 lỗi (`0 Error(s)`).
-- **Cơ sở dữ liệu:** Tự động đồng bộ cấu trúc bảng `SystemEmailConfigs` và các bảng dữ liệu qua `Update_Hotfix.ps1`.
+- **Cơ sở dữ liệu:** Sẵn sàng cho triển khai mới hoặc cập nhật thông qua script migrations.
+- **Tiếp theo:** Sẵn sàng bước vào **Phase 3 (Nghiệp vụ Treo / Tháo Công Tơ và Tính Sản Lượng Phân Đoạn Kỳ Chốt)**.
+

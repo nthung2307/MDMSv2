@@ -59,6 +59,9 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHttpClient();
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<Application.Services.IEmailProviderFactory, Infrastructure.Services.EmailProviders.EmailProviderFactory>();
+builder.Services.AddScoped<Application.Services.INotificationTemplateService, Infrastructure.Services.Templates.NotificationTemplateService>();
+builder.Services.AddScoped<Application.Services.IStatementPdfGenerator, Infrastructure.Services.Templates.StatementPdfGenerator>();
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 builder.Services.AddControllers()
     .AddJsonOptions(options => { options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles; });
 builder.Services.AddFluentValidationAutoValidation().AddValidatorsFromAssembly(typeof(InfrastructureModule).Assembly);

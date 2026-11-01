@@ -20,6 +20,8 @@ import Configuration from '@/pages/config';
 import AuthLock from '@/pages/config/auth-lock';
 import ContactConfig from '@/pages/config/contact';
 import EmailConfigPage from '@/pages/config/email';
+import NotificationTemplatesPage from '@/pages/config/notification-templates';
+import StatementPdfTemplatesPage from '@/pages/config/statement-pdf-templates';
 import DataMeasurementPoint from '@/pages/config/detail';
 import DashBoardPage from '@/pages/dashboard';
 import AddGCS from '@/pages/gcs-management/add';
@@ -580,6 +582,24 @@ export const AdminPage = () => {
               <PrivateRoute
                 component={EmailConfigPage}
                 roles={[Constants.Role.SuperAdmin.value]}
+              />
+            }
+          />
+          <Route
+            path={ROUTE_PATH.NOTIFICATION_TEMPLATES}
+            element={
+              <PrivateRoute
+                component={NotificationTemplatesPage}
+                roles={[Constants.Role.SuperAdmin.value, Constants.Role.Admin.value]}
+              />
+            }
+          />
+          <Route
+            path={ROUTE_PATH.STATEMENT_PDF_TEMPLATES}
+            element={
+              <PrivateRoute
+                component={StatementPdfTemplatesPage}
+                roles={[Constants.Role.SuperAdmin.value, Constants.Role.Admin.value]}
               />
             }
           />
