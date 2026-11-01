@@ -163,7 +163,7 @@ $webConfigContent = @"
 
         <!-- Rule 3: Chuyen tiep cac API GET nghiep vu sang Backend (chi khi khong phai yeu cau tai trang HTML cua trinh duyet) -->
         <rule name="ReverseProxyGetApi" stopProcessing="true">
-          <match url="^(api|auth|user|customers|customer|measurement-points|measurement-point-monitoring|gcs|gcs-cutoff-cycle|gcs-monthly-detail|periodic-energy-statement|email-config|tag-name|system-config|report|iot|half-hour-finalized-energy|daily-finalized-energy|export-pdf|export-csv)(/.*)?$" ignoreCase="true" />
+          <match url="^(api|auth|user|customers|customer|measurement-points|measurement-point-monitoring|gcs|gcs-cutoff-cycle|gcs-monthly-detail|periodic-energy-statement|email-config|notification-templates|statement-pdf-templates|meter-replacements|tag-name|system-config|report|iot|half-hour-finalized-energy|daily-finalized-energy|export-pdf|export-csv)(/.*)?$" ignoreCase="true" />
           <conditions logicalGrouping="MatchAll">
             <add input="{HTTP_ACCEPT}" pattern="text/html" negate="true" />
           </conditions>
