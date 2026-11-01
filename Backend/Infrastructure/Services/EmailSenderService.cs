@@ -2,10 +2,12 @@ using System.Globalization;
 using System.Net.Mail;
 using System.Text.Json;
 using Application.Common;
+using Application.DataTransferObjects.Email;
 using Application.DataTransferObjects.Responses.PeriodicEnergyStatement;
 using Application.DataTransferObjects.Responses.SystemConfig;
 using Application.Repositories.ReadOnly;
 using Application.Repositories.ReadWrite;
+using Application.Services;
 using Domain.Entities;
 using Hangfire;
 using Microsoft.Extensions.Logging;
@@ -22,22 +24,29 @@ public class EmailSenderService
 {
     private readonly IPeriodicEnergyStatementReadWriteRepository _periodicEnergyStatementReadWriteRepository;
     private readonly ISystemConfigReadOnlyRepository _systemConfigReadOnlyRepository;
-    private readonly IMailingService _mailingService;
+    private readonly IMailingService? _mailingService;
+    private readonly IEmailProviderFactory _emailProviderFactory;
     private readonly IDateTimeService _dateTimeService;
     private readonly ILogger<EmailSenderService> _loggerService;
     private readonly IGcsCutOffCycleReadWriteRepository _gcsCutOffCycleReadWriteRepository;
 
     public EmailSenderService(
-        IMailingService mailingService,
+        IEmailProviderFactory emailProviderFactory,
         IDateTimeService dateTimeService,
-        ILogger<EmailSenderService> loggerService, IPeriodicEnergyStatementReadWriteRepository periodicEnergyStatementReadWriteRepository, ISystemConfigReadWriteRepository systemConfigReadWriteRepository, ISystemConfigReadOnlyRepository systemConfigReadOnlyRepository, IGcsCutOffCycleReadWriteRepository gcsCutOffCycleReadWriteRepository)
+        ILogger<EmailSenderService> loggerService,
+        IPeriodicEnergyStatementReadWriteRepository periodicEnergyStatementReadWriteRepository,
+        ISystemConfigReadWriteRepository systemConfigReadWriteRepository,
+        ISystemConfigReadOnlyRepository systemConfigReadOnlyRepository,
+        IGcsCutOffCycleReadWriteRepository gcsCutOffCycleReadWriteRepository,
+        IMailingService? mailingService = null)
     {
-        _mailingService = mailingService;
+        _emailProviderFactory = emailProviderFactory;
         _dateTimeService = dateTimeService;
         _loggerService = loggerService;
         _periodicEnergyStatementReadWriteRepository = periodicEnergyStatementReadWriteRepository;
         _systemConfigReadOnlyRepository = systemConfigReadOnlyRepository;
         _gcsCutOffCycleReadWriteRepository = gcsCutOffCycleReadWriteRepository;
+        _mailingService = mailingService;
     }
 
     private static MemoryStream GenerateMonthlyPowerMeterReadingPdf(PeriodicEnergyStatementEntity request)

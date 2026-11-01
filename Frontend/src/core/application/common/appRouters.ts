@@ -71,5 +71,6 @@ export const ROUTE_PATH = {
   CONFIGURATION: `${PREFIX}/configuration`,
   AUTH_LOCK: `${PREFIX}/auth-lock`,
   CONTACT: `${PREFIX}/contact`,
+  EMAIL_CONFIG: `${PREFIX}/email-config`,
   DATA_MEASUREMENT_POINT: `${PREFIX}/configuration/list-tag-name/:id`,
 };

@@ -19,6 +19,7 @@ import ClientManagement from '@/pages/client-management/index';
 import Configuration from '@/pages/config';
 import AuthLock from '@/pages/config/auth-lock';
 import ContactConfig from '@/pages/config/contact';
+import EmailConfigPage from '@/pages/config/email';
 import DataMeasurementPoint from '@/pages/config/detail';
 import DashBoardPage from '@/pages/dashboard';
 import AddGCS from '@/pages/gcs-management/add';
@@ -58,11 +59,10 @@ export const AdminPage = () => {
     if (accessToken) {
       switch (getAccountRole()) {
         case Constants.Role.Customer.value:
-          return <Navigate to={ROUTE_PATH.OPERATING_PARAMETER} />;
         case Constants.Role.Staff.value:
         case Constants.Role.Admin.value:
         case Constants.Role.SuperAdmin.value:
-          return <Navigate to={ROUTE_PATH.POINT_MANAGEMENT} />;
+          return <Navigate to={ROUTE_PATH.POINT_MONITORING} />;
         default:
           return <Navigate to={ROUTE_PATH.FORBIDDEN_ACCESS} />;
       }
@@ -80,17 +80,7 @@ export const AdminPage = () => {
           <Route path={ROUTE_PATH.FORBIDDEN_ACCESS} element={<PermissionDeniedPage />} />
           <Route
             path={ROUTE_PATH.DASHBOARD}
-            element={
-              <PrivateRoute
-                component={DashBoardPage}
-                roles={[
-                  Constants.Role.SuperAdmin.value,
-                  Constants.Role.Admin.value,
-                  Constants.Role.Customer.value,
-                  Constants.Role.Staff.value,
-                ]}
-              />
-            }
+            element={<Navigate to={ROUTE_PATH.POINT_MONITORING} replace />}
           />
 
           {/*Profile*/}
@@ -211,6 +201,7 @@ export const AdminPage = () => {
                   Constants.Role.SuperAdmin.value,
                   Constants.Role.Admin.value,
                   Constants.Role.Staff.value,
+                  Constants.Role.Customer.value,
                 ]}
               />
             }
@@ -224,6 +215,7 @@ export const AdminPage = () => {
                   Constants.Role.SuperAdmin.value,
                   Constants.Role.Admin.value,
                   Constants.Role.Staff.value,
+                  Constants.Role.Customer.value,
                 ]}
               />
             }
@@ -237,6 +229,7 @@ export const AdminPage = () => {
                   Constants.Role.SuperAdmin.value,
                   Constants.Role.Admin.value,
                   Constants.Role.Staff.value,
+                  Constants.Role.Customer.value,
                 ]}
               />
             }
@@ -250,6 +243,7 @@ export const AdminPage = () => {
                   Constants.Role.SuperAdmin.value,
                   Constants.Role.Admin.value,
                   Constants.Role.Staff.value,
+                  Constants.Role.Customer.value,
                 ]}
               />
             }
@@ -578,6 +572,15 @@ export const AdminPage = () => {
             path={ROUTE_PATH.CONTACT}
             element={
               <PrivateRoute component={ContactConfig} roles={[Constants.Role.SuperAdmin.value]} />
+            }
+          />
+          <Route
+            path={ROUTE_PATH.EMAIL_CONFIG}
+            element={
+              <PrivateRoute
+                component={EmailConfigPage}
+                roles={[Constants.Role.SuperAdmin.value]}
+              />
             }
           />
         </Routes>

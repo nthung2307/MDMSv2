@@ -89,7 +89,7 @@ const PointMonitoring = () => {
         if (dataForm.connectionStatus === 'normal') {
           result = result.filter((item: any) => item.matKetNoi === false);
         } else if (dataForm.connectionStatus === 'lost') {
-          result = result.filter((item: any) => item.matKetNoi === true || item.matKetNoi === null);
+          result = result.filter((item: any) => item.matKetNoi === true);
         }
 
         setData(result);
@@ -127,7 +127,7 @@ const PointMonitoring = () => {
         if (currentDataForm.connectionStatus === 'normal') {
           result = result.filter((item: any) => item.matKetNoi === false);
         } else if (currentDataForm.connectionStatus === 'lost') {
-          result = result.filter((item: any) => item.matKetNoi === true || item.matKetNoi === null);
+          result = result.filter((item: any) => item.matKetNoi === true);
         }
 
         setData(result);
@@ -159,8 +159,8 @@ const PointMonitoring = () => {
       item.tanSoHeThong != null;
 
     let connectionStatus = '-';
-    if (hasMeasurementData && item.matKetNoi !== null && item.matKetNoi !== undefined) {
-      connectionStatus = item.matKetNoi ? 'Mất kết nối' : 'Bình thường';
+    if (item.matKetNoi !== null && item.matKetNoi !== undefined) {
+      connectionStatus = item.matKetNoi ? 'Mất kết nối' : 'Kết nối';
     }
 
     return {

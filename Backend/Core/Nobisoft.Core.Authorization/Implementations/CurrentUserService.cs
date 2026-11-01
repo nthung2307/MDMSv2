@@ -25,19 +25,27 @@ public class CurrentUserService : ICurrentUserService
     {
         get
         {
-            var jwt = GetJwtToken();
-            if (jwt == null || jwt.IsMissing())
+            var httpContext = _httpContextAccessor?.HttpContext ?? _httpContextAccessorService.HttpContextAccessor().HttpContext;
+            if (httpContext?.User?.Identity?.IsAuthenticated == true)
             {
-                throw new UnauthorizedJwtException(nameof(CurrentUserService), nameof(UserId), "You are not logged in yet", _httpContextAccessorService.Tracker());
+                var claimVal = httpContext.User.Claims.FirstOrDefault(c => c.Type == JwtClaimTypes.Id)?.Value;
+                if (long.TryParse(claimVal, out var uId) && uId != 0)
+                {
+                    return uId;
+                }
             }
 
-            var handler = new JwtSecurityTokenHandler();
-            var jsonToken = handler.ReadToken(jwt) as JwtSecurityToken;
-            var idClaim = jsonToken?.Claims.FirstOrDefault(c => c.Type == JwtClaimTypes.Id)?.Value;
-
-            if (long.TryParse(idClaim, out var userId) && userId != 0)
+            var jwt = GetJwtToken();
+            if (jwt != null && !jwt.IsMissing())
             {
-                return userId;
+                var handler = new JwtSecurityTokenHandler();
+                var jsonToken = handler.ReadToken(jwt) as JwtSecurityToken;
+                var idClaim = jsonToken?.Claims.FirstOrDefault(c => c.Type == JwtClaimTypes.Id)?.Value;
+
+                if (long.TryParse(idClaim, out var userId) && userId != 0)
+                {
+                    return userId;
+                }
             }
 
             throw new UnauthorizedJwtException(nameof(CurrentUserService), nameof(UserId), "You are not logged in yet", _httpContextAccessorService.Tracker());
@@ -49,19 +57,27 @@ public class CurrentUserService : ICurrentUserService
     {
         get
         {
-            var jwt = GetJwtToken();
-            if (jwt == null || jwt.IsMissing())
+            var httpContext = _httpContextAccessor?.HttpContext ?? _httpContextAccessorService.HttpContextAccessor().HttpContext;
+            if (httpContext?.User?.Identity?.IsAuthenticated == true)
             {
-                throw new UnauthorizedJwtException(nameof(CurrentUserService), nameof(UserId), "You are not logged in yet", _httpContextAccessorService.Tracker());
+                var claimVal = httpContext.User.Claims.FirstOrDefault(c => c.Type == JwtClaimTypes.UserName)?.Value;
+                if (!string.IsNullOrEmpty(claimVal))
+                {
+                    return claimVal;
+                }
             }
 
-            var handler = new JwtSecurityTokenHandler();
-            var jsonToken = handler.ReadToken(jwt) as JwtSecurityToken;
-            var userNameClaim = jsonToken?.Claims.FirstOrDefault(c => c.Type == JwtClaimTypes.UserName)?.Value;
-
-            if (!string.IsNullOrEmpty(userNameClaim))
+            var jwt = GetJwtToken();
+            if (jwt != null && !jwt.IsMissing())
             {
-                return userNameClaim;
+                var handler = new JwtSecurityTokenHandler();
+                var jsonToken = handler.ReadToken(jwt) as JwtSecurityToken;
+                var userNameClaim = jsonToken?.Claims.FirstOrDefault(c => c.Type == JwtClaimTypes.UserName)?.Value;
+
+                if (!string.IsNullOrEmpty(userNameClaim))
+                {
+                    return userNameClaim;
+                }
             }
 
             throw new UnauthorizedJwtException(nameof(CurrentUserService), nameof(UserId), "You are not logged in yet", _httpContextAccessorService.Tracker());
@@ -70,7 +86,20 @@ public class CurrentUserService : ICurrentUserService
 
     public string? GetJwtToken()
     {
-        var result = _httpContextAccessorService.HttpContextAccessor().HttpContext?.Request.Headers.FirstOrDefault(h => h.Key == "Authorization");
-        return result?.Value.ToString()?.Replace("Bearer ", "");
+        var httpContext = _httpContextAccessor?.HttpContext ?? _httpContextAccessorService.HttpContextAccessor().HttpContext;
+        if (httpContext == null) return null;
+
+        if (httpContext.Request.Headers.TryGetValue("Authorization", out var authHeader) && !string.IsNullOrEmpty(authHeader))
+        {
+            return authHeader.ToString().Replace("Bearer ", "").Trim();
+        }
+
+        var header = httpContext.Request.Headers.FirstOrDefault(h => string.Equals(h.Key, "Authorization", StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrEmpty(header.Value))
+        {
+            return header.Value.ToString().Replace("Bearer ", "").Trim();
+        }
+
+        return null;
     }
 }

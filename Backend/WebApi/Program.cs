@@ -57,6 +57,8 @@ builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
 builder.Services.AddAutoMapper(typeof(InfrastructureModule).Assembly);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHttpClient();
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<Application.Services.IEmailProviderFactory, Infrastructure.Services.EmailProviders.EmailProviderFactory>();
 builder.Services.AddControllers()
     .AddJsonOptions(options => { options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles; });
 builder.Services.AddFluentValidationAutoValidation().AddValidatorsFromAssembly(typeof(InfrastructureModule).Assembly);
@@ -470,10 +472,92 @@ CREATE TABLE IF NOT EXISTS `MeasurementPointHalfHourOperatingReports` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ");
     app.Logger.LogInformation("Đã kiểm tra và đảm bảo bảng MeasurementPointHalfHourOperatingReports tồn tại.");
+
+    // Tự động đảm bảo các bảng Email Config và Metering mới tồn tại
+    await db.Database.ExecuteSqlRawAsync(@"
+CREATE TABLE IF NOT EXISTS `SystemEmailConfigs` (
+  `Id` bigint NOT NULL,
+  `ProviderType` varchar(50) NOT NULL,
+  `SenderEmail` varchar(255) NOT NULL,
+  `SenderDisplayName` varchar(255) DEFAULT NULL,
+  `TenantId` varchar(100) DEFAULT NULL,
+  `ClientId` varchar(100) DEFAULT NULL,
+  `EncryptedClientSecret` varchar(1000) DEFAULT NULL,
+  `SmtpHost` varchar(255) DEFAULT NULL,
+  `SmtpPort` int DEFAULT NULL,
+  `SecurityMode` varchar(50) DEFAULT NULL,
+  `RequireAuth` tinyint(1) NOT NULL DEFAULT '1',
+  `SmtpUsername` varchar(255) DEFAULT NULL,
+  `EncryptedSmtpPassword` varchar(1000) DEFAULT NULL,
+  `IsActive` tinyint(1) NOT NULL DEFAULT '1',
+  `CreatedTime` datetime(6) NOT NULL,
+  `ModifiedTime` datetime(6) DEFAULT NULL,
+  PRIMARY KEY (`Id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `NotificationTemplates` (
+  `Id` bigint NOT NULL,
+  `Code` varchar(100) NOT NULL,
+  `Name` varchar(255) NOT NULL,
+  `SubjectTemplate` varchar(500) NOT NULL,
+  `BodyHtmlTemplate` longtext NOT NULL,
+  `Description` varchar(1000) DEFAULT NULL,
+  `IsDefault` tinyint(1) NOT NULL DEFAULT '0',
+  `IsActive` tinyint(1) NOT NULL DEFAULT '1',
+  `CreatedTime` datetime(6) NOT NULL,
+  `ModifiedTime` datetime(6) DEFAULT NULL,
+  PRIMARY KEY (`Id`),
+  KEY `IX_NotificationTemplates_Code` (`Code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `StatementPdfTemplates` (
+  `Id` bigint NOT NULL,
+  `Code` varchar(100) NOT NULL,
+  `Name` varchar(255) NOT NULL,
+  `HeaderTitle` varchar(255) DEFAULT NULL,
+  `SubHeaderTitle` varchar(255) DEFAULT NULL,
+  `CompanyName` varchar(255) DEFAULT NULL,
+  `CompanyAddress` varchar(500) DEFAULT NULL,
+  `ContactPhone` varchar(255) DEFAULT NULL,
+  `LogoBase64` longtext,
+  `PaperSize` varchar(50) DEFAULT NULL,
+  `DisplayColumnsJson` varchar(1000) DEFAULT NULL,
+  `FooterNotes` varchar(2000) DEFAULT NULL,
+  `RequireDualSignatures` tinyint(1) NOT NULL DEFAULT '1',
+  `IsDefault` tinyint(1) NOT NULL DEFAULT '0',
+  `IsActive` tinyint(1) NOT NULL DEFAULT '1',
+  `CreatedTime` datetime(6) NOT NULL,
+  `ModifiedTime` datetime(6) DEFAULT NULL,
+  PRIMARY KEY (`Id`),
+  KEY `IX_StatementPdfTemplates_Code` (`Code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `MeterReplacements` (
+  `Id` bigint NOT NULL,
+  `MeasurementPointId` bigint NOT NULL,
+  `ReplacementDate` datetime(6) NOT NULL,
+  `OldMeterSerial` varchar(100) NOT NULL,
+  `NewMeterSerial` varchar(100) NOT NULL,
+  `OldMeterFinalReading` double NOT NULL DEFAULT '0',
+  `NewMeterInitialReading` double NOT NULL DEFAULT '0',
+  `Reason` varchar(500) DEFAULT NULL,
+  `MinutesFromCutoff` int NOT NULL DEFAULT '0',
+  `OldMeterRatio` double NOT NULL DEFAULT '0',
+  `NewMeterRatio` double NOT NULL DEFAULT '0',
+  `Status` varchar(50) NOT NULL DEFAULT 'COMPLETED',
+  `Notes` varchar(1000) DEFAULT NULL,
+  `CreatedTime` datetime(6) NOT NULL,
+  `ModifiedTime` datetime(6) DEFAULT NULL,
+  PRIMARY KEY (`Id`),
+  KEY `IX_MeterReplacements_MeasurementPointId` (`MeasurementPointId`),
+  KEY `IX_MeterReplacements_ReplacementDate` (`ReplacementDate`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+");
+    app.Logger.LogInformation("Đã kiểm tra và đảm bảo các bảng Email Config và Metering mới tồn tại.");
 }
 catch (Exception ex)
 {
-    app.Logger.LogWarning(ex, "Không thể tự động tạo bảng MeasurementPointHalfHourOperatingReports khi khởi động.");
+    app.Logger.LogWarning(ex, "Không thể tự động tạo các bảng CSDL mới khi khởi động.");
 }
 
 try

@@ -1,5 +1,5 @@
 import { Button, Col, Row, Select, Space, Spin, Tooltip } from 'antd';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { FiSearch } from 'react-icons/fi';
 import styled from 'styled-components';
 
@@ -54,43 +54,42 @@ export const UserAccountSelector: React.FC<UserAccountSelectorProps> = ({
   const [selectedAccounts, setSelectedAccounts] = useState<any[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
 
-  // Khởi tạo và đồng bộ selectedAccounts khi có initialAccounts hoặc dataAttribute
+  const initializedAccountsRef = useRef<any>(null);
+  const isInitializedRef = useRef<boolean>(false);
+
+  // Khởi tạo selectedAccounts một lần duy nhất khi initialAccounts hoặc dataAttribute được cung cấp
   useEffect(() => {
     if (initialAccounts && initialAccounts.length > 0) {
-      const normalized = initialAccounts.map((item) => {
-        if (item.user) {
-          return {
-            id: item.userId || item.user.id,
-            userName: item.user.userName,
-            fullName: item.user.fullName,
-            email: item.user.email,
-            phoneNumber: item.user.phoneNumber,
-          };
-        }
-        return item;
-      });
-      setSelectedAccounts(normalized);
-    } else if (Array.isArray(dataAttribute) && dataAttribute.length > 0) {
-      setSelectedAccounts((prev) => {
-        const existingMap = new Map(prev.map((a) => [Number(a.id || a.value), a]));
-        return dataAttribute.map((item: any) => {
-          const id = typeof item === 'object' ? (item.id || item.value) : item;
-          if (existingMap.has(Number(id))) {
-            return existingMap.get(Number(id));
+      if (initializedAccountsRef.current !== initialAccounts) {
+        initializedAccountsRef.current = initialAccounts;
+        isInitializedRef.current = true;
+        const normalized = initialAccounts.map((item) => {
+          if (item.user) {
+            return {
+              id: item.userId || item.user.id,
+              userName: item.user.userName,
+              fullName: item.user.fullName,
+              email: item.user.email,
+              phoneNumber: item.user.phoneNumber,
+            };
           }
-          return {
-            id: Number(id),
-            value: Number(id),
-            userName: typeof item === 'object' ? (item.label || item.userName) : `User #${id}`,
-          };
+          return item;
         });
-      });
-    } else if (!dataAttribute || dataAttribute.length === 0) {
-      if (!initialAccounts || initialAccounts.length === 0) {
-        setSelectedAccounts([]);
+        setSelectedAccounts(normalized);
       }
+    } else if (!isInitializedRef.current && Array.isArray(dataAttribute) && dataAttribute.length > 0) {
+      isInitializedRef.current = true;
+      const mapped = dataAttribute.map((item: any) => {
+        const id = typeof item === 'object' ? (item.id || item.value) : item;
+        return {
+          id: Number(id),
+          value: Number(id),
+          userName: typeof item === 'object' ? (item.label || item.userName) : `User #${id}`,
+        };
+      });
+      setSelectedAccounts(mapped);
     }
-  }, [initialAccounts, dataAttribute]);
+  }, [initialAccounts]);
 
   // Tìm kiếm tài khoản vai trò CUSTOMER từ Backend
   const searchAccounts = async (keyword: string) => {
@@ -151,6 +150,22 @@ export const UserAccountSelector: React.FC<UserAccountSelectorProps> = ({
 
   const selectedIds = selectedAccounts.map((a) => Number(a.id || a.value));
 
+  const syncFormData = (userIds: number[]) => {
+    const updateObj = {
+      [attribute]: userIds,
+      userIds: userIds,
+    };
+    if (typeof setData === 'function') {
+      setData((prev: any) => {
+        if (typeof prev === 'object' && prev !== null) {
+          return { ...prev, ...updateObj };
+        }
+        return updateObj;
+      });
+      setData(updateObj);
+    }
+  };
+
   const handleSelectChange = (values: number[]) => {
     const updatedAccounts = values.map((val) => {
       const found = allOptions.find((o) => o.id === val);
@@ -160,15 +175,7 @@ export const UserAccountSelector: React.FC<UserAccountSelectorProps> = ({
     });
 
     setSelectedAccounts(updatedAccounts);
-    const updateObj = {
-      [attribute]: values,
-      userIds: values,
-    };
-    setData((prev: any) => ({
-      ...prev,
-      ...updateObj,
-    }));
-    setData(updateObj);
+    syncFormData(values);
   };
 
   const handleRemoveAccount = (idToRemove: number | string) => {
@@ -178,29 +185,13 @@ export const UserAccountSelector: React.FC<UserAccountSelectorProps> = ({
     const updatedIds = updatedAccounts.map((a) => Number(a.id || a.value));
 
     setSelectedAccounts(updatedAccounts);
-    const updateObj = {
-      [attribute]: updatedIds,
-      userIds: updatedIds,
-    };
-    setData((prev: any) => ({
-      ...prev,
-      ...updateObj,
-    }));
-    setData(updateObj);
+    syncFormData(updatedIds);
   };
 
   const handleConfirmModal = (confirmedAccounts: any[]) => {
     setSelectedAccounts(confirmedAccounts);
     const updatedIds = confirmedAccounts.map((a) => Number(a.id || a.value));
-    const updateObj = {
-      [attribute]: updatedIds,
-      userIds: updatedIds,
-    };
-    setData((prev: any) => ({
-      ...prev,
-      ...updateObj,
-    }));
-    setData(updateObj);
+    syncFormData(updatedIds);
   };
 
   return (

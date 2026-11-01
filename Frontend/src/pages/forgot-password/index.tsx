@@ -1,6 +1,10 @@
 import { Form } from 'antd';
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { IoArrowBackOutline } from 'react-icons/io5';
 
+import { LogoLandscape } from '@/assets/icons';
+import { ROUTE_PATH } from '@/core/application/common/appRouters';
 import Constants from '@/core/application/common/constants.ts';
 import { ButtonCommon } from '@/infrastructure/common/components/button/button-common.tsx';
 import { FullPageLoading } from '@/infrastructure/common/components/controls/Loading.tsx';
@@ -18,7 +22,7 @@ const ForgotPassword = () => {
   const [dataForm, setDataForm] = useStateDataForm({});
   const [isDisable, setIsDisable] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(false);
-  const [isEmailSent, setIsEmailSent] = useState<boolean>(false); // State to track if the email was sent
+  const [isEmailSent, setIsEmailSent] = useState<boolean>(false);
 
   const isValidData = () => {
     let allRequestOK = true;
@@ -40,7 +44,7 @@ const ForgotPassword = () => {
           email: dataForm?.email,
         },
         () => {
-          setIsEmailSent(true); // Set email sent state to true on success
+          setIsEmailSent(true);
         },
         () => {},
         setLoading
@@ -61,18 +65,22 @@ const ForgotPassword = () => {
   }, [validate]);
 
   if (isEmailSent) {
-    return <EmailSent />;
+    return <EmailSent email={dataForm?.email} />;
   }
 
   return (
-    <div>
+    <>
       <PageTitle title={'Quên mật khẩu'} />
       <FullPageLoading isLoading={loading} />
-      <div className='w-screen h-screen flex justify-center items-center px-5'>
+      <div className='w-screen h-screen flex justify-center items-center px-5 bg-[#f5f7fc]'>
         <div className='w-[450px] h-fit bg-white rounded-lg shadow-lg p-10'>
-          <h1 className='text-24-28 text-center font-bold'>{_t('Quên mật khẩu')}</h1>
+          <LogoLandscape width={100} className='mb-8' />
+          <h1 className='text-24-28 font-bold text-gray-800 text-center'>{_t('Quên mật khẩu')}</h1>
+          <p className='text-sm text-gray-500 text-center mt-2 mb-6'>
+            {_t('Nhập địa chỉ email liên kết với tài khoản để nhận liên kết đặt lại mật khẩu.')}
+          </p>
           <Form onFinish={onSubmit}>
-            <div className='flex flex-col gap-3 mt-5'>
+            <div className='flex flex-col gap-3'>
               <div>
                 <InputTextCommon
                   autoFocus
@@ -98,15 +106,25 @@ const ForgotPassword = () => {
             <ButtonCommon
               title={_t('Lấy lại mật khẩu')}
               colorClass='firebrick-bg'
-              classButton='w-full mt-5'
+              classButton='w-full mt-6'
               htmlType='submit'
               onClick={() => {}}
               disabled={isDisable || loading || isEmpty(dataForm.email)}
+              loading={loading}
             />
           </Form>
+          <div className='text-center mt-6 pt-4 border-t border-gray-100'>
+            <Link
+              to={ROUTE_PATH.LOGIN}
+              className='text-sm font-semibold text-[#b22222] hover:text-[#8b1a1a] inline-flex items-center gap-1.5 transition-colors'
+            >
+              <IoArrowBackOutline size={16} />
+              {_t('Quay lại trang Đăng nhập')}
+            </Link>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

@@ -12,6 +12,8 @@ using AutoMapper.QueryableExtensions;
 using CsvHelper;
 using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Nobisoft.Core.Authorization;
+using Nobisoft.Core.Authorization.Interfaces;
 using Nobisoft.Core.Constants;
 using Nobisoft.Core.Database.DbContext;
 using Nobisoft.Core.Database.Repository;
@@ -25,18 +27,64 @@ namespace Infrastructure.Repositories.ReadOnly;
 public class MeasurementPointAlertReadOnlyRepository : RestfulRepository<MeasurementPointsAlertEntity, AppReadOnlyDbContext>, IMeasurementPointAlertReadOnlyRepository
 {
     private readonly DbSet<MeasurementPointsAlertEntity> _measurementPointsAlertEntities;
+    private readonly DbSet<UserEntity> _userEntities;
+    private readonly DbSet<UserCustomerEntity> _userCustomerEntities;
     private readonly IMapper _mapper;
+    private readonly ICurrentUserService? _currentUserService;
 
-    public MeasurementPointAlertReadOnlyRepository(AppReadOnlyDbContext applicationDbContext, ISnowflakeIdService snowflakeIdService, IMapper mapper) : base(applicationDbContext, snowflakeIdService)
+    public MeasurementPointAlertReadOnlyRepository(
+        AppReadOnlyDbContext applicationDbContext,
+        ISnowflakeIdService snowflakeIdService,
+        IMapper mapper,
+        ICurrentUserService currentUserService) : base(applicationDbContext, snowflakeIdService)
     {
         _mapper = mapper;
         _measurementPointsAlertEntities = applicationDbContext.Set<MeasurementPointsAlertEntity>();
+        _userEntities = applicationDbContext.Set<UserEntity>();
+        _userCustomerEntities = applicationDbContext.Set<UserCustomerEntity>();
+        _currentUserService = currentUserService;
+    }
+
+    private async Task<(bool IsCustomer, List<long> LinkedCustomerIds)> GetCustomerAccessFilterAsync(CancellationToken cancellationToken)
+    {
+        if (_currentUserService == null) return (false, new List<long>());
+        try
+        {
+            var userId = _currentUserService.UserId;
+            if (userId <= 0) return (false, new List<long>());
+
+            var user = await _userEntities.AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == userId && !u.Deleted, cancellationToken);
+
+            if (user != null && string.Equals(user.RoleName, DefaultRoles.Customer, StringComparison.OrdinalIgnoreCase))
+            {
+                var customerIds = await _userCustomerEntities.AsNoTracking()
+                    .Where(uc => uc.UserId == userId)
+                    .Select(uc => uc.CustomerId)
+                    .ToListAsync(cancellationToken);
+
+                return (true, customerIds);
+            }
+        }
+        catch
+        {
+            // Background jobs / unauthenticated requests
+        }
+
+        return (false, new List<long>());
     }
 
     public async Task<CursorPaginationResponse<MeasurementPointAlertDto>> GetListMeasurementPointsAlertAsync(GetListMeasurementPointAlertRequest request, CancellationToken cancellationToken)
     {
         var entity = _measurementPointsAlertEntities
             .AsNoTracking();
+
+        var (isCustomer, linkedCustomerIds) = await GetCustomerAccessFilterAsync(cancellationToken);
+        if (isCustomer)
+        {
+            entity = entity.Where(x => linkedCustomerIds.Contains(x.MeasurementPoint.CustomerId));
+        }
+
         if (request.StartDate != null && request.EndDate != null)
             entity = entity.Where(x => x.CreatedTime >= request.StartDate && x.CreatedTime <= request.EndDate);
         if(request.MeasurementPointCode != null)
@@ -60,6 +108,13 @@ public class MeasurementPointAlertReadOnlyRepository : RestfulRepository<Measure
     {
         var entity = _measurementPointsAlertEntities
             .AsNoTracking();
+
+        var (isCustomerPdf, linkedCustomerIdsPdf) = await GetCustomerAccessFilterAsync(cancellationToken);
+        if (isCustomerPdf)
+        {
+            entity = entity.Where(x => linkedCustomerIdsPdf.Contains(x.MeasurementPoint.CustomerId));
+        }
+
         var result = await entity
             .Include(x => x.MeasurementPoint)
             .ThenInclude(x => x.Customer)
@@ -166,11 +221,19 @@ public class MeasurementPointAlertReadOnlyRepository : RestfulRepository<Measure
 
     public async Task<byte[]> ExportCsvMeasurementPointsAlertAsync(CancellationToken cancellationToken)
     {
-        var query = await _measurementPointsAlertEntities
+        var entity = _measurementPointsAlertEntities
             .AsNoTracking()
             .Include(x => x.MeasurementPoint)
             .ThenInclude(x => x.Customer)
-            .Where(x => x.MeasurementPoint.Status == EntityStatus.Active && !x.MeasurementPoint.Deleted)
+            .Where(x => x.MeasurementPoint.Status == EntityStatus.Active && !x.MeasurementPoint.Deleted);
+
+        var (isCustomerCsv, linkedCustomerIdsCsv) = await GetCustomerAccessFilterAsync(cancellationToken);
+        if (isCustomerCsv)
+        {
+            entity = entity.Where(x => linkedCustomerIdsCsv.Contains(x.MeasurementPoint.CustomerId));
+        }
+
+        var query = await entity
             .OrderByDescending(x => x.Id)
             .ToListAsync(cancellationToken);
         using var memoryStream = new MemoryStream();
@@ -209,6 +272,13 @@ public class MeasurementPointAlertReadOnlyRepository : RestfulRepository<Measure
     {
         var entity = _measurementPointsAlertEntities
             .AsNoTracking();
+
+        var (isCustomerNotif, linkedCustomerIdsNotif) = await GetCustomerAccessFilterAsync(cancellationToken);
+        if (isCustomerNotif)
+        {
+            entity = entity.Where(x => linkedCustomerIdsNotif.Contains(x.MeasurementPoint.CustomerId));
+        }
+
         if (request.StartDate != null && request.EndDate != null)
             entity = entity.Where(x => x.CreatedTime >= request.StartDate && x.CreatedTime <= request.EndDate);
         if(request.MeasurementPointCode != null)
@@ -228,8 +298,15 @@ public class MeasurementPointAlertReadOnlyRepository : RestfulRepository<Measure
 
     public async Task<int> CountMeasurementPointAlert(CancellationToken cancellationToken)
     {
-        return await _measurementPointsAlertEntities
-            .AsNoTracking()
-            .CountAsync(cancellationToken);
+        var query = _measurementPointsAlertEntities
+            .AsNoTracking();
+
+        var (isCustomerCount, linkedCustomerIdsCount) = await GetCustomerAccessFilterAsync(cancellationToken);
+        if (isCustomerCount)
+        {
+            query = query.Where(x => linkedCustomerIdsCount.Contains(x.MeasurementPoint.CustomerId));
+        }
+
+        return await query.CountAsync(cancellationToken);
     }
 }

@@ -34,4 +34,22 @@ export interface IConfigManagementService {
     params: systemConfigRequest,
     cancellationToken: CancelToken
   ): Promise<RequestResponse>;
+
+  getActiveEmailConfigAsync(
+    endpoint: string,
+    params: any,
+    cancellationToken: CancelToken
+  ): Promise<RequestResponse>;
+
+  updateEmailConfigAsync(
+    endpoint: string,
+    params: any,
+    cancellationToken: CancelToken
+  ): Promise<RequestResponse>;
+
+  testEmailConnectionAsync(
+    endpoint: string,
+    params: any,
+    cancellationToken: CancelToken
+  ): Promise<RequestResponse>;
 }

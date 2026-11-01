@@ -13,6 +13,8 @@ using Nobisoft.Core.Constants;
 using Nobisoft.Core.Database.DbContext;
 using Nobisoft.Core.Database.Repository;
 using Nobisoft.Core.Interfaces;
+using Nobisoft.Core.Authorization;
+using Nobisoft.Core.Authorization.Interfaces;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -26,17 +28,56 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
     private readonly DbSet<MeasurementPointMonitoringByStatusEntity> _measurementPointMonitoringByStatusEntities;
     private readonly DbSet<TagNameEntity> _tagNameEntities;
     private readonly DbSet<MeasurementPointsEntity> _measurementPointsEntities;
+    private readonly DbSet<UserEntity> _userEntities;
+    private readonly DbSet<UserCustomerEntity> _userCustomerEntities;
     private readonly IMapper _mapper;
+    private readonly ICurrentUserService? _currentUserService;
 
-    public MeasurementPointMonitoringReadOnlyRepository(AppReadOnlyDbContext applicationDbContext, ISnowflakeIdService snowflakeIdService, IMapper mapper) : base(applicationDbContext, snowflakeIdService)
+    public MeasurementPointMonitoringReadOnlyRepository(
+        AppReadOnlyDbContext applicationDbContext,
+        ISnowflakeIdService snowflakeIdService,
+        IMapper mapper,
+        ICurrentUserService currentUserService) : base(applicationDbContext, snowflakeIdService)
     {
         _mapper = mapper;
+        _currentUserService = currentUserService;
         _measurementPointMonitoringEntities = applicationDbContext.Set<MeasurementPointMonitoringEntity>();
         _measurementPointMonitoringByDateTimeEntities = applicationDbContext.Set<MeasurementPointMonitoringByDateTimeEntity>();
         _measurementPointMonitoringByStatusEntities = applicationDbContext.Set<MeasurementPointMonitoringByStatusEntity>();
         _tagNameEntities = applicationDbContext.Set<TagNameEntity>();
         _measurementPointsEntities = applicationDbContext.Set<MeasurementPointsEntity>();
+        _userEntities = applicationDbContext.Set<UserEntity>();
+        _userCustomerEntities = applicationDbContext.Set<UserCustomerEntity>();
         QuestPDF.Settings.License = LicenseType.Community;
+    }
+
+    private async Task<(bool IsCustomer, List<long> LinkedCustomerIds)> GetCustomerAccessFilterAsync(CancellationToken cancellationToken)
+    {
+        if (_currentUserService == null) return (false, new List<long>());
+        try
+        {
+            var userId = _currentUserService.UserId;
+            if (userId <= 0) return (false, new List<long>());
+
+            var user = await _userEntities.AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == userId && !u.Deleted, cancellationToken);
+
+            if (user != null && string.Equals(user.RoleName, DefaultRoles.Customer, StringComparison.OrdinalIgnoreCase))
+            {
+                var customerIds = await _userCustomerEntities.AsNoTracking()
+                    .Where(uc => uc.UserId == userId)
+                    .Select(uc => uc.CustomerId)
+                    .ToListAsync(cancellationToken);
+
+                return (true, customerIds);
+            }
+        }
+        catch
+        {
+            // Background jobs / unauthenticated requests
+        }
+
+        return (false, new List<long>());
     }
 
     public async Task<CursorPaginationResponse<ListMeasurementPointMonitoringDto>> GetListMeasurementPointsMonitoringAsync(GetListMeasurementPointMonitoringRequest request, CancellationToken cancellationToken)
@@ -46,6 +87,12 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
         var pointQuery = _measurementPointsEntities.AsNoTracking()
             .Include(x => x.Customer)
             .Where(x => x.Status == EntityStatus.Active && !x.Deleted);
+
+        var (isCustomer, linkedCustomerIds) = await GetCustomerAccessFilterAsync(cancellationToken);
+        if (isCustomer)
+        {
+            pointQuery = pointQuery.Where(x => linkedCustomerIds.Contains(x.CustomerId));
+        }
 
         if (!string.IsNullOrEmpty(request.CustomerName))
         {
@@ -62,9 +109,14 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
 
         if (request.Status != null)
         {
+            var isLost = request.Status.Value;
+            var targetValues = isLost 
+                ? new[] { "1", "True", "true", "ALARM" } 
+                : new[] { "0", "False", "false", "NORMAL" };
+
             var statusQuery = _measurementPointMonitoringByStatusEntities.AsNoTracking()
                 .Where(x => x.TagNameDescription == ListDataMeasurementPoint.MatKetNoi &&
-                            x.Value == request.Status.ToString());
+                            targetValues.Contains(x.Value));
             var matchingIds = await statusQuery.Select(x => x.MeasurementPointId).Distinct().ToListAsync(cancellationToken);
             pointQuery = pointQuery.Where(x => matchingIds.Contains(x.Id));
         }
@@ -117,6 +169,18 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
         var pointIds = points.Select(x => x.Id).ToList();
         if (!pointIds.Any()) return new List<ListMeasurementPointMonitoringDto>();
 
+        // 1. Kiểm tra cấu hình TagName cho 'Trạng thái kết nối' (MAT_KET_NOI) trong Liên kết dữ liệu
+        var configuredStatusPointIds = await _tagNameEntities.AsNoTracking()
+            .Where(x => pointIds.Contains(x.MeasurementPointId) &&
+                        x.Description == ListDataMeasurementPoint.MatKetNoi &&
+                        !string.IsNullOrWhiteSpace(x.TagName) &&
+                        !x.Deleted)
+            .Select(x => x.MeasurementPointId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        var configuredStatusSet = new HashSet<long>(configuredStatusPointIds);
+
+        // 2. Lấy dữ liệu trạng thái mới nhất từ REST API (MeasurementPointMonitoringByStatus)
         var statusData = await _measurementPointMonitoringByStatusEntities.AsNoTracking()
             .Where(x => pointIds.Contains(x.MeasurementPointId) && x.TagNameDescription == ListDataMeasurementPoint.MatKetNoi)
             .OrderByDescending(x => x.CreatedTime)
@@ -138,7 +202,6 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
         var dataByPoint = latestData.GroupBy(x => x.MeasurementPointsId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        var twoHoursAgo = DateTimeOffset.UtcNow.AddHours(-2);
         var measurementPointDtos = new List<ListMeasurementPointMonitoringDto>();
 
         foreach (var point in points)
@@ -154,10 +217,39 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
                 GroupId = 0
             };
 
-            var statusEntity = statusData.FirstOrDefault(s => s.MeasurementPointId == point.Id);
-            bool hasStatus = statusEntity != null && !string.IsNullOrWhiteSpace(statusEntity.Value);
-            bool isLost = hasStatus && (statusEntity.Value == "True" || statusEntity.Value == "1" || statusEntity.Value == "true" || statusEntity.Value == "ALARM");
-            bool quality = hasStatus && bool.Parse(statusEntity.Quanlity?.ToString() ?? "false");
+            // Logic trạng thái kết nối:
+            // - Nếu không được cài đặt liên kết dữ liệu TagName: hiển thị "-" (MatKetNoi = null)
+            // - Hoặc có cài đặt nhưng REST API chưa từng cập nhật: hiển thị "-" (MatKetNoi = null)
+            // - Nếu REST API đã cập nhật thông tin:
+            //     + Giá trị == 0 / false / NORMAL -> hiển thị "Kết nối" (MatKetNoi = false)
+            //     + Giá trị == 1 / true / ALARM   -> hiển thị "Mất kết nối" (MatKetNoi = true)
+            bool isConfigured = configuredStatusSet.Contains(point.Id);
+            var statusEntity = isConfigured ? statusData.FirstOrDefault(s => s.MeasurementPointId == point.Id) : null;
+
+            if (statusEntity != null && !string.IsNullOrWhiteSpace(statusEntity.Value))
+            {
+                var val = statusEntity.Value.Trim();
+                if (val == "1" || string.Equals(val, "true", StringComparison.OrdinalIgnoreCase) || string.Equals(val, "alarm", StringComparison.OrdinalIgnoreCase))
+                {
+                    dto.MatKetNoi = true; // Mất kết nối
+                    dto.MatKetNoiQuanlity = bool.TryParse(statusEntity.Quanlity?.ToString(), out var q) ? q : true;
+                }
+                else if (val == "0" || string.Equals(val, "false", StringComparison.OrdinalIgnoreCase) || string.Equals(val, "normal", StringComparison.OrdinalIgnoreCase))
+                {
+                    dto.MatKetNoi = false; // Kết nối
+                    dto.MatKetNoiQuanlity = bool.TryParse(statusEntity.Quanlity?.ToString(), out var q) ? q : true;
+                }
+                else
+                {
+                    dto.MatKetNoi = null;
+                    dto.MatKetNoiQuanlity = null;
+                }
+            }
+            else
+            {
+                dto.MatKetNoi = null;
+                dto.MatKetNoiQuanlity = null;
+            }
 
             bool hasData = dataByPoint.TryGetValue(point.Id, out var entities) && 
                 entities.Any(e => !string.IsNullOrWhiteSpace(e.TagNameDescription) && 
@@ -167,18 +259,6 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
             if (hasData)
             {
                 dto.GroupId = entities.First().GroupId ?? 0;
-                var latestTime = entities.Max(e => e.CreatedTime);
-
-                if (latestTime < twoHoursAgo)
-                {
-                    isLost = true;
-                    quality = true;
-                }
-                else if (!hasStatus)
-                {
-                    isLost = false;
-                    quality = true;
-                }
 
                 foreach (var entity in entities.OrderBy(x => x.CreatedTime))
                 {
@@ -238,25 +318,6 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
                 }
             }
 
-            bool hasRealMeasurementData = dto.DongDienPhaA.HasValue || 
-                                          dto.DienApPhaA.HasValue || 
-                                          dto.CongSuatTacDungTong3Pha.HasValue || 
-                                          dto.CongSuatPhanKhangTong3Pha.HasValue || 
-                                          dto.HeSoCongSuatPFTrungBinh3Pha.HasValue || 
-                                          dto.TanSoHeThong.HasValue;
-
-            if (!hasRealMeasurementData && !hasStatus)
-            {
-                // Điểm đo chưa từng nhận được dữ liệu đo đếm hay tín hiệu kết nối từ REST API
-                dto.MatKetNoi = null;
-                dto.MatKetNoiQuanlity = null;
-            }
-            else
-            {
-                dto.MatKetNoi = isLost;
-                dto.MatKetNoiQuanlity = quality;
-            }
-
             measurementPointDtos.Add(dto);
         }
 
@@ -279,6 +340,12 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
             .ThenInclude(x => x.Customer)
             .OrderByDescending(x => x.CreatedTime)
             .AsQueryable();
+
+        var (isCustomerPdf, linkedCustomerIdsPdf) = await GetCustomerAccessFilterAsync(cancellationToken);
+        if (isCustomerPdf)
+        {
+            query = query.Where(x => linkedCustomerIdsPdf.Contains(x.MeasurementPoints.CustomerId));
+        }
 
         // Get status data separately
         var statusQuery = measurementPointMonitoringByStatus
@@ -320,10 +387,29 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
                     s.MeasurementPointId == dto.MeasurementPointsId &&
                     s.TagNameDescription == ListDataMeasurementPoint.MatKetNoi);
 
-                if (statusEntity != null)
+                if (statusEntity != null && !string.IsNullOrWhiteSpace(statusEntity.Value))
                 {
-                    dto.MatKetNoi = bool.Parse(statusEntity.Value);
-                    dto.MatKetNoiQuanlity = bool.Parse(statusEntity.Quanlity?.ToString() ?? "false");
+                    var val = statusEntity.Value.Trim();
+                    if (val == "1" || string.Equals(val, "true", StringComparison.OrdinalIgnoreCase) || string.Equals(val, "alarm", StringComparison.OrdinalIgnoreCase))
+                    {
+                        dto.MatKetNoi = true;
+                        dto.MatKetNoiQuanlity = bool.TryParse(statusEntity.Quanlity?.ToString(), out var q) ? q : true;
+                    }
+                    else if (val == "0" || string.Equals(val, "false", StringComparison.OrdinalIgnoreCase) || string.Equals(val, "normal", StringComparison.OrdinalIgnoreCase))
+                    {
+                        dto.MatKetNoi = false;
+                        dto.MatKetNoiQuanlity = bool.TryParse(statusEntity.Quanlity?.ToString(), out var q) ? q : true;
+                    }
+                    else
+                    {
+                        dto.MatKetNoi = null;
+                        dto.MatKetNoiQuanlity = null;
+                    }
+                }
+                else
+                {
+                    dto.MatKetNoi = null;
+                    dto.MatKetNoiQuanlity = null;
                 }
 
                 foreach (var entity in group)
@@ -410,7 +496,7 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
                             columns.ConstantColumn(35);      // STT
                             columns.RelativeColumn(1.2f);    // Mã điểm đo
                             columns.RelativeColumn(2.0f);    // Tên khách hàng
-                            columns.RelativeColumn(0.9f);    // Kết nối
+                            columns.RelativeColumn(1.1f);    // Trạng thái kết nối
                             columns.RelativeColumn(0.8f);    // U
                             columns.RelativeColumn(0.8f);    // I
                             columns.RelativeColumn(0.8f);    // P
@@ -427,7 +513,7 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
                             header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).Text("STT").FontFamily(Fonts.Arial).Style(headerStyle);
                             header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).Text("Mã điểm đo").FontFamily(Fonts.Arial).Style(headerStyle);
                             header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).Text("Tên khách hàng").FontFamily(Fonts.Arial).Style(headerStyle);
-                            header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).Text("Kết nối").FontFamily(Fonts.Arial).Style(headerStyle);
+                            header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).Text("Trạng thái kết nối").FontFamily(Fonts.Arial).Style(headerStyle);
                             header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).Text("U").FontFamily(Fonts.Arial).Style(headerStyle);
                             header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).Text("I").FontFamily(Fonts.Arial).Style(headerStyle);
                             header.Cell().Border(1).Background("#dcdcdc").BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).Text("P").FontFamily(Fonts.Arial).Style(headerStyle);
@@ -443,7 +529,7 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
                             table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(measurementPointDtos.IndexOf(customer) + 1).FontFamily(Fonts.Arial).Style(rowStyle);
                             table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.MeasurementPointCode ?? "").FontFamily(Fonts.Arial).Style(rowStyle);
                             table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.CustomerName ?? "").FontFamily(Fonts.Arial).Style(rowStyle);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.MatKetNoi == null ? "-" : customer.MatKetNoi == true ? "Mất kết nối" : "Bình thường").FontFamily(Fonts.Arial).Style(rowStyle);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.MatKetNoi == null ? "-" : customer.MatKetNoi == true ? "Mất kết nối" : "Kết nối").FontFamily(Fonts.Arial).Style(rowStyle);
                             table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.DienApPhaA == null ? "-" : customer.DienApPhaA + " " + customer.DienApPhaAUnit).FontFamily(Fonts.Arial).Style(rowStyle);
                             table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.DongDienPhaA == null ? "-" : customer.DongDienPhaA + " " + customer.DongDienPhaAUnit).FontFamily(Fonts.Arial).Style(rowStyle);
                             table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.CongSuatTacDungTong3Pha == null ? "-" : customer.CongSuatTacDungTong3Pha + " " + customer.CongSuatTacDungTong3PhaUnit).FontFamily(Fonts.Arial).Style(rowStyle);
@@ -480,9 +566,17 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
     {
         var cultureInfo = CultureInfo.InvariantCulture;
 
-        var points = await _measurementPointsEntities.AsNoTracking()
+        var pointsQuery = _measurementPointsEntities.AsNoTracking()
             .Include(x => x.Customer)
-            .Where(x => x.Status == EntityStatus.Active && !x.Deleted)
+            .Where(x => x.Status == EntityStatus.Active && !x.Deleted);
+
+        var (isCustomerCsv, linkedCustomerIdsCsv) = await GetCustomerAccessFilterAsync(cancellationToken);
+        if (isCustomerCsv)
+        {
+            pointsQuery = pointsQuery.Where(x => linkedCustomerIdsCsv.Contains(x.CustomerId));
+        }
+
+        var points = await pointsQuery
             .OrderBy(x => x.Id)
             .ToListAsync(cancellationToken);
 
@@ -495,7 +589,7 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
         csvWriter.WriteField("STT");
         csvWriter.WriteField("Mã điểm đo");
         csvWriter.WriteField("Tên khách hàng");
-        csvWriter.WriteField("Kết nối");
+        csvWriter.WriteField("Trạng thái kết nối");
         csvWriter.WriteField("U");
         csvWriter.WriteField("I");
         csvWriter.WriteField("P");
@@ -512,11 +606,9 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
             csvWriter.WriteField(customer.MeasurementPointCode ?? "");
             csvWriter.WriteField(customer.CustomerName ?? "");
             string connectionText = "-";
-            bool hasRealData = customer.DienApPhaA != null || customer.DongDienPhaA != null || 
-                               customer.CongSuatTacDungTong3Pha != null || customer.TanSoHeThong != null;
-            if (customer.MatKetNoi.HasValue && hasRealData)
+            if (customer.MatKetNoi.HasValue)
             {
-                connectionText = customer.MatKetNoi.Value ? "Mất kết nối" : "Bình thường";
+                connectionText = customer.MatKetNoi.Value ? "Mất kết nối" : "Kết nối";
             }
             csvWriter.WriteField(connectionText);
             csvWriter.WriteField(customer.DienApPhaA != null ? $"{customer.DienApPhaA} {customer.DienApPhaAUnit}".Trim() : "-");
@@ -541,6 +633,12 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
             .FirstOrDefaultAsync(x => x.Code == tagName && x.Status == EntityStatus.Active && !x.Deleted, cancellationToken);
 
         if (pointInfo == null) return null;
+
+        var (isCustomerDetail, linkedCustomerIdsDetail) = await GetCustomerAccessFilterAsync(cancellationToken);
+        if (isCustomerDetail && !linkedCustomerIdsDetail.Contains(pointInfo.CustomerId))
+        {
+            return null;
+        }
 
         var latestGroupId = await _measurementPointMonitoringEntities
             .AsNoTracking()
@@ -643,9 +741,9 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
                 MeasurementPointDescription = pointInfo.Description,
                 CustomerCode = pointInfo.Customer?.CustomerCode,
                 CustomerName = pointInfo.Customer?.FullName,
-                MatKetNoi = true,
-                MatKetNoiQuanlity = true,
-                MatKetNoiCreatedTime = DateTimeOffset.UtcNow
+                MatKetNoi = null,
+                MatKetNoiQuanlity = null,
+                MatKetNoiCreatedTime = null
             };
         }
 
@@ -1031,13 +1129,9 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
                     .Where(x => x.MeasurementPointId == firstEntity.MeasurementPointsId)
                     .ToList();
 
-                if (!string.IsNullOrEmpty(tagNameEntity.Where(x => x.MeasurementPointId == firstEntity.MeasurementPointsId)
-                        .FirstOrDefault(x => x.Description == ListDataMeasurementPoint.MatKetNoi)?.TagName))               
-                {
-                    dto.MatKetNoi = false;
-                    dto.MatKetNoiQuanlity = true;
-                    dto.MatKetNoiCreatedTime = DateTimeOffset.UtcNow;
-                }
+                // Trạng thái kết nối sẽ được cập nhật từ byStatusEntities nếu REST API đã báo cáo giá trị
+                dto.MatKetNoi = null;
+                dto.MatKetNoiQuanlity = null;
 
                 if (!string.IsNullOrEmpty(tagNameEntity.Where(x => x.MeasurementPointId == firstEntity.MeasurementPointsId)
                         .FirstOrDefault(x => x.Description == ListDataMeasurementPoint.CanhBao01)?.TagName))     

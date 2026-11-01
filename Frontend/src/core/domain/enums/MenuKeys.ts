@@ -40,6 +40,7 @@ export enum MenuKeys {
   Config = 'configuration',
   authLock = 'auth-lock',
   Contact = 'contact',
+  EmailConfig = 'email-config',
 }
 
 export const MenuSubKeys = [];

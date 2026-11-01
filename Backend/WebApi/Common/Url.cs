@@ -17,6 +17,7 @@ public static class Url
         public const string Report = "Report";
         public const string SystemConfig = "SystemConfig";
         public const string PeriodicEnergyStatement = "PeriodicEnergyStatement";
+        public const string EmailConfig = "EmailConfig";
     }
 
     public static class Default
@@ -189,6 +190,13 @@ public static class Url
         {
             public const string Create = "System-Config/Create-Update-System-Config";
             public const string List = "System-Config/Get-List-System-Config";
+        }
+
+        public static class EmailConfig
+        {
+            public const string GetActive = "Email-Config/Get-Active-Email-Config";
+            public const string Update = "Email-Config/Update-Email-Config";
+            public const string TestConnection = "Email-Config/Test-Connection";
         }
     }
 }

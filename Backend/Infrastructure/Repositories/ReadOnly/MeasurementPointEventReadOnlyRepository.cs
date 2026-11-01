@@ -12,6 +12,8 @@ using AutoMapper.QueryableExtensions;
 using CsvHelper;
 using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Nobisoft.Core.Authorization;
+using Nobisoft.Core.Authorization.Interfaces;
 using Nobisoft.Core.Constants;
 using Nobisoft.Core.Database.DbContext;
 using Nobisoft.Core.Database.Repository;
@@ -25,12 +27,51 @@ namespace Infrastructure.Repositories.ReadOnly;
 public class MeasurementPointEventReadOnlyRepository : RestfulRepository<MeasurementPointsEventEntity, AppReadOnlyDbContext>, IMeasurementPointEventReadOnlyRepository
 {
     private readonly DbSet<MeasurementPointsEventEntity> _measurementPointsEventEntities;
+    private readonly DbSet<UserEntity> _userEntities;
+    private readonly DbSet<UserCustomerEntity> _userCustomerEntities;
     private readonly IMapper _mapper;
+    private readonly ICurrentUserService? _currentUserService;
 
-    public MeasurementPointEventReadOnlyRepository(AppReadOnlyDbContext applicationDbContext, ISnowflakeIdService snowflakeIdService, IMapper mapper) : base(applicationDbContext, snowflakeIdService)
+    public MeasurementPointEventReadOnlyRepository(
+        AppReadOnlyDbContext applicationDbContext,
+        ISnowflakeIdService snowflakeIdService,
+        IMapper mapper,
+        ICurrentUserService currentUserService) : base(applicationDbContext, snowflakeIdService)
     {
         _mapper = mapper;
         _measurementPointsEventEntities = applicationDbContext.Set<MeasurementPointsEventEntity>();
+        _userEntities = applicationDbContext.Set<UserEntity>();
+        _userCustomerEntities = applicationDbContext.Set<UserCustomerEntity>();
+        _currentUserService = currentUserService;
+    }
+
+    private async Task<(bool IsCustomer, List<long> LinkedCustomerIds)> GetCustomerAccessFilterAsync(CancellationToken cancellationToken)
+    {
+        if (_currentUserService == null) return (false, new List<long>());
+        try
+        {
+            var userId = _currentUserService.UserId;
+            if (userId <= 0) return (false, new List<long>());
+
+            var user = await _userEntities.AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == userId && !u.Deleted, cancellationToken);
+
+            if (user != null && string.Equals(user.RoleName, DefaultRoles.Customer, StringComparison.OrdinalIgnoreCase))
+            {
+                var customerIds = await _userCustomerEntities.AsNoTracking()
+                    .Where(uc => uc.UserId == userId)
+                    .Select(uc => uc.CustomerId)
+                    .ToListAsync(cancellationToken);
+
+                return (true, customerIds);
+            }
+        }
+        catch
+        {
+            // Background jobs / unauthenticated requests
+        }
+
+        return (false, new List<long>());
     }
 
     public async Task<CursorPaginationResponse<MeasurementPointEventDto>> GetListMeasurementPointsEventAsync(GetListMeasurementPointEventRequest request, CancellationToken cancellationToken)
@@ -39,6 +80,12 @@ public class MeasurementPointEventReadOnlyRepository : RestfulRepository<Measure
         var entity = _measurementPointsEventEntities
             .AsNoTracking()
             .Where(x => x.CreatedTime >= threeMonthsAgo);
+
+        var (isCustomer, linkedCustomerIds) = await GetCustomerAccessFilterAsync(cancellationToken);
+        if (isCustomer)
+        {
+            entity = entity.Where(x => linkedCustomerIds.Contains(x.MeasurementPoint.CustomerId));
+        }
 
         if (request.StartDate != null && request.EndDate != null)
         {
@@ -77,6 +124,13 @@ public class MeasurementPointEventReadOnlyRepository : RestfulRepository<Measure
         var entity = _measurementPointsEventEntities
             .AsNoTracking()
             .Where(x => x.CreatedTime >= threeMonthsAgo);
+
+        var (isCustomerPdf, linkedCustomerIdsPdf) = await GetCustomerAccessFilterAsync(cancellationToken);
+        if (isCustomerPdf)
+        {
+            entity = entity.Where(x => linkedCustomerIdsPdf.Contains(x.MeasurementPoint.CustomerId));
+        }
+
         var result = await entity
             .Include(x => x.MeasurementPoint)
             .ThenInclude(x => x.Customer)
@@ -183,11 +237,19 @@ public class MeasurementPointEventReadOnlyRepository : RestfulRepository<Measure
 
     public async Task<byte[]> ExportCsvMeasurementPointsEventAsync(CancellationToken cancellationToken)
     {
-        var query = await _measurementPointsEventEntities
+        var entity = _measurementPointsEventEntities
             .AsNoTracking()
             .Include(x => x.MeasurementPoint)
             .ThenInclude(x => x.Customer)
-            .Where(x => x.MeasurementPoint.Status == EntityStatus.Active && !x.MeasurementPoint.Deleted)
+            .Where(x => x.MeasurementPoint.Status == EntityStatus.Active && !x.MeasurementPoint.Deleted);
+
+        var (isCustomerCsv, linkedCustomerIdsCsv) = await GetCustomerAccessFilterAsync(cancellationToken);
+        if (isCustomerCsv)
+        {
+            entity = entity.Where(x => linkedCustomerIdsCsv.Contains(x.MeasurementPoint.CustomerId));
+        }
+
+        var query = await entity
             .OrderByDescending(x => x.Id)
             .ToListAsync(cancellationToken);
         using var memoryStream = new MemoryStream();

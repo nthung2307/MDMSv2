@@ -58,23 +58,17 @@ const TableSummary = (props: Props) => {
       },
     },
     {
-      title: 'Kết nối',
-      width: 100,
+      title: 'Trạng thái kết nối',
+      width: 140,
       dataIndex: 'matKetNoi',
-      render: (val, record) => {
-        const hasMeasurementData =
-          record.dienApPhaA != null ||
-          record.dongDienPhaA != null ||
-          record.congSuatTacDungTong3Pha != null ||
-          record.congSuatPhanKhangTong3Pha != null ||
-          record.heSoCongSuatPFTrungBinh3Pha != null ||
-          record.tanSoHeThong != null;
-
-        if (!hasMeasurementData || val === null || val === undefined) {
+      render: (val) => {
+        if (val === null || val === undefined) {
           return <span>-</span>;
         }
         return (
-          <span>{val ? 'Mất kết nối' : 'Bình thường'}</span>
+          <span className={val ? 'text-[#FF0000] font-bold' : ''}>
+            {val ? 'Mất kết nối' : 'Kết nối'}
+          </span>
         );
       },
     },

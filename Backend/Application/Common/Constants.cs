@@ -78,6 +78,24 @@ namespace Application.Common
             public const string MeasurementPointHalfHourEnergyReport = "MeasurementPointHalfHourEnergyReports";
             public const string MeasurementPointDailyEnergyReport = "MeasurementPointDailyEnergyReports";
             public const string MeasurementPointHalfHourOperatingReport = "MeasurementPointHalfHourOperatingReports";
+            public const string SystemEmailConfigs = "SystemEmailConfigs";
+            public const string NotificationTemplates = "NotificationTemplates";
+            public const string StatementPdfTemplates = "StatementPdfTemplates";
+            public const string MeterReplacements = "MeterReplacements";
+        }
+
+        public static class EmailProvider
+        {
+            public const string MicrosoftGraph = "MICROSOFT_GRAPH";
+            public const string CustomSmtp = "CUSTOM_SMTP";
+            public const string Gmail = "GMAIL";
+        }
+
+        public static class NotificationTemplateCode
+        {
+            public const string UserCredential = "USER_CREDENTIAL";
+            public const string ForgotPassword = "FORGOT_PASSWORD";
+            public const string StatementNotification = "STATEMENT_NOTIFICATION";
         }
 
         public static class SystemConfig

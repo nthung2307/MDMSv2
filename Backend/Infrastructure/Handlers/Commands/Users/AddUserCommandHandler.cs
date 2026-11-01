@@ -97,25 +97,15 @@ public class AddUserCommandHandler : ICreateUserCommandHandler
                 ModifiedName = userName,
                 ModifiedTime = DateTimeOffset.UtcNow
             };
-            await _mailingService.SendEmailAsync(new Email()
+            try
             {
-                To = new List<MailAddress> { new MailAddress(request.Email) } ,
-                Subject = "Thông tin Đăng nhập Tài khoản Hệ thống AMR",
-                Body = $@"<html>
-                    <body>
-                        <p>Kính gửi {request.FullName},</p>
-                        <p></p>
-                        <p>Chúng tôi xin thông báo rằng tài khoản của bạn trong hệ thống AMR đã được tạo thành công. Dưới đây là thông tin đăng nhập của bạn</p>
-                        <p><strong>Tên đăng nhập: {request.UserName}</strong></p>
-                        <p><strong>Mật khẩu: {password}</strong></p>
-                        <p>Liên kết đăng nhập: {_configuration["FrontEndUrl"]}/login</p>
-                        <p></p>
-                        <p>Nếu bạn gặp bất kỳ vấn đề gì trong quá trình đăng nhập, vui lòng liên hệ với bộ phận hỗ trợ để được giáp đáp thắc mắc.</p>
-                        <p></p>
-                        <p>Trân trọng.</p>
-                    </body>
-                </html>"
-            }, cancellationToken);
+                await _emailService.SendEmailGeneratePassword(request.Email, "Thông tin Đăng nhập Tài khoản Hệ thống MDMS", password, request.FullName, request.UserName);
+            }
+            catch (Exception mailEx)
+            {
+                _loggerService.LogError(mailEx, "Không thể gửi email thông báo tài khoản cho {Email}", request.Email);
+            }
+
             await _userReadWriteRepository.AddAsync(response, cancellationToken);
             await _userReadWriteRepository.SaveChangesAsync(cancellationToken);
             return RequestResult<CreateUserResponse>.Succeed(new CreateUserResponse());

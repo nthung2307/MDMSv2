@@ -84,6 +84,10 @@ export class Endpoint {
 
     static GetSystemList: string = 'system-config/get-list-system-config';
     static CreateSystemConfig: string = 'system-config/create-update-system-config';
+
+    static GetActiveEmailConfig: string = 'email-config/get-active-email-config';
+    static UpdateEmailConfig: string = 'email-config/update-email-config';
+    static TestEmailConnection: string = 'email-config/test-connection';
   };
 
   static Report = class {

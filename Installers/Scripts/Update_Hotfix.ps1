@@ -133,10 +133,14 @@ Write-Host "   -> [OK] Cap nhat Backend thanh cong." -ForegroundColor Green
 
 # 2.5 Don dep cac ky tu nghi ngo (*) cua du lieu cu do loi window 5 phut truoc day
 $dbPassword = if ($finalConfig -and $finalConfig.AppDb) { $finalConfig.AppDb.Password } else { $validPassword }
-$dbServer = if ($finalConfig -and $finalConfig.AppDb) { $finalConfig.AppDb.Server } else { "localhost" }
-$dbPort = if ($finalConfig -and $finalConfig.AppDb) { $finalConfig.AppDb.Port } else { 3306 }
-$dbUser = if ($finalConfig -and $finalConfig.AppDb) { $finalConfig.AppDb.UserId } else { "root" }
-$dbName = if ($finalConfig -and $finalConfig.AppDb) { $finalConfig.AppDb.Database } else { "mdms_v2" }
+$dbServer = if ($finalConfig -and $finalConfig.AppDb -and $finalConfig.AppDb.Server) { $finalConfig.AppDb.Server } else { "localhost" }
+$dbPort = if ($finalConfig -and $finalConfig.AppDb -and $finalConfig.AppDb.Port) { $finalConfig.AppDb.Port } else { 3306 }
+$dbUser = "root"
+if ($finalConfig -and $finalConfig.AppDb) {
+    if (-not [string]::IsNullOrWhiteSpace($finalConfig.AppDb.UserName)) { $dbUser = $finalConfig.AppDb.UserName }
+    elseif (-not [string]::IsNullOrWhiteSpace($finalConfig.AppDb.UserId)) { $dbUser = $finalConfig.AppDb.UserId }
+}
+$dbName = if ($finalConfig -and $finalConfig.AppDb -and $finalConfig.AppDb.Database) { $finalConfig.AppDb.Database } else { "amr" }
 
 $mysqlExe = Get-Command 'mysql.exe' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
 if (-not $mysqlExe) {
@@ -185,11 +189,37 @@ WHERE CreatedTime >= NOW() - INTERVAL 7 DAY;
     try {
         $tempSqlFile = Join-Path $env:TEMP "clean_suspected.sql"
         [System.IO.File]::WriteAllText($tempSqlFile, $cleanSql, [System.Text.Encoding]::UTF8)
-        & $mysqlExe -h $dbServer -P $dbPort -u $dbUser "--password=$dbPassword" $dbName -e "source $tempSqlFile"
+        & $mysqlExe "--host=$dbServer" "--port=$dbPort" "--user=$dbUser" "--password=$dbPassword" "$dbName" "-e" "source $tempSqlFile"
         Remove-Item $tempSqlFile -Force -ErrorAction SilentlyContinue
-        Write-Host "   -> [OK] Da loai bo cac dau sao (*) nghi ngo cu trong CSDL." -ForegroundColor Green
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "   -> [OK] Da loai bo cac dau sao (*) nghi ngo cu trong CSDL." -ForegroundColor Green
+        }
     } catch {
         Write-Warning "   Khong the tu dong don dep du lieu cu qua mysql.exe: $_"
+    }
+
+    # Tu dong thuc thi file SQL migration neu co trong goi Hotfix
+    $sqlSearchDirs = @(
+        (Join-Path $SourcePackageDir "Database"),
+        $SourcePackageDir
+    )
+    foreach ($dir in $sqlSearchDirs) {
+        if (Test-Path $dir) {
+            $migrationFiles = Get-ChildItem -Path $dir -Filter "*.sql" -File | Where-Object { $_.Name -like "*email*" -or $_.Name -like "*migration*" -or $_.Name -like "*table*" }
+            foreach ($sqlFile in $migrationFiles) {
+                Write-Host "   Dang thuc thi script migration CSDL: $($sqlFile.Name)..." -ForegroundColor Yellow
+                try {
+                    & $mysqlExe "--host=$dbServer" "--port=$dbPort" "--user=$dbUser" "--password=$dbPassword" "$dbName" "-e" "source $($sqlFile.FullName)"
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Host "   -> [OK] Thuc thi $($sqlFile.Name) thanh cong!" -ForegroundColor Green
+                    } else {
+                        Write-Warning "   Khong the thuc thi $($sqlFile.Name) (ExitCode: $LASTEXITCODE). Vui long kiem tra lai quyen truy cap MySQL."
+                    }
+                } catch {
+                    Write-Warning "   Khong the thuc thi $($sqlFile.Name): $_"
+                }
+            }
+        }
     }
 }
 

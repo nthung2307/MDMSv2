@@ -1,5 +1,9 @@
-using System.Net.Mail;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
+using System.Threading;
+using System.Threading.Tasks;
 using Application.Commands.Auth;
 using Application.Common;
 using Application.Common.Responses.Common.Responses;
@@ -8,6 +12,7 @@ using Application.DataTransferObjects.Responses.Auth;
 using Application.Handlers.Commands.Auth;
 using Application.Repositories.ReadOnly;
 using Application.Repositories.ReadWrite;
+using Application.Services;
 using Domain.Entities;
 using Microsoft.Extensions.Configuration;
 using Nobi.Core.Authorization.Interfaces;
@@ -15,8 +20,6 @@ using Nobisoft.Core.Authorization;
 using Nobisoft.Core.Constants;
 using Nobisoft.Core.Interfaces;
 using Nobisoft.Core.Logger.Interfaces;
-using Nobisoft.Core.Mailer.Interfaces;
-using Nobisoft.Core.Mailer.Templates;
 
 namespace Infrastructure.Handlers.Commands.Auth;
 
@@ -27,18 +30,26 @@ public class ForgotPasswordCommandHandler : IForgotPasswordCommandHandlers
     private readonly IUserTokenReadWriteRepository _userTokenReadWriteRepository;
     private readonly IJwtService _jwtService;
     private readonly ISnowflakeIdService _snowflakeIdService;
-    private readonly IMailingService _mailingService;
+    private readonly IEmailService _emailService;
     private readonly ISystemConfigReadOnlyRepository _systemConfigReadOnlyRepository;
     private readonly IConfiguration _configuration;
 
-    public ForgotPasswordCommandHandler(ILoggerService loggerService, IUserReadWriteRepository userReadWriteRepository, IUserTokenReadWriteRepository userTokenReadWriteRepository, IJwtService jwtService, ISnowflakeIdService snowflakeIdService, IMailingService mailingService, ISystemConfigReadOnlyRepository systemConfigReadOnlyRepository, IConfiguration configuration)
+    public ForgotPasswordCommandHandler(
+        ILoggerService loggerService,
+        IUserReadWriteRepository userReadWriteRepository,
+        IUserTokenReadWriteRepository userTokenReadWriteRepository,
+        IJwtService jwtService,
+        ISnowflakeIdService snowflakeIdService,
+        IEmailService emailService,
+        ISystemConfigReadOnlyRepository systemConfigReadOnlyRepository,
+        IConfiguration configuration)
     {
         _loggerService = loggerService;
         _userReadWriteRepository = userReadWriteRepository;
         _userTokenReadWriteRepository = userTokenReadWriteRepository;
         _jwtService = jwtService;
         _snowflakeIdService = snowflakeIdService;
-        _mailingService = mailingService;
+        _emailService = emailService;
         _systemConfigReadOnlyRepository = systemConfigReadOnlyRepository;
         _configuration = configuration;
     }
@@ -82,25 +93,23 @@ public class ForgotPasswordCommandHandler : IForgotPasswordCommandHandlers
                 ExpiredTime = DateTimeOffset.Now.AddMinutes(10),
                 Type = UserTokenType.ForgotPassword
             };
-            await _mailingService.SendEmailAsync(new Email()
+
+            try
             {
-                To = new List<MailAddress> { new MailAddress(user.Email) } ,
-                Subject = "Yêu cầu đặt lại mật khẩu",
-                Body = $@"<html>
-                    <body>
-                        <p>Kính gửi {user.UserName},</p>
-                        <p></p>
-                        <p>Chúng tôi nhận được yêu cầu thiết lập lại mật khẩu cho tài khoản của bạn trên hệ thống MDMS. Nếu bạn đã yêu cầu thay đổi mật khẩu, vui lòng nhấp vào liên kết dưới đây để hoàn tất quá trình thiết lập lại:</p>
-                        <p><b>{_configuration["FrontEndUrl"]}/reset-password?token={tokenResponse.Token}&email={user.Email}</b></p>
-                        <p></p>
-                        <p>Liên kết này sẽ hết hạn sau 10 phút, vì vậy hãy đảm bảo bạn thực hiện thao tác trước thời gian này.</p>
-                        <p>Nếu bạn không yêu cầu thay đổi mật khẩu, vui lòng bỏ qua email này.</p>
-                        <p></p>
-                        <p>Cảm ơn bạn đã tin tưởng và sử dụng dịch vụ.</p>
-                        <p>Trân trọng,</p>
-                    </body>
-                </html>",
-            }, cancellationToken);
+                await _emailService.SendEmailForgotPassword(user.Email, "Yêu cầu đặt lại mật khẩu - Hệ thống MDMS", tokenResponse.Token, user.UserName);
+            }
+            catch (Exception mailEx)
+            {
+                _loggerService.LogError(mailEx, "Gửi email đặt lại mật khẩu thất bại qua Email Provider");
+                return RequestResult<ForgotPasswordResponse>.Fail(new[]
+                {
+                    new ErrorItem
+                    {
+                        FieldName = "Email",
+                        Error = $"Không thể gửi email đặt lại mật khẩu: {mailEx.Message}. Vui lòng kiểm tra lại cấu hình email hệ thống."
+                    }
+                });
+            }
 
             await _userTokenReadWriteRepository.AddAsync(userToken, cancellationToken);
             await _userTokenReadWriteRepository.SaveChangesAsync(cancellationToken);

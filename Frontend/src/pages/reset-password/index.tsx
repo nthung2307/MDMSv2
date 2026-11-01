@@ -1,7 +1,9 @@
 import { Form } from 'antd';
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { IoArrowBackOutline } from 'react-icons/io5';
 
+import { LogoLandscape } from '@/assets/icons';
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
 import Constants from '@/core/application/common/constants.ts';
 import { CheckTokenForgotPasswordRequest } from '@/core/application/dto/identity/auth/requests/CheckTokenForgotPasswordRequest.ts';
@@ -95,12 +97,16 @@ const ResetPassword = () => {
     }
     return (
       <>
-        <PageTitle title={'Lấy lại mật khẩu'} />
-        <div className='w-screen h-screen flex justify-center items-center px-5'>
+        <PageTitle title={'Đặt lại mật khẩu'} />
+        <div className='w-screen h-screen flex justify-center items-center px-5 bg-[#f5f7fc]'>
           <div className='w-[450px] h-fit bg-white rounded-lg shadow-lg p-10'>
-            <h1 className='text-24-28 text-center font-bold my-5'>{_t('Đặt lại mật khẩu')}</h1>
+            <LogoLandscape width={100} className='mb-8' />
+            <h1 className='text-24-28 font-bold text-gray-800 text-center'>{_t('Đặt lại mật khẩu')}</h1>
+            <p className='text-sm text-gray-500 text-center mt-2 mb-6'>
+              {_t('Vui lòng thiết lập mật khẩu mới có độ bảo mật cao cho tài khoản của bạn.')}
+            </p>
             <Form onFinish={onSubmit}>
-              <div className='flex flex-col gap-3 mt-5'>
+              <div className='flex flex-col gap-3'>
                 <div>
                   <InputPasswordCommon
                     autoFocus={true}
@@ -132,13 +138,6 @@ const ResetPassword = () => {
                     setValidate={setValidate}
                     validate={validate}
                     validateOnBlur={false}
-                    // rules={[
-                    //   {
-                    //     message:
-                    //       'Mật khẩu không đúng định dạng. Bao gồm tối thiểu 8 kí tự (bao gồm số và chữ cái, chữ in hoa, kí tự đặc biệt).',
-                    //     pattern: Constants.PATTERN_REGEX.PasswordStrong,
-                    //   },
-                    // ]}
                   />
                   {dataForm?.confirmPassword && dataForm.password !== dataForm.confirmPassword && (
                     <div className='message-error'>
@@ -148,14 +147,24 @@ const ResetPassword = () => {
                 </div>
               </div>
               <ButtonCommon
-                title={_t('Tiếp theo')}
+                title={_t('Cập nhật mật khẩu')}
                 colorClass='firebrick-bg'
-                classButton='w-full mt-5'
+                classButton='w-full mt-6'
                 htmlType='submit'
                 onClick={() => {}}
-                disabled={isDisable}
+                disabled={isDisable || loading}
+                loading={loading}
               />
             </Form>
+            <div className='text-center mt-6 pt-4 border-t border-gray-100'>
+              <Link
+                to={ROUTE_PATH.LOGIN}
+                className='text-sm font-semibold text-[#b22222] hover:text-[#8b1a1a] inline-flex items-center gap-1.5 transition-colors'
+              >
+                <IoArrowBackOutline size={16} />
+                {_t('Quay lại trang Đăng nhập')}
+              </Link>
+            </div>
           </div>
         </div>
       </>

@@ -43,7 +43,7 @@ public class MeasurementPointMonitoringController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.MeasurementPointMonitoring.List)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<RequestResult<CursorPaginationResponse<ListMeasurementPointMonitoringDto>>> GetListMeasurementPointsAsync(GetListMeasurementPointMonitoringRequest request, CancellationToken cancellationToken)
     {
         try
@@ -65,7 +65,7 @@ public class MeasurementPointMonitoringController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.MeasurementPointMonitoring.ListAlert)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<RequestResult<CursorPaginationResponse<MeasurementPointAlertDto>>> GetListMeasurementPointsAlertAsync(GetListMeasurementPointAlertRequest request, CancellationToken cancellationToken)
     {
         try
@@ -87,7 +87,7 @@ public class MeasurementPointMonitoringController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.MeasurementPointMonitoring.ListEvent)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<RequestResult<CursorPaginationResponse<MeasurementPointEventDto>>> GetListMeasurementPointsEventAsync(GetListMeasurementPointEventRequest request, CancellationToken cancellationToken)
     {
         try
@@ -109,7 +109,7 @@ public class MeasurementPointMonitoringController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.MeasurementPointMonitoring.View)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<RequestResult<MeasurementPointMonitoringDto>> GetMeasurementPointsAsync(string tagName, CancellationToken cancellationToken)
     {
         try
@@ -131,7 +131,7 @@ public class MeasurementPointMonitoringController : ControllerBase
 
     [HttpGet]
     [Route(Common.Url.Default.MeasurementPointMonitoring.CountAlert)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<RequestResult<int>> CountAlertAsync(CancellationToken cancellationToken)
     {
         try

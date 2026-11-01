@@ -31,7 +31,7 @@ const LoginPage = () => {
   const checkAuth = () => {
     let storage: any = localStorageService.readStorage(Constants.API_TOKEN_STORAGE);
     return storage
-      ? navigate(ROUTE_PATH.DASHBOARD, { replace: true })
+      ? navigate(ROUTE_PATH.POINT_MONITORING, { replace: true })
       : navigate(ROUTE_PATH.LOGIN, { replace: true });
   };
 

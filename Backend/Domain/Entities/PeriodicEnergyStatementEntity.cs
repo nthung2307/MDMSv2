@@ -40,4 +40,14 @@ public class PeriodicEnergyStatementEntity : IEntity<long>
     public string SerialNumber { get; set; }
     public DateTimeOffset? SentTime { get; set; }
     public DateTimeOffset CreatedTime { get; set; }
+
+    // Nghiệp vụ EDMI MK6 & Treo tháo & Tùy biến mẫu
+    public DateTimeOffset? PmaxTime { get; set; }
+    public DateTimeOffset? PreviousPmaxTime { get; set; }
+    public DateTimeOffset? BillingTimestamp { get; set; }
+    public bool HasMeterReplacement { get; set; } = false;
+    public long? MeterReplacementId { get; set; }
+    public MeterReplacementEntity? MeterReplacement { get; set; }
+    public long? StatementPdfTemplateId { get; set; }
+    public StatementPdfTemplateEntity? StatementPdfTemplate { get; set; }
 }

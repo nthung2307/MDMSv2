@@ -183,13 +183,13 @@ const PointMonitoringDetail = () => {
                             <p
                               className={`text-12-16 font-bold ${dataUser[info.attribute] ? 'disconnect-msg' : 'connect-msg'}`}
                             >
-                              {dataUser[info.attribute] ? 'Mất kết nối' : 'Bình thường'}
+                              {dataUser[info.attribute] ? 'Mất kết nối' : 'Kết nối'}
                               {!dataUser['matKetNoiQuanlity'] && (
                                 <span className='ml-1 disconnect-msg'>!</span>
                               )}
                             </p>
                           ) : (
-                            <p className={`text-12-16 font-bold disconnect-msg`}>????</p>
+                            <p className='text-12-16 font-bold text-gray-500'>-</p>
                           )}
                         </div>
                       ) : (

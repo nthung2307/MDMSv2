@@ -54,7 +54,7 @@ export default class Constants {
     static Connection = class {
       static Status = class {
         static Normal = {
-          label: 'Bình thường',
+          label: 'Kết nối',
           value: 'normal',
         };
         static LostConnection = {
@@ -228,7 +228,12 @@ export default class Constants {
         FiMonitor,
         'Giám sát điểm đo',
         'Giám sát điểm đo',
-        [Constants.Role.Admin.value, Constants.Role.SuperAdmin.value, Constants.Role.Staff.value],
+        [
+          Constants.Role.Admin.value,
+          Constants.Role.SuperAdmin.value,
+          Constants.Role.Staff.value,
+          Constants.Role.Customer.value,
+        ],
         [
           new MenuItem(
             [],
@@ -240,6 +245,7 @@ export default class Constants {
               Constants.Role.Admin.value,
               Constants.Role.SuperAdmin.value,
               Constants.Role.Staff.value,
+              Constants.Role.Customer.value,
             ],
             ROUTE_PATH.POINT_MONITORING,
             MenuKeys.MonitoringPoints
@@ -254,6 +260,7 @@ export default class Constants {
               Constants.Role.Admin.value,
               Constants.Role.SuperAdmin.value,
               Constants.Role.Staff.value,
+              Constants.Role.Customer.value,
             ],
             ROUTE_PATH.POINT_MONITORING_EVENT,
             MenuKeys.MonitoringPoints
@@ -268,6 +275,7 @@ export default class Constants {
               Constants.Role.Admin.value,
               Constants.Role.SuperAdmin.value,
               Constants.Role.Staff.value,
+              Constants.Role.Customer.value,
             ],
             ROUTE_PATH.POINT_MONITORING_WARNING,
             MenuKeys.MonitoringPoints
@@ -456,6 +464,16 @@ export default class Constants {
             'Khóa đăng nhập',
             [Constants.Role.SuperAdmin.value],
             ROUTE_PATH.AUTH_LOCK,
+            MenuKeys.MonitoringPoints
+          ),
+          new MenuItem(
+            [],
+            MenuKeys.EmailConfig,
+            null,
+            'Cấu hình Email',
+            'Cấu hình Email',
+            [Constants.Role.SuperAdmin.value],
+            ROUTE_PATH.EMAIL_CONFIG,
             MenuKeys.MonitoringPoints
           ),
         ]
@@ -1595,7 +1613,7 @@ export default class Constants {
       { label: 'STT', attr: 'index', width: 6, align: 'center' },
       { label: 'Mã điểm đo', attr: 'measurementPointCode', width: 18, align: 'left' },
       { label: 'Tên khách hàng', attr: 'customerName', width: 32, align: 'left' },
-      { label: 'Kết nối', attr: 'matKetNoi', width: 14, align: 'center' },
+      { label: 'Trạng thái kết nối', attr: 'matKetNoi', width: 16, align: 'center' },
       { label: 'U', attr: 'UParams', width: 14, align: 'center' },
       { label: 'I', attr: 'IParams', width: 14, align: 'center' },
       { label: 'P', attr: 'PParams', width: 14, align: 'center' },
