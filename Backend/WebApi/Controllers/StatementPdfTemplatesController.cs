@@ -17,6 +17,7 @@ using Nobisoft.Core.Authorization;
 using Nobisoft.Core.Authorization.Attributes;
 using Nobisoft.Core.Interfaces;
 using Swashbuckle.AspNetCore.Annotations;
+using Infrastructure.Services.Templates;
 
 namespace WebApi.Controllers;
 
@@ -51,12 +52,17 @@ public class StatementPdfTemplatesController : ControllerBase
 
     [HttpGet]
     [Route(Common.Url.Default.StatementPdfTemplates.List)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
     public async Task<RequestResult<List<StatementPdfTemplateDto>>> GetAllTemplatesAsync(CancellationToken cancellationToken)
     {
         try
         {
             var list = await _readOnlyRepository.GetAllTemplatesAsync(cancellationToken);
+            if (list.Count == 0)
+            {
+                await SeedDefaultTemplatesAsync(cancellationToken);
+                list = await _readOnlyRepository.GetAllTemplatesAsync(cancellationToken);
+            }
             return RequestResult<List<StatementPdfTemplateDto>>.Succeed(list);
         }
         catch (Exception ex)
@@ -69,9 +75,87 @@ public class StatementPdfTemplatesController : ControllerBase
         }
     }
 
+    [HttpPost]
+    [Route(Common.Url.Default.StatementPdfTemplates.ResetDefaults)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
+    public async Task<RequestResult<bool>> ResetDefaultsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await SeedDefaultTemplatesAsync(cancellationToken);
+            return RequestResult<bool>.Succeed(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Lỗi khi khôi phục mẫu phiếu báo PDF chuẩn: {Message}", ex.Message);
+            return RequestResult<bool>.Fail(new[]
+            {
+                new ErrorItem { FieldName = "System", Error = ex.Message }
+            });
+        }
+    }
+
+    private async Task SeedDefaultTemplatesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var a5Template = new StatementPdfTemplateEntity
+            {
+                Id = await _snowflakeIdService.GenerateId(cancellationToken),
+                Code = "STATEMENT_PDF_A5_STANDARD",
+                Name = "Mẫu A5 Tiêu chuẩn",
+                HeaderTitle = "PHIẾU BÁO CHỈ SỐ ĐIỆN NĂNG",
+                SubHeaderTitle = "(MONTHLY POWER METER READING)",
+                CompanyName = "CÔNG TY TNHH VSIP HẢI PHÒNG",
+                CompanyAddress = "Khu Đô thị, Công nghiệp và Dịch vụ VSIP Hải Phòng, Xã An Lư, Huyện Thủy Nguyên, TP. Hải Phòng",
+                ContactPhone = "Tel: (0225) 3959868   Fax: (0225) 3959886",
+                LogoBase64 = StatementPdfGenerator.DefaultLogoBase64,
+                PaperSize = "A5_LANDSCAPE",
+                EngineType = "EXCEL_LIBREOFFICE",
+                DisplayColumnsJson = "[\"BT\",\"CD\",\"TD\",\"SG\",\"VC\",\"PMAX\",\"COSPHI\"]",
+                RequireDualSignatures = true,
+                FooterNotes = "Quý khách vui lòng kiểm tra và phản hồi số liệu trong vòng 03 ngày làm việc kể từ ngày nhận phiếu báo.",
+                IsDefault = true,
+                IsActive = true,
+                CreatedTime = DateTimeOffset.UtcNow
+            };
+
+            var a4Template = new StatementPdfTemplateEntity
+            {
+                Id = await _snowflakeIdService.GenerateId(cancellationToken),
+                Code = "STATEMENT_PDF_A4_FULL",
+                Name = "Mẫu A4 Đầy đủ",
+                HeaderTitle = "PHIẾU BÁO CHỈ SỐ VÀ SẢN LƯỢNG ĐIỆN NĂNG CHI TIẾT",
+                SubHeaderTitle = "BÁO CÁO ĐO ĐẾM KỲ HÀNG THÁNG - HỆ THỐNG AMR/MDMS",
+                CompanyName = "CÔNG TY TNHH VSIP HẢI PHÒNG",
+                CompanyAddress = "Khu Đô thị, Công nghiệp và Dịch vụ VSIP Hải Phòng, Thủy Nguyên, Hải Phòng",
+                ContactPhone = "Tel: (0225) 3959868 - Phòng Quản Lý Vận Hành Cơ Điện",
+                LogoBase64 = StatementPdfGenerator.DefaultLogoBase64,
+                PaperSize = "A4_PORTRAIT",
+                EngineType = "EXCEL_LIBREOFFICE",
+                DisplayColumnsJson = "[\"BT\",\"CD\",\"TD\",\"SG\",\"VC\",\"PMAX\",\"COSPHI\"]",
+                RequireDualSignatures = true,
+                FooterNotes = "Phiếu báo này được kết xuất tự động từ hệ thống đo đếm từ xa AMR/MDMS. Mọi yêu cầu đối soát số liệu kỹ thuật xin liên hệ Bộ phận Vận hành Đo đếm.",
+                IsDefault = false,
+                IsActive = true,
+                CreatedTime = DateTimeOffset.UtcNow
+            };
+
+            await _readWriteRepository.SetDefaultAsync(a5Template.Id, cancellationToken);
+            await _readWriteRepository.AddAsync(a5Template, cancellationToken);
+            await _readWriteRepository.AddAsync(a4Template, cancellationToken);
+            await _readWriteRepository.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Đã khởi tạo tự động 2 mẫu phiếu báo PDF chuẩn");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Lỗi khi tự động khởi tạo mẫu phiếu báo PDF chuẩn: {Message}", ex.Message);
+        }
+    }
+
     [HttpGet]
     [Route(Common.Url.Default.StatementPdfTemplates.View)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
     public async Task<RequestResult<StatementPdfTemplateDto>> GetDetailAsync([FromRoute] long id, CancellationToken cancellationToken)
     {
         try
@@ -99,7 +183,7 @@ public class StatementPdfTemplatesController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.StatementPdfTemplates.Create)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
     public async Task<RequestResult<StatementPdfTemplateDto>> CreateTemplateAsync([FromBody] CreateStatementPdfTemplateRequest request, CancellationToken cancellationToken)
     {
         try
@@ -140,7 +224,7 @@ public class StatementPdfTemplatesController : ControllerBase
 
     [HttpPut]
     [Route(Common.Url.Default.StatementPdfTemplates.Update)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
     public async Task<RequestResult<StatementPdfTemplateDto>> UpdateTemplateAsync([FromRoute] long id, [FromBody] UpdateStatementPdfTemplateRequest request, CancellationToken cancellationToken)
     {
         try
@@ -162,6 +246,9 @@ public class StatementPdfTemplatesController : ControllerBase
             entity.ContactPhone = request.ContactPhone;
             entity.LogoBase64 = request.LogoBase64;
             entity.PaperSize = request.PaperSize;
+            entity.EngineType = request.EngineType;
+            entity.ExcelTemplateBase64 = request.ExcelTemplateBase64;
+            entity.ExcelTemplateFileName = request.ExcelTemplateFileName;
             entity.DisplayColumnsJson = request.DisplayColumnsJson;
             entity.FooterNotes = request.FooterNotes;
             entity.RequireDualSignatures = request.RequireDualSignatures;
@@ -236,7 +323,7 @@ public class StatementPdfTemplatesController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.StatementPdfTemplates.SetDefault)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
     public async Task<RequestResult<bool>> SetDefaultAsync([FromRoute] long id, CancellationToken cancellationToken)
     {
         try
@@ -268,7 +355,7 @@ public class StatementPdfTemplatesController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.StatementPdfTemplates.PreviewPdf)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
     public async Task<IActionResult> PreviewPdfAsync([FromBody] PreviewStatementPdfTemplateRequest request, CancellationToken cancellationToken)
     {
         try
@@ -279,6 +366,24 @@ public class StatementPdfTemplatesController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Lỗi khi render xem trước file PDF: {Message}", ex.Message);
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpGet]
+    [Route(Common.Url.Default.StatementPdfTemplates.DownloadDefaultExcel)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
+    public IActionResult DownloadDefaultExcel([FromQuery] string paperSize = "A5_LANDSCAPE")
+    {
+        try
+        {
+            var excelBytes = _pdfGenerator.GetStandardExcelTemplate(paperSize);
+            var fileName = $"Mau_Phieu_Bao_{paperSize}_{DateTime.Now:yyyyMMdd}.xlsx";
+            return File(excelBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Lỗi khi tải mẫu Excel chuẩn: {Message}", ex.Message);
             return BadRequest(new { error = ex.Message });
         }
     }

@@ -54,12 +54,17 @@ public class NotificationTemplatesController : ControllerBase
 
     [HttpGet]
     [Route(Common.Url.Default.NotificationTemplates.List)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
     public async Task<RequestResult<List<NotificationTemplateDto>>> GetAllTemplatesAsync([FromQuery] string? code, CancellationToken cancellationToken)
     {
         try
         {
             var list = await _readOnlyRepository.GetAllTemplatesAsync(code, cancellationToken);
+            if (list.Count == 0 && string.IsNullOrEmpty(code))
+            {
+                await SeedDefaultTemplatesAsync(cancellationToken);
+                list = await _readOnlyRepository.GetAllTemplatesAsync(code, cancellationToken);
+            }
             return RequestResult<List<NotificationTemplateDto>>.Succeed(list);
         }
         catch (Exception ex)
@@ -72,9 +77,53 @@ public class NotificationTemplatesController : ControllerBase
         }
     }
 
+    [HttpPost]
+    [Route(Common.Url.Default.NotificationTemplates.ResetDefaults)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
+    public async Task<RequestResult<bool>> ResetDefaultsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await SeedDefaultTemplatesAsync(cancellationToken);
+            return RequestResult<bool>.Succeed(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Lỗi khi khôi phục mẫu email chuẩn: {Message}", ex.Message);
+            return RequestResult<bool>.Fail(new[]
+            {
+                new ErrorItem { FieldName = "System", Error = ex.Message }
+            });
+        }
+    }
+
+    private async Task SeedDefaultTemplatesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var prebuilts = Infrastructure.Services.Templates.NotificationTemplateService.GetPrebuiltDefaultTemplates();
+            foreach (var template in prebuilts)
+            {
+                template.Id = await _snowflakeIdService.GenerateId(cancellationToken);
+                template.CreatedTime = DateTimeOffset.UtcNow;
+                if (template.IsDefault)
+                {
+                    await _readWriteRepository.SetDefaultAsync(template.Id, template.Code, cancellationToken);
+                }
+                await _readWriteRepository.AddAsync(template, cancellationToken);
+            }
+            await _readWriteRepository.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Khởi tạo thành công {Count} mẫu email chuẩn", prebuilts.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Lỗi khi tạo mẫu email chuẩn: {Message}", ex.Message);
+        }
+    }
+
     [HttpGet]
     [Route(Common.Url.Default.NotificationTemplates.View)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
     public async Task<RequestResult<NotificationTemplateDto>> GetDetailAsync([FromRoute] long id, CancellationToken cancellationToken)
     {
         try
@@ -102,7 +151,7 @@ public class NotificationTemplatesController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.NotificationTemplates.Create)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
     public async Task<RequestResult<NotificationTemplateDto>> CreateTemplateAsync([FromBody] CreateNotificationTemplateRequest request, CancellationToken cancellationToken)
     {
         try
@@ -143,7 +192,7 @@ public class NotificationTemplatesController : ControllerBase
 
     [HttpPut]
     [Route(Common.Url.Default.NotificationTemplates.Update)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
     public async Task<RequestResult<NotificationTemplateDto>> UpdateTemplateAsync([FromRoute] long id, [FromBody] UpdateNotificationTemplateRequest request, CancellationToken cancellationToken)
     {
         try
@@ -232,7 +281,7 @@ public class NotificationTemplatesController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.NotificationTemplates.SetDefault)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
     public async Task<RequestResult<bool>> SetDefaultAsync([FromRoute] long id, CancellationToken cancellationToken)
     {
         try
@@ -264,7 +313,7 @@ public class NotificationTemplatesController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.NotificationTemplates.Preview)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
     public async Task<RequestResult<PreviewNotificationTemplateResponse>> PreviewTemplateAsync([FromBody] PreviewNotificationTemplateRequest request, CancellationToken cancellationToken)
     {
         try
@@ -284,7 +333,7 @@ public class NotificationTemplatesController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.NotificationTemplates.TestSend)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
     public async Task<RequestResult<bool>> TestSendTemplateAsync([FromBody] TestSendNotificationTemplateRequest request, CancellationToken cancellationToken)
     {
         try

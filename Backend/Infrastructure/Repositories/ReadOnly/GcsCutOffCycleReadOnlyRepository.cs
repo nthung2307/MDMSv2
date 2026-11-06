@@ -100,10 +100,13 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
                     0, 0, 0,
                     TimeSpan.Zero
                 );
-                var lastDayOfMonth = DateTime.DaysInMonth(cycle.Year, cycle.Month);
-                cycle.PreviousDay = cycle.PreviousDay != 0 ? cycle.PreviousDay : cycle.Gcs.DayPeriod.Last() == 999 ? lastDayOfMonth : cycle.Gcs.DayPeriod.Last();
-                cycle.PreviousMonth = firstDate.AddMonths(-1).Month;
-                cycle.PreviousYear = firstDate.AddMonths(-1).Year;
+                var prevDate = firstDate.AddMonths(-1);
+                var prevYear = prevDate.Year;
+                var prevMonth = prevDate.Month;
+                var lastDayOfPrevMonth = DateTime.DaysInMonth(prevYear, prevMonth);
+                cycle.PreviousDay = cycle.PreviousDay != 0 ? cycle.PreviousDay : cycle.Gcs.DayPeriod.Last() == 999 ? lastDayOfPrevMonth : Math.Min(cycle.Gcs.DayPeriod.Last(), lastDayOfPrevMonth);
+                cycle.PreviousMonth = prevMonth;
+                cycle.PreviousYear = prevYear;
                 cycle.PreviousPeriodNumber = cycle.Gcs.PeriodNumber;
             }
         }
@@ -224,16 +227,21 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
             }
         }
 
-        if (lastGcsCutOffCycle == null && (request.Month != existGcs.CreatedTime.Value.Month || request.Year != existGcs.CreatedTime.Value.Year || request.PeriodNumber != 1))
+        if (lastGcsCutOffCycle == null)
         {
-            return RequestResult<CursorPaginationResponse<GetDataLatchResponse>>.Fail(new[]
+            if (request.PeriodNumber < 1 || request.PeriodNumber > existGcs.PeriodNumber)
             {
-                new ErrorItem()
+                return RequestResult<CursorPaginationResponse<GetDataLatchResponse>>.Fail(new[]
                 {
-                    FieldName = "Sequence",
-                    Error = "Vui lòng chốt kỳ theo đúng trình tự"
-                }
-            });
+                    new ErrorItem()
+                    {
+                        FieldName = "Sequence",
+                        Error = $"Kỳ chốt không hợp lệ. Vui lòng chọn kỳ từ 1 đến {existGcs.PeriodNumber}."
+                    }
+                });
+            }
+            // Đối với lần chốt đầu tiên của sổ mới hoặc hệ thống mới triển khai:
+            // Cho phép chọn tháng/năm vận hành hiện tại (hoặc tháng/năm do người dùng chỉ định, ví dụ Tháng 10/2026) làm mốc chốt chỉ số đầu tiên.
         }
 
         if (existGcs.MeasurementPoints.All(x => x.Status != EntityStatus.Active))
@@ -260,16 +268,46 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
             });
         }
         var lastDayOfMonth = DateTime.DaysInMonth(request.Year, request.Month);
-        var dayToUse = existGcs.DayPeriod[request.PeriodNumber - 1] == 999 
-            ? lastDayOfMonth 
-            : existGcs.DayPeriod[request.PeriodNumber - 1];
+        int dayToUse = lastDayOfMonth;
+        if (existGcs.DayPeriod != null && existGcs.DayPeriod.Count >= request.PeriodNumber)
+        {
+            var pDay = existGcs.DayPeriod[request.PeriodNumber - 1];
+            dayToUse = pDay == 999 ? lastDayOfMonth : pDay;
+        }
+        if (dayToUse > lastDayOfMonth) dayToUse = lastDayOfMonth;
+        if (dayToUse < 1) dayToUse = 1;
 
-        var datetime = DateTime.ParseExact(
-            $"{dayToUse.ToString().PadLeft(2, '0')}/{request.Month.ToString().PadLeft(2, '0')}/{request.Year}",
-            "dd/MM/yyyy",
-            CultureInfo.InvariantCulture);
+        var datetime = new DateTime(request.Year, request.Month, dayToUse);
 
-        if (datetime > DateTime.Now)
+        // Calculate next latch date for cycle boundary validation
+        int nextPeriodNumber = request.PeriodNumber + 1;
+        int nextMonth = request.Month;
+        int nextYear = request.Year;
+        if (nextPeriodNumber > existGcs.PeriodNumber)
+        {
+            nextPeriodNumber = 1;
+            if (nextMonth == 12)
+            {
+                nextMonth = 1;
+                nextYear++;
+            }
+            else
+            {
+                nextMonth++;
+            }
+        }
+        int nextLastDay = DateTime.DaysInMonth(nextYear, nextMonth);
+        int nextDayToUse = nextLastDay;
+        if (existGcs.DayPeriod != null && existGcs.DayPeriod.Count >= nextPeriodNumber)
+        {
+            var pDay = existGcs.DayPeriod[nextPeriodNumber - 1];
+            nextDayToUse = pDay == 999 ? nextLastDay : pDay;
+        }
+        if (nextDayToUse > nextLastDay) nextDayToUse = nextLastDay;
+        if (nextDayToUse < 1) nextDayToUse = 1;
+        var nextLatchDate = new DateTime(nextYear, nextMonth, nextDayToUse, 23, 59, 59);
+
+        if (lastGcsCutOffCycle != null && datetime > DateTime.Now)
         {
             return RequestResult<CursorPaginationResponse<GetDataLatchResponse>>.Fail(new[]
             {
@@ -282,6 +320,12 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
         }
 
         var selectedDayPeriod = dayToUse;
+
+        try
+        {
+            await _gcsTemporaryReadWriteRepository.EnsureColumnsExistAsync(cancellationToken);
+        }
+        catch { }
 
         var gcs = await _gcsTemporaryReadWriteRepository.GetListGcsTemporaryAsync(request, cancellationToken);
         if (gcs.Count == 0 || request.IsRefresh)
@@ -319,21 +363,6 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
             if (maxCycle != null)
                 monthlyDetailsWithPoints = await _gcsMonthlyDetailReadOnlyRepository.GetGcsMonthlyDetailAsync(maxCycle.Month, maxCycle.Year, maxCycle.Id, cancellationToken);
 
-            var baseUrl = _configuration["BaseUrlGetDataFromServerIoT"];
-            if (string.IsNullOrEmpty(baseUrl))
-            {
-                return RequestResult<CursorPaginationResponse<GetDataLatchResponse>>.Fail(new[]
-                {
-                    new ErrorItem()
-                    {
-                        FieldName = LocalizationString.Common.UnknownFieldName,
-                        Error = "Cần config url để lấy dữ liệu từ serverIO."
-                    }
-                });
-            }
-            var apiResponses = new List<ReadResult>();
-            const int batchSize = 20;
-
             var relevantDescriptions = new List<string>
             {
                 "CHI_SO_CHOT_DIEN_NANG_AP_GIO_BT",
@@ -344,54 +373,113 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
                 "PMAX_KY_TRUOC",
             };
 
-            var gcsBatches = gcsWithMeasurementPoints
-                .Select((name, index) => new { name, index })
-                .GroupBy(x => x.index / batchSize)
-                .Select(group => group
-                    .Where(x => x.name != null)
-                    .Select(x => x.name)
-                    .ToList()
-                );
-
-            foreach (var batch in gcsBatches)
+            // Query số liệu chỉ số chốt chiều giao do Kepware IoT REST API Client gửi đến (lưu trong MeasurementPointMonitoringEntity)
+            var latestMonitoringMap = new Dictionary<(long, string), MeasurementPointMonitoringEntity>();
+            var latestCutoffTimeMap = new Dictionary<long, DateTimeOffset>();
+            var latestPmaxTimeMap = new Dictionary<long, DateTimeOffset>();
+            try
             {
-                var queryParams = string.Join("&", batch
-                    .SelectMany(measurementPoint =>
-                        measurementPoint.TagNames
-                            .Where(tag => relevantDescriptions.Contains(tag.Description) && tag.TagName != "" && tag.TagName != null)
-                            .Select(tag => $"ids={tag.TagName}")
-                    )
-                );
-
-                var fullUrl = $"{baseUrl}?{queryParams}";
-
-                var response = await CallApiAsync(fullUrl);
-                if (response != null)
+                var measurementPointIds = gcsWithMeasurementPoints.Select(x => x.Id).ToList();
+                if (measurementPointIds.Count > 0)
                 {
-                    try 
+                    var dbMonitoringRecords = await DbContext.Set<MeasurementPointMonitoringEntity>()
+                        .AsNoTracking()
+                        .Where(x => measurementPointIds.Contains(x.MeasurementPointsId) && x.TagNameDescription != null && relevantDescriptions.Contains(x.TagNameDescription))
+                        .OrderByDescending(x => x.CreatedTime)
+                        .ToListAsync(cancellationToken);
+
+                    latestMonitoringMap = dbMonitoringRecords
+                        .GroupBy(x => (x.MeasurementPointsId, x.TagNameDescription!))
+                        .ToDictionary(g => g.Key, g => g.First());
+
+                    // Query thời điểm chốt gần nhất và thời điểm Pmax kỳ trước từ MeasurementPointMonitoringByDateTimeEntity
+                    var dateTimeTags = new List<string>
                     {
-                        var options = new JsonSerializerOptions
+                        ListDataMeasurementPoint.NamChotGanNhat,
+                        ListDataMeasurementPoint.ThangChotGanNhat,
+                        ListDataMeasurementPoint.NgayChotGanNhat,
+                        ListDataMeasurementPoint.GioChotGanNhat,
+                        ListDataMeasurementPoint.PhutChotGanNhat,
+                        ListDataMeasurementPoint.GiayChotGanNhat,
+                        ListDataMeasurementPoint.NamPmaxKyTruoc,
+                        ListDataMeasurementPoint.ThangPmaxKyTruoc,
+                        ListDataMeasurementPoint.NgayPmaxKyTruoc,
+                        ListDataMeasurementPoint.GioPmaxKyTruoc,
+                        ListDataMeasurementPoint.PhutPmaxKyTruoc,
+                        ListDataMeasurementPoint.GiayPmaxKyTruoc
+                    };
+
+                    var dbDateTimeRecords = await DbContext.Set<MeasurementPointMonitoringByDateTimeEntity>()
+                        .AsNoTracking()
+                        .Where(x => measurementPointIds.Contains(x.MeasurementPointId) && x.TagNameDescription != null && dateTimeTags.Contains(x.TagNameDescription))
+                        .OrderByDescending(x => x.CreatedTime)
+                        .ToListAsync(cancellationToken);
+
+                    var groupedDateByPoint = dbDateTimeRecords
+                        .GroupBy(x => x.MeasurementPointId)
+                        .ToDictionary(g => g.Key, g => g.GroupBy(d => d.TagNameDescription!).ToDictionary(sub => sub.Key, sub => sub.First().Value));
+
+                    foreach (var kvp in groupedDateByPoint)
+                    {
+                        var ptId = kvp.Key;
+                        var tags = kvp.Value;
+                        try
                         {
-                            PropertyNameCaseInsensitive = true,
-                            ReferenceHandler = ReferenceHandler.IgnoreCycles,
-                            NumberHandling = JsonNumberHandling.AllowReadingFromString
-                        };
-    
-                        var readResult = JsonSerializer.Deserialize<ReadResultWrapper>(response, options);
-                        if (readResult?.ReadResults != null)
+                            if (tags.TryGetValue(ListDataMeasurementPoint.NamChotGanNhat, out var sYear) &&
+                                tags.TryGetValue(ListDataMeasurementPoint.ThangChotGanNhat, out var sMonth) &&
+                                tags.TryGetValue(ListDataMeasurementPoint.NgayChotGanNhat, out var sDay) &&
+                                int.TryParse(sYear, out var yr) && int.TryParse(sMonth, out var mo) && int.TryParse(sDay, out var da) &&
+                                yr >= 2000 && yr <= 2100 && mo >= 1 && mo <= 12 && da >= 1 && da <= 31)
+                            {
+                                int hr = 0, mi = 0, se = 0;
+                                if (tags.TryGetValue(ListDataMeasurementPoint.GioChotGanNhat, out var sHour) && int.TryParse(sHour, out var parsedHr)) hr = parsedHr;
+                                if (tags.TryGetValue(ListDataMeasurementPoint.PhutChotGanNhat, out var sMin) && int.TryParse(sMin, out var parsedMi)) mi = parsedMi;
+                                if (tags.TryGetValue(ListDataMeasurementPoint.GiayChotGanNhat, out var sSec) && int.TryParse(sSec, out var parsedSe)) se = parsedSe;
+
+                                if (hr < 0 || hr > 23) hr = 0;
+                                if (mi < 0 || mi > 59) mi = 0;
+                                if (se < 0 || se > 59) se = 0;
+
+                                var cutoffDt = new DateTimeOffset(yr, mo, Math.Min(da, DateTime.DaysInMonth(yr, mo)), hr, mi, se, TimeSpan.FromHours(7));
+                                latestCutoffTimeMap[ptId] = cutoffDt;
+                            }
+                        }
+                        catch
                         {
-                            apiResponses.AddRange(readResult.ReadResults);
+                            // Bỏ qua lỗi parse ngày nếu format bất thường
+                        }
+
+                        try
+                        {
+                            if (tags.TryGetValue(ListDataMeasurementPoint.NamPmaxKyTruoc, out var pYear) &&
+                                tags.TryGetValue(ListDataMeasurementPoint.ThangPmaxKyTruoc, out var pMonth) &&
+                                tags.TryGetValue(ListDataMeasurementPoint.NgayPmaxKyTruoc, out var pDay) &&
+                                int.TryParse(pYear, out var pyr) && int.TryParse(pMonth, out var pmo) && int.TryParse(pDay, out var pda) &&
+                                pyr >= 2000 && pyr <= 2100 && pmo >= 1 && pmo <= 12 && pda >= 1 && pda <= 31)
+                            {
+                                int phr = 0, pmi = 0, pse = 0;
+                                if (tags.TryGetValue(ListDataMeasurementPoint.GioPmaxKyTruoc, out var pHour) && int.TryParse(pHour, out var parsedPhr)) phr = parsedPhr;
+                                if (tags.TryGetValue(ListDataMeasurementPoint.PhutPmaxKyTruoc, out var pMin) && int.TryParse(pMin, out var parsedPmi)) pmi = parsedPmi;
+                                if (tags.TryGetValue(ListDataMeasurementPoint.GiayPmaxKyTruoc, out var pSec) && int.TryParse(pSec, out var parsedPse)) pse = parsedPse;
+
+                                if (phr < 0 || phr > 23) phr = 0;
+                                if (pmi < 0 || pmi > 59) pmi = 0;
+                                if (pse < 0 || pse > 59) pse = 0;
+
+                                var pmaxDt = new DateTimeOffset(pyr, pmo, Math.Min(pda, DateTime.DaysInMonth(pyr, pmo)), phr, pmi, pse, TimeSpan.FromHours(7));
+                                latestPmaxTimeMap[ptId] = pmaxDt;
+                            }
+                        }
+                        catch
+                        {
+                            // Bỏ qua lỗi parse thời điểm Pmax
                         }
                     }
-                    catch (JsonException ex)
-                    { 
-                        // Log the error
-                        Console.WriteLine($"Error deserializing response: {ex.Message}");
-                        // Continue with empty list instead of failing
-                        apiResponses.AddRange(new List<ReadResult>());
-                    }
-
                 }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GcsCutOff] dbMonitoringRecords query error: {ex.Message}");
             }
 
             var meterReadingSetMapping = new Dictionary<string, string>
@@ -406,186 +494,226 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
 
             foreach (var measurementPoint in gcsWithMeasurementPoints)
             {
+                var pointEntitiesToUpsert = new List<(GcsTemporaryEntity Entity, bool IsUpdate)>();
+
                 foreach (var readingType in meterReadingSetMapping)
                 {
+                    var isPmax = readingType.Key == "PMAX_KY_TRUOC";
+                    double? currentVal = null;
+                    DateTimeOffset? readingTime = null;
+                    bool? quality = null;
+
+                    // Lấy số liệu từ bộ chỉ số chốt chiều giao do Kepware IoT Client gửi đến (MeasurementPointMonitoringEntity)
+                    if (latestMonitoringMap.TryGetValue((measurementPoint.Id, readingType.Key), out var dbRec) && dbRec != null)
+                    {
+                        if (!string.IsNullOrWhiteSpace(dbRec.Value) && double.TryParse(dbRec.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedVal))
+                        {
+                            currentVal = parsedVal;
+                            quality = dbRec.Quanlity ?? true;
+                            if (latestCutoffTimeMap.TryGetValue(measurementPoint.Id, out var parsedCutoffTime))
+                            {
+                                readingTime = parsedCutoffTime;
+                            }
+                            else
+                            {
+                                readingTime = dbRec.CreatedTime;
+                            }
+                        }
+                    }
+
+                    // Resolve previous cycle reading and period info
+                    var existingDetail = monthlyDetailsWithPoints.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && x.MeterReadingSet == readingType.Value);
+                    double? previousReading = null;
+                    int? prevDay = null;
+                    int? prevMonth = null;
+                    int? prevYear = null;
+                    int? prevPeriod = null;
+
+                    if (existingDetail != null)
+                    {
+                        previousReading = existingDetail.NewCurrentReading ?? existingDetail.CurrentReading;
+                        prevDay = maxCycle?.Day ?? (existGcs.DayPeriod.Last() == 999 ? DateTime.DaysInMonth(DateTimeOffset.Now.AddMonths(-1).Year, DateTimeOffset.Now.AddMonths(-1).Month) : existGcs.DayPeriod.Last());
+                        prevMonth = maxCycle?.Month ?? DateTimeOffset.Now.AddMonths(-1).Month;
+                        prevYear = maxCycle?.Year ?? DateTimeOffset.Now.AddMonths(-1).Year;
+                        prevPeriod = maxCycle?.PeriodNumber ?? existGcs.PeriodNumber;
+                    }
+                    else if (measurementPoint.IsNewChange)
+                    {
+                        var oldGcsReading = listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet);
+                        previousReading = oldGcsReading?.CurrentReading ?? 0;
+                        prevDay = oldGcsReading?.CurrentDay;
+                        prevMonth = oldGcsReading?.CurrentMonth;
+                        prevYear = oldGcsReading?.CurrentYear;
+                        prevPeriod = oldGcsReading?.CurrentPeriodNumber;
+                    }
+                    else
+                    {
+                        previousReading = 0;
+                        prevDay = maxCycle?.Day;
+                        prevMonth = maxCycle?.Month;
+                        prevYear = maxCycle?.Year;
+                        prevPeriod = maxCycle?.PeriodNumber;
+                    }
+
+                    // Calculate final current reading and consumption
+                    double? finalCurrentReading = currentVal.HasValue
+                        ? (isPmax ? Math.Round(currentVal.Value, 3, MidpointRounding.AwayFromZero) : currentVal.Value)
+                        : null;
+
+                    double? consumption = null;
+                    if (!isPmax && finalCurrentReading.HasValue)
+                    {
+                        consumption = (finalCurrentReading.Value - (previousReading ?? 0)) * measurementPoint.MultiplierFactor;
+                    }
+
+                    // Anomaly & Suspicious reading detection
+                    bool isSuspicious = false;
+                    string? suspiciousReason = null;
+
+                    if (!finalCurrentReading.HasValue)
+                    {
+                        isSuspicious = true;
+                        suspiciousReason = "Chưa có chỉ số chốt từ công tơ (chưa từng được cập nhật)";
+                    }
+                    else
+                    {
+                        if (quality == false)
+                        {
+                            isSuspicious = true;
+                            suspiciousReason = "Tín hiệu đo đếm chất lượng kém hoặc mất kết nối";
+                        }
+                        else if (readingTime.HasValue && (readingTime.Value.Date < datetime.Date.AddDays(-2) || readingTime.Value > nextLatchDate))
+                        {
+                            isSuspicious = true;
+                            suspiciousReason = $"Thời điểm chốt ({readingTime.Value:dd/MM/yyyy HH:mm}) nằm ngoài kỳ chốt ({datetime:dd/MM/yyyy} - {nextLatchDate:dd/MM/yyyy})";
+                        }
+                        else if (existingDetail?.ReadingTime != null && existingDetail.ReadingTime != DateTimeOffset.MinValue && readingTime.HasValue && readingTime.Value == existingDetail.ReadingTime)
+                        {
+                            isSuspicious = true;
+                            suspiciousReason = "Thời điểm chốt chưa thay đổi so với kỳ trước (chưa có chỉ số mới)";
+                        }
+                        else if (!isPmax && consumption.HasValue)
+                        {
+                            if (consumption.Value < 0)
+                            {
+                                isSuspicious = true;
+                                suspiciousReason = $"Sản lượng âm ({consumption.Value:N2}) - chỉ số mới nhỏ hơn chỉ số cũ";
+                            }
+                            else if (consumption.Value == 0 && (readingType.Value == "BT" || readingType.Value == "SG") && (existingDetail?.Consumption ?? 0) > 100)
+                            {
+                                isSuspicious = true;
+                                suspiciousReason = $"Sản lượng bằng 0 bất thường (kỳ trước tiêu thụ {existingDetail?.Consumption:N2} kWh)";
+                            }
+                            else if (existingDetail?.Consumption != null && existingDetail.Consumption.Value >= 100)
+                            {
+                                var prevCons = existingDetail.Consumption.Value;
+                                var ratio = consumption.Value / prevCons;
+                                if (ratio < 0.2)
+                                {
+                                    var percent = ((consumption.Value - prevCons) / prevCons) * 100.0;
+                                    isSuspicious = true;
+                                    suspiciousReason = $"Sản lượng giảm đột biến ({percent:0.0}% so với kỳ trước: {consumption.Value:N2} vs {prevCons:N2} kWh)";
+                                }
+                                else if (ratio > 3.0)
+                                {
+                                    var percent = ((consumption.Value - prevCons) / prevCons) * 100.0;
+                                    isSuspicious = true;
+                                    suspiciousReason = $"Sản lượng tăng đột biến ({percent:+0.0}% so với kỳ trước: {consumption.Value:N2} vs {prevCons:N2} kWh)";
+                                }
+                            }
+                        }
+                    }
+
+                    var effectiveReadingTime = readingTime ?? (latestCutoffTimeMap.TryGetValue(measurementPoint.Id, out var cutT) ? cutT : DateTimeOffset.Now);
+
                     var unreliableEntry = gcs.FirstOrDefault(x =>
                         x.MeasurementPointId == measurementPoint.Id &&
                         x.MeterReadingSet == readingType.Value);
-                    
-                    var isPmax = readingType.Key == "PMAX_KY_TRUOC";
 
-                    var existingDetail = monthlyDetailsWithPoints.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && x.MeterReadingSet == readingType.Value);
                     if (unreliableEntry != null)
                     {
-                        if (unreliableEntry.NewCurrentReading != null)
+                        bool hasUserConfirmedEdit = unreliableEntry.NewCurrentReading != null || unreliableEntry.NewPreviousReading != null;
+                        bool meterHasNewDifferentReading = finalCurrentReading.HasValue && unreliableEntry.CurrentReading != finalCurrentReading;
+                        if (hasUserConfirmedEdit && !meterHasNewDifferentReading)
                         {
-                            foreach (var tag in measurementPoint.TagNames)
-                            {
-                                if (string.Equals(tag.Description, readingType.Key, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    var correspondingApiResponse = apiResponses.FirstOrDefault(r => r.Id == tag.TagName);
-                                    if (correspondingApiResponse != null && correspondingApiResponse.S)
-                                    {
-                                        unreliableEntry.NewCurrentReading = null;
-                                        if (isPmax)
-                                        {
-                                            unreliableEntry.CurrentReading = Math.Round(correspondingApiResponse.V, 3, MidpointRounding.AwayFromZero); 
-                                            unreliableEntry.Consumption = null;
-                                        }
-                                        else
-                                        {
-                                            unreliableEntry.CurrentReading = correspondingApiResponse.V;
-                                            var currentReading = existingDetail != null ? existingDetail.CurrentReading : measurementPoint.IsNewChange ? listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet)?.CurrentReading : 0;
-                                            unreliableEntry.Consumption = (correspondingApiResponse.V - currentReading) * measurementPoint.MultiplierFactor;
-                                        }
-                                        unreliableEntry.ReadingTime = DateTimeOffset.FromUnixTimeMilliseconds(correspondingApiResponse.T);
-                                        unreliableEntry.Quanlity = correspondingApiResponse.S;
-                                        await _gcsTemporaryReadWriteRepository.UpdateAsync(unreliableEntry, cancellationToken);
-                                    }
-                                }
-                            }
+                            // Bảo toàn số liệu đã được người dùng nhập tay hoặc Import từ Excel khi công tơ chưa có chỉ số chốt mới khác biệt
+                            var effCurr = unreliableEntry.NewCurrentReading ?? unreliableEntry.CurrentReading;
+                            var effPrev = unreliableEntry.NewPreviousReading ?? unreliableEntry.PreviousReading ?? previousReading ?? 0;
+                            unreliableEntry.Consumption = isPmax || !effCurr.HasValue
+                                ? null
+                                : Math.Round((effCurr.Value - effPrev) * measurementPoint.MultiplierFactor, 2, MidpointRounding.AwayFromZero);
+                            unreliableEntry.Quanlity = true;
+                            unreliableEntry.IsSuspicious = false;
                         }
                         else
                         {
-                            foreach (var tag in measurementPoint.TagNames)
-                            {
-                                if (string.Equals(tag.Description, readingType.Key, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    var correspondingApiResponse = apiResponses.FirstOrDefault(r => r.Id == tag.TagName);
-                                    if (correspondingApiResponse != null)
-                                    {
-                                        unreliableEntry.NewCurrentReading = null;
-                                        if (isPmax)
-                                        {
-                                            unreliableEntry.CurrentReading = Math.Round(correspondingApiResponse.V, 3, MidpointRounding.AwayFromZero);
-                                            unreliableEntry.Consumption = null;
-                                        }
-                                        else
-                                        {
-                                            unreliableEntry.CurrentReading = correspondingApiResponse.V;
-                                            var currentReading = existingDetail != null ? existingDetail.CurrentReading : measurementPoint.IsNewChange ? listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet)?.CurrentReading : 0;
-                                            unreliableEntry.Consumption = (correspondingApiResponse.V - currentReading) * measurementPoint.MultiplierFactor;
-                                        }
-                                        unreliableEntry.ReadingTime = DateTimeOffset.FromUnixTimeMilliseconds(correspondingApiResponse.T);
-                                        unreliableEntry.Quanlity = correspondingApiResponse.S;
-                                        await _gcsTemporaryReadWriteRepository.UpdateAsync(unreliableEntry, cancellationToken);
-                                    }
-                                }
-                            }
+                            unreliableEntry.NewCurrentReading = null;
+                            unreliableEntry.CurrentReading = finalCurrentReading;
+                            unreliableEntry.Consumption = consumption;
+                            unreliableEntry.ReadingTime = effectiveReadingTime;
+                            unreliableEntry.Quanlity = quality;
+                            unreliableEntry.IsSuspicious = isSuspicious;
+                            unreliableEntry.SuspiciousReason = suspiciousReason;
                         }
-                        continue;
+                        pointEntitiesToUpsert.Add((unreliableEntry, true));
                     }
+                    else
+                    {
+                        var newTempEntity = new GcsTemporaryEntity()
+                        {
+                            Id = await _snowflakeIdService.GenerateId(cancellationToken),
+                            GcsId = request.GcsId,
+                            MeasurementPointId = measurementPoint.Id,
+                            Day = selectedDayPeriod,
+                            Month = request.Month,
+                            Year = request.Year,
+                            PeriodNumber = request.PeriodNumber,
+                            PreviousDay = prevDay,
+                            PreviousMonth = prevMonth,
+                            PreviousYear = prevYear,
+                            PreviousPeriodNumber = prevPeriod,
+                            MeterReadingSet = readingType.Value,
+                            PreviousReading = previousReading,
+                            CurrentReading = finalCurrentReading,
+                            MultiplierFactor = measurementPoint.MultiplierFactor,
+                            Consumption = consumption,
+                            ReadingTime = effectiveReadingTime,
+                            Quanlity = quality,
+                            IsSuspicious = isSuspicious,
+                            SuspiciousReason = suspiciousReason,
+                        };
+                        pointEntitiesToUpsert.Add((newTempEntity, false));
+                    }
+                }
 
-                    var matchFound = false;
-                    foreach (var tag in measurementPoint.TagNames)
+                // Tính toán CosPhi trung bình và gán PmaxTime cho toàn bộ các bộ chỉ số của điểm đo
+                var sgCons = pointEntitiesToUpsert.FirstOrDefault(x => x.Entity.MeterReadingSet == "SG").Entity?.Consumption;
+                var btCons = pointEntitiesToUpsert.FirstOrDefault(x => x.Entity.MeterReadingSet == "BT").Entity?.Consumption;
+                var cdCons = pointEntitiesToUpsert.FirstOrDefault(x => x.Entity.MeterReadingSet == "CD").Entity?.Consumption;
+                var tdCons = pointEntitiesToUpsert.FirstOrDefault(x => x.Entity.MeterReadingSet == "TD").Entity?.Consumption;
+                var vcCons = pointEntitiesToUpsert.FirstOrDefault(x => x.Entity.MeterReadingSet == "VC").Entity?.Consumption;
+
+                double? effectiveAp = sgCons;
+                if ((!effectiveAp.HasValue || effectiveAp.Value <= 0) && (btCons.HasValue || cdCons.HasValue || tdCons.HasValue))
+                {
+                    var sum = (btCons ?? 0) + (cdCons ?? 0) + (tdCons ?? 0);
+                    if (sum > 0) effectiveAp = sum;
+                }
+
+                var avgCosPhi = Infrastructure.Repositories.ReadWrite.GcsTemporaryReadWriteRepository.CalculateAverageCosPhi(effectiveAp, vcCons);
+                var pointPmaxTime = latestPmaxTimeMap.TryGetValue(measurementPoint.Id, out var pTime) ? pTime : (DateTimeOffset?)null;
+
+                foreach (var (ent, isUpd) in pointEntitiesToUpsert)
+                {
+                    ent.CosPhi = avgCosPhi;
+                    ent.PmaxTime = pointPmaxTime;
+                    if (isUpd)
                     {
-                        if (string.Equals(tag.Description, readingType.Key, StringComparison.OrdinalIgnoreCase))
-                        {
-                            var correspondingApiResponse = apiResponses.FirstOrDefault(r => r.Id == tag.TagName);
-                            if (correspondingApiResponse != null)
-                            {
-                                if (existingDetail != null)
-                                {
-                                    matchFound = true;
-                                    await _gcsTemporaryReadWriteRepository.AddAsync(new GcsTemporaryEntity()
-                                    {
-                                        Id = await _snowflakeIdService.GenerateId(cancellationToken),
-                                        GcsId = request.GcsId,
-                                        MeasurementPointId = measurementPoint.Id,
-                                        Day = selectedDayPeriod,
-                                        Month = request.Month,
-                                        Year = request.Year,
-                                        ReadingTime = DateTimeOffset.FromUnixTimeMilliseconds(correspondingApiResponse.T),
-                                        PeriodNumber = request.PeriodNumber,
-                                        PreviousDay = maxCycle?.Day ?? (existGcs.DayPeriod.Last() == 999 ? DateTime.DaysInMonth(DateTimeOffset.Now.AddMonths(-1).Year, DateTimeOffset.Now.AddMonths(-1).Month) : existGcs.DayPeriod.Last()),
-                                        PreviousMonth = maxCycle?.Month ?? DateTimeOffset.Now.AddMonths(-1).Month,
-                                        PreviousYear = maxCycle?.Year ?? DateTimeOffset.Now.AddMonths(-1).Year,
-                                        PreviousPeriodNumber = maxCycle?.PeriodNumber ?? existGcs.PeriodNumber,
-                                        MeterReadingSet = readingType.Value,
-                                        PreviousReading = existingDetail.NewCurrentReading ?? existingDetail.CurrentReading,
-                                        CurrentReading = isPmax ? Math.Round(correspondingApiResponse.V, 3, MidpointRounding.AwayFromZero) : correspondingApiResponse.V,
-                                        MultiplierFactor = measurementPoint.MultiplierFactor,
-                                        Consumption = isPmax ? null : (correspondingApiResponse.V - existingDetail.CurrentReading) * measurementPoint.MultiplierFactor,
-                                        Quanlity = correspondingApiResponse.S,
-                                    }, cancellationToken);
-                                }
-                                else
-                                {
-                                    matchFound = true;
-                                    await _gcsTemporaryReadWriteRepository.AddAsync(new GcsTemporaryEntity()
-                                    {
-                                        Id = await _snowflakeIdService.GenerateId(cancellationToken),
-                                        GcsId = request.GcsId,
-                                        MeasurementPointId = measurementPoint.Id,
-                                        Day = selectedDayPeriod,
-                                        Month = request.Month,
-                                        Year = request.Year,
-                                        ReadingTime = DateTimeOffset.FromUnixTimeMilliseconds(correspondingApiResponse.T),
-                                        PeriodNumber = request.PeriodNumber,
-                                        PreviousDay = measurementPoint.IsNewChange ? listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet)?.CurrentDay : null,
-                                        PreviousMonth = measurementPoint.IsNewChange ? listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet)?.CurrentMonth : null,
-                                        PreviousYear = measurementPoint.IsNewChange ? listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet)?.CurrentYear : null,
-                                        PreviousPeriodNumber = measurementPoint.IsNewChange ? listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet)?.CurrentPeriodNumber : null,
-                                        MeterReadingSet = readingType.Value,
-                                        PreviousReading = measurementPoint.IsNewChange ? listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet)?.CurrentReading ?? 0 : 0,
-                                        CurrentReading = isPmax ? Math.Round(correspondingApiResponse.V, 3, MidpointRounding.AwayFromZero) : correspondingApiResponse.V,
-                                        MultiplierFactor = measurementPoint.MultiplierFactor,
-                                        Consumption = isPmax ? null : (correspondingApiResponse.V - (measurementPoint.IsNewChange ? listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet)?.CurrentReading ?? 0 : 0)) * measurementPoint.MultiplierFactor,
-                                        Quanlity = correspondingApiResponse.S,
-                                    }, cancellationToken);
-                                }
-                            }
-                        }
+                        await _gcsTemporaryReadWriteRepository.UpdateAsync(ent, cancellationToken);
                     }
-                    if (!matchFound)
+                    else
                     {
-                        if (existingDetail != null)
-                        {
-                            await _gcsTemporaryReadWriteRepository.AddAsync(new GcsTemporaryEntity()
-                            {
-                                Id = await _snowflakeIdService.GenerateId(cancellationToken),
-                                GcsId = request.GcsId,
-                                MeasurementPointId = measurementPoint.Id,
-                                Day = selectedDayPeriod,
-                                Month = request.Month,
-                                Year = request.Year,
-                                PeriodNumber = request.PeriodNumber,
-                                PreviousDay = measurementPoint.IsNewChange ? listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet)?.CurrentDay : maxCycle?.Day ?? null,
-                                PreviousMonth = measurementPoint.IsNewChange ? listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet)?.CurrentMonth : maxCycle?.Month ?? null,
-                                PreviousYear = measurementPoint.IsNewChange ? listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet)?.CurrentYear : maxCycle?.Year ?? null,
-                                PreviousPeriodNumber = measurementPoint.IsNewChange ? listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet)?.CurrentPeriodNumber : maxCycle?.PeriodNumber ?? null,
-                                MeterReadingSet = readingType.Value,
-                                PreviousReading = measurementPoint.IsNewChange ? listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet)?.CurrentReading ?? 0 : existingDetail != null ? existingDetail.CurrentReading : null,
-                                CurrentReading = null,
-                                MultiplierFactor = measurementPoint.MultiplierFactor,
-                                Consumption = null,
-                                Quanlity = null,
-                            }, cancellationToken);
-                        }
-                        else
-                        {
-                            await _gcsTemporaryReadWriteRepository.AddAsync(new GcsTemporaryEntity()
-                            {
-                                Id = await _snowflakeIdService.GenerateId(cancellationToken),
-                                GcsId = request.GcsId,
-                                MeasurementPointId = measurementPoint.Id,
-                                Day = selectedDayPeriod,
-                                Month = request.Month,
-                                Year = request.Year,
-                                PeriodNumber = request.PeriodNumber,
-                                PreviousDay = measurementPoint.IsNewChange ? listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet)?.CurrentDay : null,
-                                PreviousMonth = measurementPoint.IsNewChange ? listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet)?.CurrentMonth : null,
-                                PreviousYear = measurementPoint.IsNewChange ? listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet)?.CurrentYear : null,
-                                PreviousPeriodNumber = measurementPoint.IsNewChange ? listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet)?.CurrentPeriodNumber : null,
-                                MeterReadingSet = readingType.Value,
-                                PreviousReading = measurementPoint.IsNewChange ? listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet)?.CurrentReading ?? 0 : existingDetail != null ? existingDetail.CurrentReading : null,
-                                CurrentReading = null,
-                                MultiplierFactor = measurementPoint.MultiplierFactor,
-                                Consumption = null,
-                                Quanlity = null,
-                            }, cancellationToken);
-                        }
-                        
+                        await _gcsTemporaryReadWriteRepository.AddAsync(ent, cancellationToken);
                     }
                 }
             }
@@ -617,121 +745,7 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    private async Task<string> CallApiAsync(string url)
-    {
-        using (var client = new HttpClient())
-        {
-            var response = await client.GetAsync(url);
-            response.EnsureSuccessStatusCode();
-            return await response.Content.ReadAsStringAsync();
-        }
-    }
 
-    public class ReadResultWrapper
-    {
-        public List<ReadResult> ReadResults { get; set; }
-    }
-
-    public class ReadResult
-    {
-        public string Id { get; set; }
-        public bool S { get; set; }
-        public string R { get; set; }
-        [JsonConverter(typeof(ValueConverter))]
-        public double V { get; set; }
-        public long T { get; set; }
-    }
-
-    public class ValueConverter : JsonConverter<double>
-    {
-        public override double Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            if (reader.TokenType == JsonTokenType.String)
-            {
-                var stringValue = reader.GetString();
-                if (string.IsNullOrEmpty(stringValue))
-                    return 0;
-                
-                if (double.TryParse(stringValue, out double result))
-                    return result;
-                
-                return 0;
-            }
-            else if (reader.TokenType == JsonTokenType.Number)
-            {
-                return reader.GetDouble();
-            }
-        
-            return 0;
-        }
-
-        public override void Write(Utf8JsonWriter writer, double value, JsonSerializerOptions options)
-        {
-            writer.WriteNumberValue(value);
-        }
-    }
-
-    
-    public class FlexibleValueConverter : JsonConverter<object>
-    {
-        public override object Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            switch (reader.TokenType)
-            {
-                case JsonTokenType.String:
-                    var stringValue = reader.GetString();
-                    // Try to parse string as number, return 0 if parsing fails
-                    if (double.TryParse(stringValue, out double number))
-                        return number;
-                    return 0;
-                case JsonTokenType.Number:
-                    if (reader.TryGetInt64(out long l))
-                        return l;
-                    return reader.GetDouble();
-                case JsonTokenType.True:
-                case JsonTokenType.False:
-                    return reader.GetBoolean();
-                case JsonTokenType.Null:
-                    return 0;
-                default:
-                    try 
-                    {
-                        var element = JsonDocument.ParseValue(ref reader).RootElement;
-                        if (element.ValueKind == JsonValueKind.String)
-                        {
-                            var str = element.GetString();
-                            if (double.TryParse(str, out double val))
-                                return val;
-                            return 0;
-                        }
-                        return 0;
-                    }
-                    catch
-                    {
-                        return 0;
-                    }
-            }
-        }
-
-        public override void Write(Utf8JsonWriter writer, object value, JsonSerializerOptions options)
-        {
-            if (value is string stringValue)
-            {
-                if (double.TryParse(stringValue, out double number))
-                    writer.WriteNumberValue(number);
-                else
-                    writer.WriteNumberValue(0);
-            }
-            else if (value is long longValue)
-                writer.WriteNumberValue(longValue);
-            else if (value is double doubleValue)
-                writer.WriteNumberValue(doubleValue);
-            else if (value is bool boolValue)
-                writer.WriteBooleanValue(boolValue);
-            else
-                writer.WriteNumberValue(0);
-        }
-    }
 
     private bool IsValidCycleSequence(
         int lastYear,

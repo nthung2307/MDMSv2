@@ -30,4 +30,5 @@ public class ListMeasurementPointDto
     public GcsEntity Gcs { get; set; } = new GcsEntity();
     public long? OldGcsId { get; set; }
     public bool IsNewChange { get; set; }
+    public string? VoltageUnit { get; set; }
 }

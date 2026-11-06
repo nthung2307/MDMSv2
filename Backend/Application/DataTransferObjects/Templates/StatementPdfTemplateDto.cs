@@ -14,6 +14,9 @@ public class StatementPdfTemplateDto
     public string ContactPhone { get; set; } = string.Empty;
     public string? LogoBase64 { get; set; }
     public string PaperSize { get; set; } = "A5_LANDSCAPE"; // A5_LANDSCAPE, A4_PORTRAIT
+    public string EngineType { get; set; } = "EXCEL_LIBREOFFICE"; // EXCEL_LIBREOFFICE, QUEST_PDF
+    public string? ExcelTemplateBase64 { get; set; }
+    public string? ExcelTemplateFileName { get; set; }
     public string DisplayColumnsJson { get; set; } = "[\"BT\",\"CD\",\"TD\",\"SG\",\"VC\",\"PMAX\",\"COSPHI\"]";
     public string FooterNotes { get; set; } = string.Empty;
     public bool RequireDualSignatures { get; set; } = true;
@@ -34,6 +37,9 @@ public class CreateStatementPdfTemplateRequest
     public string ContactPhone { get; set; } = "Tel: 84-225-3959868   Fax: 84-255-3959886";
     public string? LogoBase64 { get; set; }
     public string PaperSize { get; set; } = "A5_LANDSCAPE";
+    public string EngineType { get; set; } = "EXCEL_LIBREOFFICE";
+    public string? ExcelTemplateBase64 { get; set; }
+    public string? ExcelTemplateFileName { get; set; }
     public string DisplayColumnsJson { get; set; } = "[\"BT\",\"CD\",\"TD\",\"SG\",\"VC\",\"PMAX\",\"COSPHI\"]";
     public string FooterNotes { get; set; } = string.Empty;
     public bool RequireDualSignatures { get; set; } = true;
@@ -51,6 +57,9 @@ public class UpdateStatementPdfTemplateRequest
     public string ContactPhone { get; set; } = string.Empty;
     public string? LogoBase64 { get; set; }
     public string PaperSize { get; set; } = "A5_LANDSCAPE";
+    public string EngineType { get; set; } = "EXCEL_LIBREOFFICE";
+    public string? ExcelTemplateBase64 { get; set; }
+    public string? ExcelTemplateFileName { get; set; }
     public string DisplayColumnsJson { get; set; } = "[\"BT\",\"CD\",\"TD\",\"SG\",\"VC\",\"PMAX\",\"COSPHI\"]";
     public string FooterNotes { get; set; } = string.Empty;
     public bool RequireDualSignatures { get; set; } = true;
@@ -67,6 +76,9 @@ public class PreviewStatementPdfTemplateRequest
     public string ContactPhone { get; set; } = "Tel: 84-225-3959868   Fax: 84-255-3959886";
     public string? LogoBase64 { get; set; }
     public string PaperSize { get; set; } = "A5_LANDSCAPE";
+    public string EngineType { get; set; } = "EXCEL_LIBREOFFICE";
+    public string? ExcelTemplateBase64 { get; set; }
+    public string? ExcelTemplateFileName { get; set; }
     public string DisplayColumnsJson { get; set; } = "[\"BT\",\"CD\",\"TD\",\"SG\",\"VC\",\"PMAX\",\"COSPHI\"]";
     public string FooterNotes { get; set; } = string.Empty;
     public bool RequireDualSignatures { get; set; } = true;

@@ -1,4 +1,4 @@
-﻿using Application.Commands.TagName;
+using Application.Commands.TagName;
 using Application.Common.Responses.Common.Responses;
 using Application.Common.ValueObjects;
 using Application.DataTransferObjects.Responses.TagName;
@@ -44,6 +44,11 @@ public class DeleteTagNameCommandHandler : IDeleteTagNameCommandHandler
                 });
             }
 
+            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            if (!string.IsNullOrEmpty(profile.TagName) && !profile.TagName.Contains("_deleted_"))
+            {
+                profile.TagName = $"{profile.TagName}_deleted_{timestamp}";
+            }
             profile.Status = EntityStatus.Deleted;
             profile.Deleted = true;
             profile.DeletedBy = currentId;

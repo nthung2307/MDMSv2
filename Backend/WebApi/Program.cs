@@ -524,6 +524,9 @@ CREATE TABLE IF NOT EXISTS `StatementPdfTemplates` (
   `ContactPhone` varchar(255) DEFAULT NULL,
   `LogoBase64` longtext,
   `PaperSize` varchar(50) DEFAULT NULL,
+  `EngineType` varchar(50) DEFAULT 'EXCEL_LIBREOFFICE',
+  `ExcelTemplateBase64` longtext,
+  `ExcelTemplateFileName` varchar(255) DEFAULT NULL,
   `DisplayColumnsJson` varchar(1000) DEFAULT NULL,
   `FooterNotes` varchar(2000) DEFAULT NULL,
   `RequireDualSignatures` tinyint(1) NOT NULL DEFAULT '1',
@@ -556,6 +559,76 @@ CREATE TABLE IF NOT EXISTS `MeterReplacements` (
   KEY `IX_MeterReplacements_ReplacementDate` (`ReplacementDate`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ");
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE `StatementPdfTemplates` ADD COLUMN `EngineType` varchar(50) DEFAULT 'EXCEL_LIBREOFFICE';");
+    }
+    catch { }
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE `StatementPdfTemplates` ADD COLUMN `ExcelTemplateBase64` longtext;");
+    }
+    catch { }
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE `StatementPdfTemplates` ADD COLUMN `ExcelTemplateFileName` varchar(255) DEFAULT NULL;");
+    }
+    catch { }
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE `GcsTemporary` ADD COLUMN `NewPreviousReading` double DEFAULT NULL;");
+    }
+    catch { }
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE `gcstemporary` ADD COLUMN `NewPreviousReading` double DEFAULT NULL;");
+    }
+    catch { }
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE `GcsTemporary` ADD COLUMN `IsSuspicious` tinyint(1) NOT NULL DEFAULT '0';");
+    }
+    catch { }
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE `gcstemporary` ADD COLUMN `IsSuspicious` tinyint(1) NOT NULL DEFAULT '0';");
+    }
+    catch { }
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE `GcsTemporary` ADD COLUMN `SuspiciousReason` varchar(500) DEFAULT NULL;");
+    }
+    catch { }
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE `gcstemporary` ADD COLUMN `SuspiciousReason` varchar(500) DEFAULT NULL;");
+    }
+    catch { }
+    var extraAlterSqls = new[]
+    {
+        "ALTER TABLE `GcsTemporary` ADD COLUMN `CosPhi` double DEFAULT NULL;",
+        "ALTER TABLE `gcstemporary` ADD COLUMN `CosPhi` double DEFAULT NULL;",
+        "ALTER TABLE `GcsTemporary` ADD COLUMN `PmaxTime` datetime(6) DEFAULT NULL;",
+        "ALTER TABLE `gcstemporary` ADD COLUMN `PmaxTime` datetime(6) DEFAULT NULL;",
+        "ALTER TABLE `GcsMonthlyDetail` ADD COLUMN `CosPhi` double DEFAULT NULL;",
+        "ALTER TABLE `gcsmonthlydetail` ADD COLUMN `CosPhi` double DEFAULT NULL;",
+        "ALTER TABLE `GcsMonthlyDetail` ADD COLUMN `ReadingTime` datetime(6) DEFAULT NULL;",
+        "ALTER TABLE `gcsmonthlydetail` ADD COLUMN `ReadingTime` datetime(6) DEFAULT NULL;",
+        "ALTER TABLE `GcsMonthlyDetail` ADD COLUMN `PmaxTime` datetime(6) DEFAULT NULL;",
+        "ALTER TABLE `gcsmonthlydetail` ADD COLUMN `PmaxTime` datetime(6) DEFAULT NULL;",
+        "ALTER TABLE `PeriodicEnergyStatement` ADD COLUMN `CosPhi` double DEFAULT NULL;",
+        "ALTER TABLE `periodicenergystatement` ADD COLUMN `CosPhi` double DEFAULT NULL;",
+        "ALTER TABLE `PeriodicEnergyStatement` ADD COLUMN `PmaxTime` datetime(6) DEFAULT NULL;",
+        "ALTER TABLE `periodicenergystatement` ADD COLUMN `PmaxTime` datetime(6) DEFAULT NULL;",
+        "ALTER TABLE `PeriodicEnergyStatement` ADD COLUMN `PreviousPmaxTime` datetime(6) DEFAULT NULL;",
+        "ALTER TABLE `periodicenergystatement` ADD COLUMN `PreviousPmaxTime` datetime(6) DEFAULT NULL;",
+        "ALTER TABLE `PeriodicEnergyStatement` ADD COLUMN `BillingTimestamp` datetime(6) DEFAULT NULL;",
+        "ALTER TABLE `periodicenergystatement` ADD COLUMN `BillingTimestamp` datetime(6) DEFAULT NULL;"
+    };
+    foreach (var sql in extraAlterSqls)
+    {
+        try { await db.Database.ExecuteSqlRawAsync(sql); } catch { }
+    }
     app.Logger.LogInformation("Đã kiểm tra và đảm bảo các bảng Email Config và Metering mới tồn tại.");
 }
 catch (Exception ex)

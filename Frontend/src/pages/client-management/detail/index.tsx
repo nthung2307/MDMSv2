@@ -103,7 +103,7 @@ const ClientDetail = () => {
               tooltipText={'Sửa'}
             />
           </PrivateComponent>
-          <PrivateComponent roles={[Constants.Role.SuperAdmin.value]}>
+          <PrivateComponent roles={[Constants.Role.Admin.value, Constants.Role.SuperAdmin.value]}>
             <ButtonCommonCustomizable
               title={null}
               onClick={() => {

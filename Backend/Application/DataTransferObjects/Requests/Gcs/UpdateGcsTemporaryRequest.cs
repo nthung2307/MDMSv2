@@ -15,5 +15,6 @@ public class UpdateGcsTemporaryRequest
     public long Id { get; set; }
     public double? NewCurrentReading { get; set; }
     public double? NewPreviousReading { get; set; }
+    public bool? IsChange { get; set; }
 }
 

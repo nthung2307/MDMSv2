@@ -1,9 +1,9 @@
-import { TableProps } from 'antd';
+import { TableProps, Tooltip } from 'antd';
 
 // import Constants from '@/core/application/common/constants.ts';
 import EditedIc from '@/assets/icons/edited-ic.svg';
 import TableCommon from '@/infrastructure/common/components/table/table-common';
-import { formatNumberWithCommas } from '@/infrastructure/utils/helpers.ts';
+import { convertDateTime, formatNumberWithCommas } from '@/infrastructure/utils/helpers.ts';
 
 interface Props {
   dataSource: any;
@@ -15,64 +15,93 @@ const TableCheckDetail = (props: Props) => {
   const columns: TableProps['columns'] = [
     {
       title: 'Mã điểm đo',
-      align: 'center',
       dataIndex: 'measurementPoint',
+      width: 200,
       render: (record) => {
-        return <div>{record.code}</div>;
-      },
-    },
-    {
-      title: 'Mô tả',
-      dataIndex: 'measurementPoint',
-      render: (record) => {
-        return <div>{record.description}</div>;
+        const code = record?.code || '';
+        return (
+          <Tooltip title={code}>
+            <div className='max-w-[190px] truncate whitespace-nowrap font-medium text-gray-800'>
+              {code}
+            </div>
+          </Tooltip>
+        );
       },
     },
     {
       title: 'Tên khách hàng',
       dataIndex: 'measurementPoint',
+      width: 400,
       render: (record) => {
-        return <div>{record.customer.fullName}</div>;
+        const name = record?.customer?.fullName || '';
+        return (
+          <Tooltip title={name}>
+            <div className='max-w-[390px] truncate whitespace-nowrap font-medium text-gray-700'>
+              {name}
+            </div>
+          </Tooltip>
+        );
       },
     },
     {
       title: 'Bộ chỉ số',
       dataIndex: 'meterReadingSet',
+      width: 90,
+      render: (value) => {
+        return <span className='font-semibold whitespace-nowrap'>{value}</span>;
+      },
     },
     {
       title: 'Chỉ số cũ',
       dataIndex: 'previousReading',
+      width: 130,
       render: (value) => {
         return (
-          <div>{value === null || value === undefined ? 'N/A' : formatNumberWithCommas(value)}</div>
+          <span className='whitespace-nowrap'>
+            {value === null || value === undefined ? '-' : formatNumberWithCommas(value)}
+          </span>
         );
       },
     },
     {
       title: 'Chỉ số mới',
       dataIndex: 'currentReading',
+      width: 140,
       render: (value, record) => {
+        const timeTooltip = record.readingTime
+          ? `Thời điểm chốt: ${convertDateTime(record.readingTime, 'dd/mm/yyyy hh:mi:ss')}`
+          : undefined;
         return (
-          <div className={`flex gap-3 `}>
-            <p>{formatNumberWithCommas(value)}</p>
-            {record.isChange && <img src={EditedIc} alt='' className='w-6' />}
-          </div>
+          <Tooltip title={timeTooltip}>
+            <div className='flex items-center gap-2 whitespace-nowrap'>
+              <span>
+                {value === null || value === undefined ? '-' : formatNumberWithCommas(value)}
+              </span>
+              {record.isChange && <img src={EditedIc} alt='Đã hiệu chỉnh' className='w-5' />}
+            </div>
+          </Tooltip>
         );
       },
     },
     {
       title: 'Hệ số nhân',
       dataIndex: 'multiplierFactor',
+      width: 100,
+      render: (val, record) => {
+        return <span className='whitespace-nowrap'>{record.meterReadingSet === 'Pmax' ? '' : val}</span>;
+      },
     },
     {
       title: 'Sản lượng',
       dataIndex: 'consumption',
+      width: 150,
       render: (val, record) => {
+        if (record.meterReadingSet === 'Pmax') {
+          return <div className='whitespace-nowrap'>N/A</div>;
+        }
         return (
-          <div>
-            {record.previousReading === null || record.previousReading === undefined
-              ? 'N/A'
-              : formatNumberWithCommas(val ?? 0)}
+          <div className='whitespace-nowrap font-medium'>
+            {val === null || val === undefined ? '-' : formatNumberWithCommas(val)}
           </div>
         );
       },
@@ -80,17 +109,20 @@ const TableCheckDetail = (props: Props) => {
   ];
 
   return (
-    <TableCommon
-      columns={columns}
-      dataSource={dataSource}
-      pagination={false}
-      rowClassName={(_, index) => {
-        const lastRecord =
-          (index + 1) % 5 === 0 && dataSource.length !== index + 1 ? 'last-record' : '';
-        return `${lastRecord}`;
-      }}
-      loading={loading}
-    />
+    <div className='overflow-x-auto'>
+      <TableCommon
+        columns={columns}
+        dataSource={dataSource}
+        pagination={false}
+        scroll={{ x: 1200 }}
+        rowClassName={(_, index) => {
+          const lastRecord =
+            (index + 1) % 6 === 0 && dataSource.length !== index + 1 ? 'last-record' : '';
+          return `${lastRecord}`;
+        }}
+        loading={loading}
+      />
+    </div>
   );
 };
 

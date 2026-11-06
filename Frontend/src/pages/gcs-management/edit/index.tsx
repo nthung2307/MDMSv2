@@ -77,7 +77,7 @@ const EditGCS = () => {
       <div className='flex justify-between items-center'>
         <BreadcrumbUI
           items={[
-            { name: 'Quản lý sổ ghi chỉ số', link: ROUTE_PATH.GCS_MANAGEMENT },
+            { name: 'Quản lý sổ GCS', link: ROUTE_PATH.GCS_MANAGEMENT },
             { name: 'Sửa thông tin sổ' },
           ]}
         />
@@ -94,7 +94,7 @@ const EditGCS = () => {
             title={'Sửa thông tin sổ'}
             editMode={true}
           />
-          <div className='flex flex-row gap-2 justify-center mt-5'>
+          <div className='sticky bottom-0 bg-white py-3 border-t border-gray-100 flex flex-row gap-2 justify-center mt-5 z-10'>
             <ButtonCommon
               title={_t('Huỷ')}
               onClick={() => {

@@ -60,6 +60,9 @@ export interface StatementPdfTemplateDto {
   contactPhone: string;
   logoBase64?: string;
   paperSize: 'A5_LANDSCAPE' | 'A4_PORTRAIT' | string;
+  engineType?: 'EXCEL_LIBREOFFICE' | 'QUEST_PDF' | string;
+  excelTemplateBase64?: string;
+  excelTemplateFileName?: string;
   displayColumnsJson: string;
   footerNotes?: string;
   requireDualSignatures: boolean;
@@ -79,6 +82,9 @@ export interface CreateStatementPdfTemplateRequest {
   contactPhone: string;
   logoBase64?: string;
   paperSize: 'A5_LANDSCAPE' | 'A4_PORTRAIT' | string;
+  engineType?: 'EXCEL_LIBREOFFICE' | 'QUEST_PDF' | string;
+  excelTemplateBase64?: string;
+  excelTemplateFileName?: string;
   displayColumnsJson: string;
   footerNotes?: string;
   requireDualSignatures: boolean;
@@ -95,6 +101,9 @@ export interface UpdateStatementPdfTemplateRequest {
   contactPhone: string;
   logoBase64?: string;
   paperSize: 'A5_LANDSCAPE' | 'A4_PORTRAIT' | string;
+  engineType?: 'EXCEL_LIBREOFFICE' | 'QUEST_PDF' | string;
+  excelTemplateBase64?: string;
+  excelTemplateFileName?: string;
   displayColumnsJson: string;
   footerNotes?: string;
   requireDualSignatures: boolean;
@@ -110,6 +119,9 @@ export interface PreviewStatementPdfTemplateRequest {
   contactPhone: string;
   logoBase64?: string;
   paperSize: string;
+  engineType?: 'EXCEL_LIBREOFFICE' | 'QUEST_PDF' | string;
+  excelTemplateBase64?: string;
+  excelTemplateFileName?: string;
   displayColumnsJson: string;
   footerNotes?: string;
   requireDualSignatures: boolean;

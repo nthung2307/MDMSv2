@@ -268,7 +268,7 @@ const ElectricityConsumption = () => {
     } else {
       dateStr = selectedYear.format('YYYY');
     }
-    return `BaoCao_SanLuongDien${pointPart}_${dateStr}`;
+    return `MDMS_BaoCao_SanLuongDien${pointPart}_${dateStr}`;
   };
 
   const chartTitle = useMemo(() => {

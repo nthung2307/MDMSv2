@@ -43,12 +43,24 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
     {
         try
         {
-            var unit = await _context.Set<TagNameEntity>().AsNoTracking()
+            var tags = await _context.Set<TagNameEntity>().AsNoTracking()
                 .Where(t => t.MeasurementPointId == measurementPointId &&
-                            (t.Description == ListDataMeasurementPoint.DienApPhaA || t.Description.Contains("Điện áp") || t.Description.Contains("dien ap")) &&
-                            !t.Deleted && !string.IsNullOrEmpty(t.Unit))
-                .Select(t => t.Unit)
-                .FirstOrDefaultAsync(cancellationToken);
+                            !t.Deleted &&
+                            !string.IsNullOrEmpty(t.Unit) &&
+                            (t.Description == ListDataMeasurementPoint.DienApPhaA ||
+                             t.Description == ListDataMeasurementPoint.DienApPhaB ||
+                             t.Description == ListDataMeasurementPoint.DienApPhaC ||
+                             t.Description.Contains("DIEN_AP") ||
+                             t.Description.Contains("Điện áp") ||
+                             t.Description.Contains("dien ap")))
+                .Select(t => new { t.Description, t.Unit })
+                .ToListAsync(cancellationToken);
+
+            var unit = tags.FirstOrDefault(t => t.Description == ListDataMeasurementPoint.DienApPhaA)?.Unit
+                       ?? tags.FirstOrDefault(t => t.Description == ListDataMeasurementPoint.DienApPhaB)?.Unit
+                       ?? tags.FirstOrDefault(t => t.Description == ListDataMeasurementPoint.DienApPhaC)?.Unit
+                       ?? tags.FirstOrDefault()?.Unit;
+
             if (!string.IsNullOrWhiteSpace(unit)) return unit;
         }
         catch { }
@@ -59,6 +71,7 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
         OperatingParameterReportRequest request,
         CancellationToken cancellationToken)
     {
+        var configuredVoltageUnit = await GetConfiguredVoltageUnitAsync(request.MeasurementPointId, cancellationToken);
         try
         {
             var reports = await _dbSet.AsNoTracking()
@@ -70,6 +83,12 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
 
             if (reports.Any())
             {
+                foreach (var r in reports)
+                {
+                    r.DienApPhaAUnit = configuredVoltageUnit;
+                    r.DienApPhaBUnit = configuredVoltageUnit;
+                    r.DienApPhaCUnit = configuredVoltageUnit;
+                }
                 return reports;
             }
         }
@@ -110,11 +129,11 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
                         MeasurementPoint = point,
                         CreatedTime = h.CreatedTime,
                         DienApPhaA = double.TryParse(h.TrungBinhDienApPhaA, NumberStyles.Any, cultureInfo, out var ua) ? ua : null,
-                        DienApPhaAUnit = h.TrungBinhDienApPhaAUnit,
+                        DienApPhaAUnit = configuredVoltageUnit,
                         DienApPhaB = double.TryParse(h.TrungBinhDienApPhaB, NumberStyles.Any, cultureInfo, out var ub) ? ub : null,
-                        DienApPhaBUnit = h.TrungBinhDienApPhaBUnit,
+                        DienApPhaBUnit = configuredVoltageUnit,
                         DienApPhaC = double.TryParse(h.TrungBinhDienApPhaC, NumberStyles.Any, cultureInfo, out var uc) ? uc : null,
-                        DienApPhaCUnit = h.TrungBinhDienApPhaCUnit,
+                        DienApPhaCUnit = configuredVoltageUnit,
                         DongDienPhaA = double.TryParse(h.TrungBinhDongDienPhaA, NumberStyles.Any, cultureInfo, out var ia) ? ia : null,
                         DongDienPhaAUnit = h.TrungBinhDongDienPhaAUnit,
                         DongDienPhaB = double.TryParse(h.TrungBinhDongDienPhaB, NumberStyles.Any, cultureInfo, out var ib) ? ib : null,
@@ -191,11 +210,11 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
                         MeasurementPoint = point,
                         CreatedTime = g.Key,
                         DienApPhaA = GetTagAvg(ListDataMeasurementPoint.DienApPhaA),
-                        DienApPhaAUnit = GetTagUnit(ListDataMeasurementPoint.DienApPhaA, "V"),
+                        DienApPhaAUnit = configuredVoltageUnit,
                         DienApPhaB = GetTagAvg(ListDataMeasurementPoint.DienApPhaB),
-                        DienApPhaBUnit = GetTagUnit(ListDataMeasurementPoint.DienApPhaB, "V"),
+                        DienApPhaBUnit = configuredVoltageUnit,
                         DienApPhaC = GetTagAvg(ListDataMeasurementPoint.DienApPhaC),
-                        DienApPhaCUnit = GetTagUnit(ListDataMeasurementPoint.DienApPhaC, "V"),
+                        DienApPhaCUnit = configuredVoltageUnit,
                         DongDienPhaA = GetTagAvg(ListDataMeasurementPoint.DongDienPhaA),
                         DongDienPhaAUnit = GetTagUnit(ListDataMeasurementPoint.DongDienPhaA, "A"),
                         DongDienPhaB = GetTagAvg(ListDataMeasurementPoint.DongDienPhaB),
@@ -225,6 +244,7 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
     public async Task<byte[]> GenerateCsv(OperatingParameterReportRequest request, CancellationToken cancellationToken)
     {
         var reports = await GetReportsForExportAsync(request, cancellationToken);
+        var voltageUnit = await GetConfiguredVoltageUnitAsync(request.MeasurementPointId, cancellationToken);
 
         using var memoryStream = new MemoryStream();
         await using var streamWriter = new StreamWriter(memoryStream, new UTF8Encoding(true));
@@ -232,9 +252,9 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
 
         // Header
         csvWriter.WriteField("Thời gian");
-        csvWriter.WriteField("Điện áp Pha A (V)");
-        csvWriter.WriteField("Điện áp Pha B (V)");
-        csvWriter.WriteField("Điện áp Pha C (V)");
+        csvWriter.WriteField($"Điện áp Pha A ({voltageUnit})");
+        csvWriter.WriteField($"Điện áp Pha B ({voltageUnit})");
+        csvWriter.WriteField($"Điện áp Pha C ({voltageUnit})");
         csvWriter.WriteField("Dòng điện Pha A (A)");
         csvWriter.WriteField("Dòng điện Pha B (A)");
         csvWriter.WriteField("Dòng điện Pha C (A)");
@@ -304,18 +324,10 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
         wsData.Cells["A3"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
         wsData.Row(3).Height = 20;
 
-        var voltageUnit = reports.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r.DienApPhaAUnit))?.DienApPhaAUnit;
-        if (string.IsNullOrWhiteSpace(voltageUnit) || voltageUnit == "V")
-        {
-            var configured = await GetConfiguredVoltageUnitAsync(request.MeasurementPointId, cancellationToken);
-            if (!string.IsNullOrWhiteSpace(configured))
-            {
-                voltageUnit = configured;
-            }
-        }
+        var voltageUnit = await GetConfiguredVoltageUnitAsync(request.MeasurementPointId, cancellationToken);
         if (string.IsNullOrWhiteSpace(voltageUnit))
         {
-            voltageUnit = "kV";
+            voltageUnit = reports.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r.DienApPhaAUnit))?.DienApPhaAUnit ?? "kV";
         }
 
         // Header bảng (Dòng 5)
@@ -493,7 +505,7 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
             wsPF.Cells["A2"].Value = "BIỂU ĐỒ: HỆ SỐ PF";
             wsPF.Cells["A2"].Style.Font.Bold = true;
             wsPF.Cells["A2"].Style.Font.Size = 13;
-            wsPF.Cells["A2"].Style.Font.Color.SetColor(System.Drawing.Color.FromArgb(15, 76, 129));
+            wsP.Cells["A2"].Style.Font.Color.SetColor(System.Drawing.Color.FromArgb(15, 76, 129));
             wsPF.Cells["A2"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
 
             var chartPF = wsPF.Drawings.AddChart("chartPF", eChartType.Line) as ExcelLineChart;
@@ -537,6 +549,7 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
     public async Task<byte[]> GeneratePdf(OperatingParameterReportRequest request, CancellationToken cancellationToken)
     {
         var reports = await GetReportsForExportAsync(request, cancellationToken);
+        var voltageUnit = await GetConfiguredVoltageUnitAsync(request.MeasurementPointId, cancellationToken);
 
         var pointCode = reports.FirstOrDefault()?.MeasurementPoint?.Code ?? request.MeasurementPointId.ToString();
 
@@ -579,9 +592,9 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
                         static IContainer CellStyle(IContainer c) => c.Background(Colors.Grey.Lighten2).Border(0.5f).BorderColor(Colors.Grey.Medium).Padding(3).AlignCenter();
 
                         header.Cell().Element(CellStyle).Text("Thời gian").FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        header.Cell().Element(CellStyle).Text("Ua (V)").FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        header.Cell().Element(CellStyle).Text("Ub (V)").FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        header.Cell().Element(CellStyle).Text("Uc (V)").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Element(CellStyle).Text($"Ua ({voltageUnit})").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Element(CellStyle).Text($"Ub ({voltageUnit})").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Element(CellStyle).Text($"Uc ({voltageUnit})").FontFamily(Fonts.Arial).FontSize(8).Bold();
                         header.Cell().Element(CellStyle).Text("Ia (A)").FontFamily(Fonts.Arial).FontSize(8).Bold();
                         header.Cell().Element(CellStyle).Text("Ib (A)").FontFamily(Fonts.Arial).FontSize(8).Bold();
                         header.Cell().Element(CellStyle).Text("Ic (A)").FontFamily(Fonts.Arial).FontSize(8).Bold();

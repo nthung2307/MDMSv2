@@ -19,7 +19,7 @@ public class TagNameReadOnlyRepository : RestfulRepository<TagNameEntity, AppRea
 
     public async Task<List<TagNameDto>> GetListTagNamesAsync(long measurementPointId, string? type, CancellationToken cancellationToken)
     {
-        var result = _tagNameEntities.AsNoTracking().Where(x => x.MeasurementPointId == measurementPointId);
+        var result = _tagNameEntities.AsNoTracking().Where(x => x.MeasurementPointId == measurementPointId && !x.Deleted);
         if (type != null)
         {
             result = result.Where(x => x.Type == type);
@@ -38,7 +38,7 @@ public class TagNameReadOnlyRepository : RestfulRepository<TagNameEntity, AppRea
     public async Task<bool> IsExistedTagName(string name, long id, CancellationToken cancellationToken)
     {
         if (id > 0)
-            return await _tagNameEntities.AsNoTracking().Where(x => x.TagName == name && x.Id != id).AnyAsync(cancellationToken);
-        return await _tagNameEntities.AsNoTracking().Where(x => x.TagName == name).AnyAsync(cancellationToken);
+            return await _tagNameEntities.AsNoTracking().Where(x => x.TagName == name && x.Id != id && !x.Deleted).AnyAsync(cancellationToken);
+        return await _tagNameEntities.AsNoTracking().Where(x => x.TagName == name && !x.Deleted).AnyAsync(cancellationToken);
     }
 }

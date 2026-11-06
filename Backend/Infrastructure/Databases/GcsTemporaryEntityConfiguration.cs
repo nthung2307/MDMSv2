@@ -12,6 +12,9 @@ public class GcsTemporaryEntityConfiguration : IEntityTypeConfiguration<GcsTempo
     {
         builder.HasKey(r => r.Id);
         builder.Property(r => r.Id).ValueGeneratedOnAdd();
+        builder.Property(r => r.IsSuspicious).HasDefaultValue(false);
+        builder.Property(r => r.SuspiciousReason).HasMaxLength(500);
+        builder.Property(r => r.IsChange).HasDefaultValue(false);
 
         builder.ToTable(Constants.TableName.GcsTemporary);
     }

@@ -337,7 +337,7 @@ const PointMonitoring = () => {
           }}
           dataSource={dataExport}
           listHeader={Constants.listHeaderExport.summaryParams}
-          fileNameCsv={'ThongSoTongHop'}
+          fileNameCsv={'MDMS_ThongSoTongHop'}
           typeExportAll={'measurement-point-monitoring'}
         />
       </SocketCommon>

@@ -10,7 +10,7 @@ interface Props {
 }
 
 const SocketDetail = ({ children, setDataSocket, id }: Props) => {
-  const baseURL = `${import.meta.env.VITE_APP_SOCKET_URL}`;
+  const baseURL = `${import.meta.env.VITE_APP_SOCKET_URL ?? import.meta.env.VITE_APP_API_URL ?? ''}`;
 
   // Initialize SignalR connection
   const hubConnection = useMemo(() => {

@@ -1975,6 +1975,21 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
             }
         }
 
+        var configuredTags = await _tagNameEntities
+            .AsNoTracking()
+            .Where(x => activePointIds.Contains(x.MeasurementPointId) && !x.Deleted && !string.IsNullOrEmpty(x.Unit))
+            .Select(x => new { x.MeasurementPointId, x.Description, x.Unit })
+            .ToListAsync(cancellationToken);
+
+        var configuredUnitMap = new Dictionary<(long PointId, string TagDesc), string>();
+        foreach (var ct in configuredTags)
+        {
+            if (!string.IsNullOrWhiteSpace(ct.Description) && !string.IsNullOrWhiteSpace(ct.Unit))
+            {
+                configuredUnitMap[(ct.MeasurementPointId, ct.Description)] = ct.Unit!;
+            }
+        }
+
         (double? Value, string Unit) ParseTagValue(long pointId, string tagDesc, string defaultUnit)
         {
             MeasurementPointMonitoringEntity? entity = null;
@@ -1993,18 +2008,24 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
 
             if (entity != null && double.TryParse(entity.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var num))
             {
-                return (num, entity.TagName?.Unit ?? defaultUnit);
+                var resolvedUnit = configuredUnitMap.TryGetValue((pointId, tagDesc), out var cfgUnit) && !string.IsNullOrWhiteSpace(cfgUnit)
+                    ? cfgUnit
+                    : (!string.IsNullOrWhiteSpace(entity.TagName?.Unit) ? entity.TagName.Unit! : defaultUnit);
+                return (num, resolvedUnit);
             }
 
-            return (null, defaultUnit);
+            var fallbackUnit = configuredUnitMap.TryGetValue((pointId, tagDesc), out var cfgFallback) && !string.IsNullOrWhiteSpace(cfgFallback)
+                ? cfgFallback
+                : defaultUnit;
+            return (null, fallbackUnit);
         }
 
         var result = new List<MeasurementPointOperatingReportDto>();
         foreach (var point in activePoints)
         {
-            var ua = ParseTagValue(point.Id, ListDataMeasurementPoint.DienApPhaA, "V");
-            var ub = ParseTagValue(point.Id, ListDataMeasurementPoint.DienApPhaB, "V");
-            var uc = ParseTagValue(point.Id, ListDataMeasurementPoint.DienApPhaC, "V");
+            var ua = ParseTagValue(point.Id, ListDataMeasurementPoint.DienApPhaA, "kV");
+            var ub = ParseTagValue(point.Id, ListDataMeasurementPoint.DienApPhaB, "kV");
+            var uc = ParseTagValue(point.Id, ListDataMeasurementPoint.DienApPhaC, "kV");
 
             var ia = ParseTagValue(point.Id, ListDataMeasurementPoint.DongDienPhaA, "A");
             var ib = ParseTagValue(point.Id, ListDataMeasurementPoint.DongDienPhaB, "A");

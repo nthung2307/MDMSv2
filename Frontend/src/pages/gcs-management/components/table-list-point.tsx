@@ -17,9 +17,9 @@ const TableGCSPoint = (props: Props) => {
       <TableCommon
         dataSource={[...dataSource]}
         rowKey={(record: any) => record.idTable}
-        pagination={false}
+        pagination={dataSource?.length > 10 ? { pageSize: 10, size: 'small' } : false}
         className='table-common table-point-client'
-        scroll={{ x: 'max-content' }}
+        scroll={{ x: 'max-content', y: 320 }}
       >
         <Column
           title={<div className='text-14-20 font-bold'>{_t('Mã điểm đo')}</div>}

@@ -416,7 +416,7 @@ const HalfHourFinalizedEnergyReport: React.FC<HalfHourFinalizedEnergyReportProps
       case 'daily':
         return {
           title: 'Báo cáo chỉ số điện hàng ngày',
-          fileNameCsv: `BaoCao_ChiSoDien${pointPart}_${singleDate.format('YYYYMMDD')}`,
+          fileNameCsv: `MDMS_BaoCao_ChiSoDien${pointPart}_${singleDate.format('YYYYMMDD')}`,
           typeExportAll: 'half-hour-finalized-energy',
           listHeader: Constants.listHeaderExport.HalfHourFinalizedEnergyReport,
           requestBody: {
@@ -429,7 +429,7 @@ const HalfHourFinalizedEnergyReport: React.FC<HalfHourFinalizedEnergyReportProps
       case 'range':
         return {
           title: 'Báo cáo chỉ số điện theo khoảng thời gian',
-          fileNameCsv: `BaoCao_ChiSoDien${pointPart}_${rangeDate[0].format('YYYYMMDD')}_${rangeDate[1].format('YYYYMMDD')}`,
+          fileNameCsv: `MDMS_BaoCao_ChiSoDien${pointPart}_${rangeDate[0].format('YYYYMMDD')}_${rangeDate[1].format('YYYYMMDD')}`,
           typeExportAll: 'half-hour-finalized-energy',
           listHeader: Constants.listHeaderExport.HalfHourFinalizedEnergyReport,
           requestBody: {
@@ -442,7 +442,7 @@ const HalfHourFinalizedEnergyReport: React.FC<HalfHourFinalizedEnergyReportProps
       case 'monthly':
         return {
           title: 'Báo cáo chỉ số điện hàng tháng',
-          fileNameCsv: `BaoCao_ChiSoDien${pointPart}_${selectedMonth.format('YYYYMM')}`,
+          fileNameCsv: `MDMS_BaoCao_ChiSoDien${pointPart}_${selectedMonth.format('YYYYMM')}`,
           typeExportAll: 'daily-finalized-energy',
           listHeader: Constants.listHeaderExport.DailyFinalizedEnergyReport,
           requestBody: {
@@ -455,7 +455,7 @@ const HalfHourFinalizedEnergyReport: React.FC<HalfHourFinalizedEnergyReportProps
       case 'yearly':
         return {
           title: 'Báo cáo chỉ số điện hàng năm',
-          fileNameCsv: `BaoCao_ChiSoDien${pointPart}_${selectedYear.format('YYYY')}`,
+          fileNameCsv: `MDMS_BaoCao_ChiSoDien${pointPart}_${selectedYear.format('YYYY')}`,
           typeExportAll: 'yearly-finalized-energy',
           listHeader: Constants.listHeaderExport.DailyFinalizedEnergyReport,
           requestBody: {

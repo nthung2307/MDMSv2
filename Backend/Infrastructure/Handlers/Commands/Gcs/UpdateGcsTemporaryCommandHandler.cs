@@ -49,8 +49,11 @@ public class UpdateGcsTemporaryCommandHandler : IUpdateGcsTemporaryCommandHandle
             if (command.Request.Count > 0)
             {
                 var gcsTemporary = await _gcsTemporaryReadWriteRepository.GetListGcsTemporaryToUpdateAsync(command.Request, command.GcsId, command.Month, command.Year, command.PeriodNumber, cancellationToken);
+                var affectedPointIds = new HashSet<long>();
+
                 foreach (var item in gcsTemporary)
                 {
+                    affectedPointIds.Add(item.MeasurementPointId);
                     var requestItem = command.Request.FirstOrDefault(x => x.Id == item.Id);
                     var newCurrentReading = requestItem?.NewCurrentReading;
                     var newPreviousReading = requestItem?.NewPreviousReading;
@@ -72,19 +75,68 @@ public class UpdateGcsTemporaryCommandHandler : IUpdateGcsTemporaryCommandHandle
                     if (isPMax)
                     {
                         item.Consumption = null;
+                        item.IsSuspicious = false;
+                        item.SuspiciousReason = null;
                     }
                     else
                     {
                         item.Consumption = (currentReadingValue - previousReadingValue) * item.MultiplierFactor;
+                        if (item.Consumption < 0)
+                        {
+                            item.IsSuspicious = true;
+                            item.SuspiciousReason = "Sản lượng âm (Chỉ số mới nhỏ hơn chỉ số cũ)";
+                        }
+                        else
+                        {
+                            item.IsSuspicious = false;
+                            item.SuspiciousReason = null;
+                        }
                     }
 
-                    item.ModifiedBy = currentId;
-                    item.ModifiedTime = DateTime.Now;
-                    item.ModifiedName = userName;
+                    item.Quanlity = true;
+                    if (requestItem?.IsChange.HasValue == true)
+                    {
+                        item.IsChange = requestItem.IsChange.Value;
+                    }
+                    else
+                    {
+                        bool isDifferentFromMeter = (newCurrentReading.HasValue && item.CurrentReading.HasValue && Math.Abs(newCurrentReading.Value - item.CurrentReading.Value) > 0.0001)
+                                                 || (newPreviousReading.HasValue && item.PreviousReading.HasValue && Math.Abs(newPreviousReading.Value - item.PreviousReading.Value) > 0.0001);
+                        item.IsChange = isDifferentFromMeter;
+                    }
+
+                    if (item.IsChange)
+                    {
+                        item.ModifiedBy = currentId;
+                        item.ModifiedTime = DateTime.Now;
+                        item.ModifiedName = userName;
+                    }
+                    else
+                    {
+                        item.ModifiedBy = null;
+                        item.ModifiedTime = null;
+                        item.ModifiedName = null;
+                    }
                     await _gcsTemporaryReadWriteRepository.UpdateAsync(item, cancellationToken);
                 }
 
                 await _gcsTemporaryReadWriteRepository.SaveChangesAsync(cancellationToken);
+
+                // Tính toán lại Sản lượng và hệ số CosPhi (PF) trung bình cho các điểm đo vừa được cập nhật
+                if (affectedPointIds.Count > 0)
+                {
+                    var allCycleRecords = await _gcsTemporaryReadWriteRepository.GetListGcsTemporaryWithGcsAsync(command.GcsId, command.Month, command.Year, command.PeriodNumber, cancellationToken);
+                    var recordsByPoint = allCycleRecords.Where(x => affectedPointIds.Contains(x.MeasurementPointId)).GroupBy(x => x.MeasurementPointId);
+                    foreach (var pointGroup in recordsByPoint)
+                    {
+                        Infrastructure.Repositories.ReadWrite.GcsTemporaryReadWriteRepository.RecalculatePointConsumptionAndCosPhi(pointGroup);
+                        foreach (var rec in pointGroup)
+                        {
+                            await _gcsTemporaryReadWriteRepository.UpdateAsync(rec, cancellationToken);
+                        }
+                    }
+                    await _gcsTemporaryReadWriteRepository.SaveChangesAsync(cancellationToken);
+                }
             }
 
             return RequestResult<GcsResponse>.Succeed(new GcsResponse());

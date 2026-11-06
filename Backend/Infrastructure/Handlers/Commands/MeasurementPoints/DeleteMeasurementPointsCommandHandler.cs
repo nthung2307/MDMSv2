@@ -1,4 +1,4 @@
-﻿using Application.Commands.MeasurementPoints;
+using Application.Commands.MeasurementPoints;
 using Application.Common.Responses.Common.Responses;
 using Application.Common.ValueObjects;
 using Application.DataTransferObjects.Responses.MeasurementPoints;
@@ -56,6 +56,11 @@ public class DeleteMeasurementPointsCommandHandler : IDeleteMeasurementPointsCom
                 });
             }
 
+            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            if (!string.IsNullOrEmpty(measurementPoint.Code) && !measurementPoint.Code.Contains("_deleted_"))
+            {
+                measurementPoint.Code = $"{measurementPoint.Code}_deleted_{timestamp}";
+            }
             measurementPoint.Deleted = true;
             measurementPoint.Status = EntityStatus.Deleted;
             measurementPoint.DeletedBy = currentId;

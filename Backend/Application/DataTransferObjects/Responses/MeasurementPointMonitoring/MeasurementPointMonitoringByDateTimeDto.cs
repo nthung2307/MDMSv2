@@ -34,6 +34,30 @@ public class MeasurementPointMonitoringByDateTimeDto
     public bool? LatestClosingMonthQuanlity { get; set; }
     public string? LatestClosingYear { get; set; }
     public bool? LatestClosingYearQuanlity { get; set; }
+    public string? PmaxCurrentPeriodYear { get; set; }
+    public bool? PmaxCurrentPeriodYearQuanlity { get; set; }
+    public string? PmaxCurrentPeriodMonth { get; set; }
+    public bool? PmaxCurrentPeriodMonthQuanlity { get; set; }
+    public string? PmaxCurrentPeriodDate { get; set; }
+    public bool? PmaxCurrentPeriodDateQuanlity { get; set; }
+    public string? PmaxCurrentPeriodTime { get; set; }
+    public bool? PmaxCurrentPeriodTimeQuanlity { get; set; }
+    public string? PmaxCurrentPeriodMinute { get; set; }
+    public bool? PmaxCurrentPeriodMinuteQuanlity { get; set; }
+    public string? PmaxCurrentPeriodSecond { get; set; }
+    public bool? PmaxCurrentPeriodSecondQuanlity { get; set; }
+    public string? PmaxPreviousPeriodYear { get; set; }
+    public bool? PmaxPreviousPeriodYearQuanlity { get; set; }
+    public string? PmaxPreviousPeriodMonth { get; set; }
+    public bool? PmaxPreviousPeriodMonthQuanlity { get; set; }
+    public string? PmaxPreviousPeriodDate { get; set; }
+    public bool? PmaxPreviousPeriodDateQuanlity { get; set; }
+    public string? PmaxPreviousPeriodTime { get; set; }
+    public bool? PmaxPreviousPeriodTimeQuanlity { get; set; }
+    public string? PmaxPreviousPeriodMinute { get; set; }
+    public bool? PmaxPreviousPeriodMinuteQuanlity { get; set; }
+    public string? PmaxPreviousPeriodSecond { get; set; }
+    public bool? PmaxPreviousPeriodSecondQuanlity { get; set; }
     public long GroupId { get; set; }
     public DateTimeOffset CreatedTime { get; set; }
 }

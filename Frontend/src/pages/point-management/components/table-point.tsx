@@ -1,19 +1,22 @@
 import { TableProps, Tooltip } from 'antd';
+import { FaRegTrashCan } from 'react-icons/fa6';
 
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
 import Constants from '@/core/application/common/constants.ts';
 import { ActionDetailLink } from '@/infrastructure/common/components/context-menu/ActionDetailLink';
+import PrivateComponent from '@/infrastructure/common/components/private-component/private-component.tsx';
 import StatusTagCommon from '@/infrastructure/common/components/status-tag/status-tag-common.tsx';
 import TableCommon from '@/infrastructure/common/components/table/table-common';
 
 interface Props {
   dataSource: any;
   setIsShowDialog: any;
+  onOpenDeleteDialog?: (id: number, code: string) => void;
   loading?: boolean;
 }
 
 const TablePointManagement = (props: Props) => {
-  const { dataSource, loading } = props;
+  const { dataSource, loading, onOpenDeleteDialog } = props;
 
   const dataTable = dataSource.map((item: any, index: number) => {
     return {
@@ -90,10 +93,12 @@ const TablePointManagement = (props: Props) => {
       render: (_, record) => {
         const url = ROUTE_PATH.POINT_DETAIL.replace(':id', record.key.toString());
         return (
-          <ActionDetailLink
-            href={url}
-            title={`Chi tiết điểm đo: ${record.code}`}
-          />
+          <div className='flex items-center justify-center'>
+            <ActionDetailLink
+              href={url}
+              title={`Chi tiết điểm đo: ${record.code}`}
+            />
+          </div>
         );
       },
     },

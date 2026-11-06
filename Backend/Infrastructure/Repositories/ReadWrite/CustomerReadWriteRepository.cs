@@ -37,6 +37,13 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
             .FirstOrDefaultAsync(x => x.Id == id && !x.Deleted, cancellationToken);
     }
 
+    public async Task<List<CustomerEntity>> GetDeletedCustomersByCodeAsync(string code, CancellationToken cancellationToken)
+    {
+        return await _customerEntities
+            .Where(x => x.CustomerCode == code && x.Deleted)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<byte[]> GenerateCustomerPdf(ExportPdfAndExcelRequest request, CancellationToken cancellationToken)
     {
         var query = _customerEntities.AsNoTracking().Where(x => !x.Deleted);
@@ -288,7 +295,8 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
                 sb.Append(c);
             }
         }
-        return sb.ToString().Normalize(NormalizationForm.FormC).ToLowerInvariant();
+        return sb.ToString().Normalize(NormalizationForm.FormC).ToLowerInvariant()
+            .Replace("đ", "d").Replace("Đ", "D");
     }
 
     public async Task<ImportCustomerResponse> ImportCustomersFromCsvAsync(Stream fileStream, long currentUserId, string currentUserName, CancellationToken cancellationToken)
@@ -351,53 +359,62 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
         };
 
         using var csv = new CsvReader(reader, csvConfig);
-        await csv.ReadAsync();
-        csv.ReadHeader();
-
-        if (csv.HeaderRecord == null || csv.HeaderRecord.Length == 0)
-        {
-            response.Errors.Add(new ImportRowError { RowNumber = 0, ErrorMessage = "Không tìm thấy tiêu đề cột trong tệp CSV!" });
-            response.ErrorCount = 1;
-            return response;
-        }
-
         int colCode = -1, colName = -1, colPhone = -1, colEmail = -1, colAddress = -1, colStatus = -1;
-        for (int i = 0; i < csv.HeaderRecord.Length; i++)
+        bool headerFound = false;
+
+        // Quét tìm dòng tiêu đề thực sự (bỏ qua các dòng banner, ngày giờ xuất báo cáo)
+        while (await csv.ReadAsync())
         {
-            var header = NormalizeHeaderText(csv.HeaderRecord[i]);
-            if (header.Contains("ma kh") || header.Contains("customercode") || header.Contains("customer_code") || header.Equals("code") || header.Equals("makh") || header.Contains("ma khach"))
+            csv.ReadHeader();
+            if (csv.HeaderRecord == null || csv.HeaderRecord.Length == 0) continue;
+
+            colCode = -1; colName = -1; colPhone = -1; colEmail = -1; colAddress = -1; colStatus = -1;
+            for (int i = 0; i < csv.HeaderRecord.Length; i++)
             {
-                colCode = i;
+                var header = NormalizeHeaderText(csv.HeaderRecord[i]);
+                if (header.Contains("ma kh") || header.Contains("customercode") || header.Contains("customer_code") || header.Equals("code") || header.Equals("makh") || header.Contains("ma khach"))
+                {
+                    colCode = i;
+                }
+                else if (header.Contains("ten kh") || header.Contains("fullname") || header.Contains("customer_name") || header.Equals("name") || header.Equals("tenkh") || header.Contains("ten khach"))
+                {
+                    colName = i;
+                }
+                else if (header.Contains("thoai") || header.Contains("sdt") || header.Contains("phone") || header.Contains("dien thoai") || header.Contains("so dien"))
+                {
+                    colPhone = i;
+                }
+                else if (header.Contains("email") || header.Contains("mail"))
+                {
+                    colEmail = i;
+                }
+                else if (header.Contains("dia chi") || header.Contains("address") || header.Equals("diachi") || header.Contains("chi"))
+                {
+                    colAddress = i;
+                }
+                else if (header.Contains("trang thai") || header.Contains("status") || header.Equals("trangthai") || header.Contains("thai"))
+                {
+                    colStatus = i;
+                }
             }
-            else if (header.Contains("ten kh") || header.Contains("fullname") || header.Contains("customer_name") || header.Equals("name") || header.Equals("tenkh") || header.Contains("ten khach"))
+
+            if (colCode != -1 || colName != -1)
             {
-                colName = i;
-            }
-            else if (header.Contains("thoai") || header.Contains("sdt") || header.Contains("phone") || header.Contains("dien thoai") || header.Contains("so dien"))
-            {
-                colPhone = i;
-            }
-            else if (header.Contains("email") || header.Contains("mail"))
-            {
-                colEmail = i;
-            }
-            else if (header.Contains("dia chi") || header.Contains("address") || header.Equals("diachi") || header.Contains("chi"))
-            {
-                colAddress = i;
-            }
-            else if (header.Contains("trang thai") || header.Contains("status") || header.Equals("trangthai") || header.Contains("thai"))
-            {
-                colStatus = i;
+                headerFound = true;
+                break;
             }
         }
 
-        // Positional fallback matching standard export format (STT, Tên KH, Mã KH, SĐT, Email, Địa chỉ, Trạng thái)
-        if (colCode == -1 && csv.HeaderRecord.Length > 2) colCode = 2;
-        if (colName == -1 && csv.HeaderRecord.Length > 1) colName = 1;
-        if (colPhone == -1 && csv.HeaderRecord.Length > 3) colPhone = 3;
-        if (colEmail == -1 && csv.HeaderRecord.Length > 4) colEmail = 4;
-        if (colAddress == -1 && csv.HeaderRecord.Length > 5) colAddress = 5;
-        if (colStatus == -1 && csv.HeaderRecord.Length > 6) colStatus = 6;
+        if (colCode == -1 && csv.HeaderRecord != null)
+        {
+            // Positional fallback matching standard export format (STT, Tên KH, Mã KH, SĐT, Email, Địa chỉ, Trạng thái)
+            if (colCode == -1 && csv.HeaderRecord.Length > 2) colCode = 2;
+            if (colName == -1 && csv.HeaderRecord.Length > 1) colName = 1;
+            if (colPhone == -1 && csv.HeaderRecord.Length > 3) colPhone = 3;
+            if (colEmail == -1 && csv.HeaderRecord.Length > 4) colEmail = 4;
+            if (colAddress == -1 && csv.HeaderRecord.Length > 5) colAddress = 5;
+            if (colStatus == -1 && csv.HeaderRecord.Length > 6) colStatus = 6;
+        }
 
         if (colCode == -1)
         {
@@ -427,6 +444,26 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
         int rowNumber = 1;
         var now = DateTimeOffset.UtcNow;
 
+        // Dọn dẹp tự động các bản ghi rác từ tiêu đề file nếu đã bị lưu nhầm trước đó
+        var junkCustomers = await _customerEntities
+            .Where(x => !x.Deleted && (
+                x.CustomerCode == "Mã KH" ||
+                x.CustomerCode == "QUẢN LÝ KHÁCH HÀNG" ||
+                x.CustomerCode.StartsWith("Thời gian xuất") ||
+                x.CustomerCode.StartsWith("HỆ THỐNG QUẢN LÝ")
+            ))
+            .ToListAsync(cancellationToken);
+
+        if (junkCustomers.Count > 0)
+        {
+            foreach (var jc in junkCustomers)
+            {
+                jc.Deleted = true;
+                jc.ModifiedTime = now;
+            }
+            await SaveChangesAsync(cancellationToken);
+        }
+
         while (await csv.ReadAsync())
         {
             rowNumber++;
@@ -438,6 +475,19 @@ public class CustomerReadWriteRepository : RestfulRepository<CustomerEntity, App
             var rawStatus = colStatus >= 0 ? csv.GetField(colStatus)?.Trim() : null;
 
             if (string.IsNullOrWhiteSpace(code) && string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(phone) && string.IsNullOrWhiteSpace(email))
+            {
+                continue;
+            }
+
+            // Bỏ qua nếu dòng này là tiêu đề cột hoặc banner bị sót
+            if (string.Equals(code, "Mã KH", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(code, "Ma KH", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(code, "Mã khách hàng", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(code, "Tên KH", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(code, "QUẢN LÝ KHÁCH HÀNG", StringComparison.OrdinalIgnoreCase) ||
+                (code != null && code.StartsWith("Thời gian xuất", StringComparison.OrdinalIgnoreCase)) ||
+                (code != null && code.StartsWith("HỆ THỐNG QUẢN LÝ", StringComparison.OrdinalIgnoreCase)) ||
+                string.Equals(code, "STT", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }

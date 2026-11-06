@@ -8,6 +8,7 @@ namespace Application.Repositories.ReadWrite;
 public interface ICustomerReadWriteRepository : IRepository<CustomerEntity>
 {
     Task<CustomerEntity?> GetCustomerByCustomerIdAsync(long id, CancellationToken cancellationToken);
+    Task<List<CustomerEntity>> GetDeletedCustomersByCodeAsync(string code, CancellationToken cancellationToken);
     Task<byte[]> GenerateCustomerPdf(ExportPdfAndExcelRequest request, CancellationToken cancellationToken);
     Task<byte[]> GenerateCustomerCsv(ExportCustomerCsvRequest? request, CancellationToken cancellationToken);
     Task<byte[]> GenerateCustomerCsv(CancellationToken cancellationToken);

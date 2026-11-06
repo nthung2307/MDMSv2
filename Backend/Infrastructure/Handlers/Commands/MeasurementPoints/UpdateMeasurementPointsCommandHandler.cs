@@ -80,6 +80,19 @@ public class UpdateMeasurementPointsCommandHandler : IUpdateMeasurementPointsCom
                 });
             }
 
+            // Giải phóng mã điểm đo từ các bản ghi đã xóa mềm trước đó nếu còn trùng
+            var legacyDeletedPoints = await _measurementPointsReadWriteRepository.GetDeletedPointsByCodeAsync(command.Request.Code, cancellationToken);
+            if (legacyDeletedPoints != null && legacyDeletedPoints.Count > 0)
+            {
+                var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                foreach (var del in legacyDeletedPoints)
+                {
+                    del.Code = $"{del.Code}_deleted_{timestamp}_{del.Id}";
+                    await _measurementPointsReadWriteRepository.UpdateAsync(del, cancellationToken);
+                }
+                await _measurementPointsReadWriteRepository.SaveChangesAsync(cancellationToken);
+            }
+
             var gcs = await _gcsReadOnlyRepository.GetGcsAsync(measurementPoint.GcsId ?? 0, cancellationToken);
             if (gcs == null)
             {

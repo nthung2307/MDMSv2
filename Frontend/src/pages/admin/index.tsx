@@ -590,7 +590,7 @@ export const AdminPage = () => {
             element={
               <PrivateRoute
                 component={NotificationTemplatesPage}
-                roles={[Constants.Role.SuperAdmin.value, Constants.Role.Admin.value]}
+                roles={[Constants.Role.SuperAdmin.value]}
               />
             }
           />
@@ -599,7 +599,7 @@ export const AdminPage = () => {
             element={
               <PrivateRoute
                 component={StatementPdfTemplatesPage}
-                roles={[Constants.Role.SuperAdmin.value, Constants.Role.Admin.value]}
+                roles={[Constants.Role.SuperAdmin.value]}
               />
             }
           />

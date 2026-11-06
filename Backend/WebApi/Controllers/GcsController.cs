@@ -1,6 +1,7 @@
 using Application.Commands.Gcs;
 using Application.Common;
 using Application.Common.Responses.Common.Responses;
+using Application.Common.ValueObjects;
 using Application.Common.ValueObjects.CursorBased;
 using Application.DataTransferObjects.Requests.Customers;
 using Application.DataTransferObjects.Requests.Gcs;
@@ -27,13 +28,15 @@ public class GcsController : ControllerBase
     private readonly IHttpContextAccessorService _httpContextAccessorService;
     private readonly ILoggerService _loggerService;
     private readonly IGcsReadWriteRepository _gcsReadWriteRepository;
+    private readonly IGcsTemporaryReadWriteRepository _gcsTemporaryReadWriteRepository;
 
-    public GcsController(IMediator mediator, IHttpContextAccessorService httpContextAccessorService, ILoggerService loggerService, IGcsReadWriteRepository gcsReadWriteRepository)
+    public GcsController(IMediator mediator, IHttpContextAccessorService httpContextAccessorService, ILoggerService loggerService, IGcsReadWriteRepository gcsReadWriteRepository, IGcsTemporaryReadWriteRepository gcsTemporaryReadWriteRepository)
     {
         _mediator = mediator;
         _httpContextAccessorService = httpContextAccessorService;
         _loggerService = loggerService;
         _gcsReadWriteRepository = gcsReadWriteRepository;
+        _gcsTemporaryReadWriteRepository = gcsTemporaryReadWriteRepository;
     }
 
     [HttpPost]
@@ -281,6 +284,53 @@ public class GcsController : ControllerBase
         {
             _loggerService.LogError(e, nameof(ExportCsvGcsFinalAsync));
             throw;
+        }
+    }
+
+    [HttpGet]
+    [Route(Common.Url.Default.Gcs.ExportExcelGcsTemporary)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    public async Task<IActionResult> ExportExcelGcsTemporaryAsync([FromQuery] long gcsId, [FromQuery] int month, [FromQuery] int year, [FromQuery] int periodNumber, [FromQuery] bool? onlySuspicious, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var excelData = await _gcsTemporaryReadWriteRepository.ExportGcsTemporaryExcelAsync(gcsId, month, year, periodNumber, onlySuspicious, cancellationToken);
+            var fileName = $"MDMS_SoGCS_Ky{periodNumber}_T{month:D2}_{year}.xlsx";
+            return File(excelData, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(ExportExcelGcsTemporaryAsync));
+            throw;
+        }
+    }
+
+    [HttpPost]
+    [Route(Common.Url.Default.Gcs.ImportExcelGcsTemporary)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    public async Task<RequestResult<ImportGcsTemporaryExcelResponse>> ImportExcelGcsTemporaryAsync([FromForm] IFormFile file, [FromQuery] long gcsId, [FromQuery] int month, [FromQuery] int year, [FromQuery] int periodNumber, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (file == null || file.Length == 0)
+            {
+                return RequestResult<ImportGcsTemporaryExcelResponse>.Fail(new[]
+                {
+                    new ErrorItem { FieldName = "file", Error = "Vui lòng chọn file Excel để tải lên." }
+                });
+            }
+
+            using var stream = file.OpenReadStream();
+            var result = await _gcsTemporaryReadWriteRepository.ImportGcsTemporaryExcelAsync(stream, gcsId, month, year, periodNumber, cancellationToken);
+            return RequestResult<ImportGcsTemporaryExcelResponse>.Succeed(result);
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(ImportExcelGcsTemporaryAsync));
+            return RequestResult<ImportGcsTemporaryExcelResponse>.Fail(new[]
+            {
+                new ErrorItem { FieldName = "System", Error = $"Có lỗi khi xử lý import file Excel: {e.Message}" }
+            });
         }
     }
 }

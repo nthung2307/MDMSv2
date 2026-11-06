@@ -307,6 +307,6 @@ public class MeasurementPointAlertReadOnlyRepository : RestfulRepository<Measure
             query = query.Where(x => linkedCustomerIdsCount.Contains(x.MeasurementPoint.CustomerId));
         }
 
-        return await query.CountAsync(cancellationToken);
+        return await query.Where(x => x.MeasurementPoint.Status == EntityStatus.Active && !x.MeasurementPoint.Deleted).CountAsync(cancellationToken);
     }
 }

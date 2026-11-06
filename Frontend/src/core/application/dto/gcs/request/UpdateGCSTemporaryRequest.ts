@@ -1,11 +1,10 @@
 export class UpdateGCSTemporaryRequest {
-  gcsTemporaryRequests: [
-    {
-      id: number;
-      newCurrentReading?: number;
-      newPreviousReading?: number;
-    },
-  ];
+  gcsTemporaryRequests: Array<{
+    id: number;
+    newCurrentReading?: number;
+    newPreviousReading?: number;
+    isChange?: boolean;
+  }>;
   gcsId: number;
 
   month: number;
@@ -15,13 +14,12 @@ export class UpdateGCSTemporaryRequest {
   periodNumber: number;
 
   constructor(arg: {
-    gcsTemporaryRequests: [
-      {
-        id: number;
-        newCurrentReading?: number;
-        newPreviousReading?: number;
-      },
-    ];
+    gcsTemporaryRequests: Array<{
+      id: number;
+      newCurrentReading?: number;
+      newPreviousReading?: number;
+      isChange?: boolean;
+    }>;
     gcsId: number;
 
     month: number;

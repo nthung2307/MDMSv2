@@ -9,6 +9,7 @@ public interface IGcsReadWriteRepository : IRepository<GcsEntity>
 {
     Task<GcsEntity?> GetGcsByIdAsync(long id, CancellationToken cancellationToken);
     Task<bool> IsExistGcsCodeAsync(long? id, string code, CancellationToken cancellationToken);
+    Task<List<GcsEntity>> GetDeletedGcsByCodeAsync(string code, CancellationToken cancellationToken);
     Task<byte[]> GenerateGcsPdf(ExportPdfAndExcelRequest request, CancellationToken cancellationToken);
     Task<byte[]> GenerateGcsCsv(CancellationToken cancellationToken);
     Task<byte[]> GenerateGcsFinalPdf(ExportPdfAndExcelGcsFinalRequest request, CancellationToken cancellationToken);

@@ -124,7 +124,7 @@ const GCSCheck = () => {
       <div className='flex justify-between items-center'>
         <BreadcrumbUI
           items={[
-            { name: 'Quản lý sổ ghi chỉ số', link: ROUTE_PATH.GCS_MANAGEMENT },
+            { name: 'Quản lý sổ GCS', link: ROUTE_PATH.GCS_MANAGEMENT },
             {
               name: `${GCSName}`,
             },

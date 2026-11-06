@@ -1,6 +1,6 @@
-import { Card } from 'antd';
+import { Card, Checkbox } from 'antd';
 import { useEffect, useRef, useState } from 'react';
-import { FiRefreshCw, FiShare } from 'react-icons/fi';
+import { FiDownload, FiRefreshCw, FiShare } from 'react-icons/fi';
 import { LuSave } from 'react-icons/lu';
 import { TbBook2 } from 'react-icons/tb';
 import { useNavigate } from 'react-router-dom';
@@ -23,11 +23,13 @@ import { notifyError, notifySuccess } from '@/infrastructure/common/components/t
 import useDebounce from '@/infrastructure/common/libs/hooks/useDebounce.hook';
 import { useStateDataForm } from '@/infrastructure/common/libs/hooks/useStateDataForm.hook';
 import useGetDataGcsHook from '@/infrastructure/repository/IoT/hooks/useGetDataGcs.hook';
+import useExportGcsTemporaryExcelHook from '@/infrastructure/repository/gcs/hooks/useExportGcsTemporaryExcel.hook';
 import useFinalMeterReadingHook from '@/infrastructure/repository/gcs/hooks/useFinalMeterReding.hook';
 import useUpdateGcsTemporaryHook from '@/infrastructure/repository/gcs/hooks/useUpdateGCSTemporary.hook';
 import { deleteParams, formatNumberWithCommas } from '@/infrastructure/utils/helpers';
 import { _t } from '@/infrastructure/utils/translation';
 import DialogGCS from '@/pages/gcs-sum/components/dialog-gcs';
+import DialogImportExcel from '@/pages/gcs-sum/components/dialog-import-excel';
 import SearchGCS from '@/pages/gcs-sum/components/search-gcs';
 import TableGcs from '@/pages/gcs-sum/components/table-gcs';
 
@@ -44,7 +46,7 @@ const GCSSum = () => {
   const navigate = useNavigate();
   const [dataForm, setDataForm] = useStateDataForm({});
   const [loading, setLoading] = useState<boolean>(false);
-  const [size, setSize] = useState<number>(10);
+  const [size, setSize] = useState<number>(24);
   const [GCSName, setGCSName] = useState<any>();
   const [dataReading, setDataReading] = useState<any>({});
   const [validate, setValidate] = useState<any>({});
@@ -52,10 +54,12 @@ const GCSSum = () => {
   const [gcsParams, setGcsParams] = useState<GcsParams>();
   const [data, setData] = useState<any[]>();
   const [getDataGcsRequest] = useGetDataGcsHook();
+  const [exportExcel] = useExportGcsTemporaryExcelHook();
   const [getFinalMeterReadingRequest] = useFinalMeterReadingHook();
   const [updateGcsTemporaryRequest] = useUpdateGcsTemporaryHook();
   const [isSave, setIsSave] = useState(false);
   const [isShowExport, setIsShowExport] = useState<boolean>(false);
+  const [isShowImportExcel, setIsShowImportExcel] = useState<boolean>(false);
   const [isShowDialog, setIsShowDialog] = useState<any>(false);
   const [isShowDialogSave, setIsShowDialogSave] = useState<any>(false);
   const [isShowDialogEdit, setIsShowDialogEdit] = useState<any>({
@@ -63,12 +67,21 @@ const GCSSum = () => {
     record: null,
     fieldType: 'current',
   });
+  const [isManualChange, setIsManualChange] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (isShowDialogEdit.isOpen && isShowDialogEdit.record) {
+      setIsManualChange(isShowDialogEdit.record.isChange ?? false);
+    }
+  }, [isShowDialogEdit.isOpen, isShowDialogEdit.record]);
   const [getListDataGCSRequest, setGetListDataGCSRequest] = useState<GetListDataGCSRequest>();
-  const [refreshState, setRefreshState] = useState<boolean>(true);
+  const [refreshState, setRefreshState] = useState<boolean>(false);
   const [paginationData, setPaginationData] = useState<{
     hasNext: boolean;
     hasPrevious: boolean;
     totalCount?: number;
+    totalMeasurementPoints?: number;
+    totalSuspiciousCount?: number;
   }>({ hasNext: false, hasPrevious: false });
   const firstPointID = data?.[0]?.id;
   const lastPointID = data?.[data.length - 1]?.id;
@@ -92,6 +105,7 @@ const GCSSum = () => {
       measurementPointId: '',
       fullName: '',
       meterReadingSet: '',
+      statusFilter: '',
       quanlity: '',
     });
     setGetListDataGCSRequest({
@@ -138,7 +152,45 @@ const GCSSum = () => {
           newCurrentReading: isEditCurrent ? editedValue : record.newCurrentReading,
           newPreviousReading: isEditCurrent ? record.newPreviousReading : editedValue,
           consumption,
+          isChange: isManualChange,
+          isSuspicious: false,
+          suspiciousReason: null,
         };
+
+        // Tính toán lại hệ số Cosphi (PF) trung bình của điểm đo dựa trên sản lượng AP & AQ
+        const pointId = record.measurementPointId ?? record.measurementPoint?.id;
+        if (pointId !== undefined) {
+          const pointRows = dataEx.filter(
+            (r) => (r.measurementPointId ?? r.measurementPoint?.id) === pointId
+          );
+          const sgRow = pointRows.find((r) => r.meterReadingSet === 'SG');
+          const vcRow = pointRows.find((r) => r.meterReadingSet === 'VC');
+          const btRow = pointRows.find((r) => r.meterReadingSet === 'BT');
+          const cdRow = pointRows.find((r) => r.meterReadingSet === 'CD');
+          const tdRow = pointRows.find((r) => r.meterReadingSet === 'TD');
+
+          let apVal = sgRow?.consumption ?? null;
+          if (
+            (apVal === null || apVal <= 0) &&
+            (btRow?.consumption != null || cdRow?.consumption != null || tdRow?.consumption != null)
+          ) {
+            const sumTariff =
+              (btRow?.consumption ?? 0) + (cdRow?.consumption ?? 0) + (tdRow?.consumption ?? 0);
+            if (sumTariff > 0 || apVal === null) apVal = sumTariff;
+          }
+          const aqVal = vcRow?.consumption ?? 0;
+          let avgCosPhi: number | null = null;
+          if (apVal !== null && apVal >= 0) {
+            const q = Math.max(0, aqVal);
+            const s = Math.sqrt(apVal * apVal + q * q);
+            avgCosPhi = s > 0 ? Number((apVal / s).toFixed(2)) : 0;
+          }
+          dataEx.forEach((r, idx) => {
+            if ((r.measurementPointId ?? r.measurementPoint?.id) === pointId) {
+              dataEx[idx] = { ...dataEx[idx], cosPhi: avgCosPhi };
+            }
+          });
+        }
       }
       setData(dataEx);
       const requestPayload =
@@ -146,10 +198,12 @@ const GCSSum = () => {
           ? {
               id: record.id,
               newCurrentReading: Number(dataReading.newValueReading),
+              isChange: isManualChange,
             }
           : {
               id: record.id,
               newPreviousReading: Number(dataReading.newValueReading),
+              isChange: isManualChange,
             };
       const params = new UpdateGCSTemporaryRequest({
         gcsTemporaryRequests: [requestPayload],
@@ -217,12 +271,14 @@ const GCSSum = () => {
     month,
     year,
     quanlity,
+    isSuspicious,
   }: GetListDataGCSRequest) => {
     const params: GetListDataGCSRequest = {
       pageSize: pageSize,
       ...(before && { before }),
       ...(after && { after }),
-      ...(!quanlity && { quanlity }),
+      ...(quanlity !== undefined && { quanlity }),
+      ...(isSuspicious !== undefined && { isSuspicious }),
       searchByFields: searchByFields.length > 0 ? searchByFields : [],
       sortByFields: sortByFields.length > 0 ? sortByFields : [],
       gcsId: gcsId ?? 0,
@@ -231,6 +287,9 @@ const GCSSum = () => {
       year: year ?? 0,
       isRefresh: refreshState,
     };
+    if (refreshState) {
+      setRefreshState(false);
+    }
     await getDataGcsRequest(
       params,
       (res: DataResponse) => {
@@ -243,9 +302,31 @@ const GCSSum = () => {
           hasNext: data.hasNext,
           hasPrevious: data.hasPrevious,
           totalCount: data.totalCount,
+          totalMeasurementPoints: data.totalMeasurementPoints,
+          totalSuspiciousCount: data.totalSuspiciousCount,
         });
       },
       () => {},
+      setLoading
+    );
+  };
+
+  const handleExportExcel = () => {
+    if (!gcsParams) return;
+    exportExcel(
+      {
+        gcsId: gcsParams.gcsId,
+        month: gcsParams.month,
+        year: gcsParams.year,
+        periodNumber: gcsParams.periodNumber,
+        onlySuspicious: false,
+      },
+      () => {
+        notifySuccess('Tải file Excel thành công!');
+      },
+      (err) => {
+        notifyError(err, 'Lỗi khi tải file Excel!');
+      },
       setLoading
     );
   };
@@ -286,12 +367,17 @@ const GCSSum = () => {
         });
       }
 
-      const params = {
+      const params: any = {
         ...getListDataGCSRequest,
         ...gcsParams,
         searchByFields,
-        ...(dataForm?.quanlity && { quanlity: false }),
       };
+
+      if (dataForm?.statusFilter === 'suspicious') {
+        params.isSuspicious = true;
+      } else if (dataForm?.statusFilter === 'valid') {
+        params.isSuspicious = false;
+      }
 
       getListDataGcsAsync(params);
     }
@@ -299,10 +385,12 @@ const GCSSum = () => {
     gcsParams,
     debounceMeasurementPointId,
     debounceFullName,
-    dataForm?.quanlity,
+    dataForm?.statusFilter,
     size,
     getListDataGCSRequest,
   ]);
+
+  const suspiciousCount = paginationData?.totalSuspiciousCount ?? 0;
 
   useEffect(() => {
     if (!isShowDialogEdit.isOpen || !isShowDialogEdit.record) {
@@ -325,14 +413,14 @@ const GCSSum = () => {
         {data ? (
           <BreadcrumbUI
             items={[
-              { name: 'Chốt tháng mới' },
+              { name: 'Ghi chỉ số' },
               {
-                name: `${GCSName ? GCSName.nameGcs['name'] : 'Sổ ghi'} Tháng ${GCSName?.month}/${GCSName?.year} kì ${GCSName?.periodNumber} (0:00 [ngày ${periodDate == 999 ? 'cuối tháng' : periodDate}])`,
+                name: `${GCSName ? GCSName.nameGcs['name'] : 'Sổ ghi'} - Kỳ ${GCSName?.periodNumber ?? 1} Tháng ${GCSName?.month}/${GCSName?.year}`,
               },
             ]}
           />
         ) : (
-          <h1 className='text-24-28 font-bold'>{_t('Chốt tháng mới')}</h1>
+          <h1 className='text-24-28 font-bold'>{_t('Ghi chỉ số')}</h1>
         )}
         <div className='flex gap-2'>
           {data && (
@@ -367,7 +455,11 @@ const GCSSum = () => {
             <ButtonCommonCustomizable
               title={''}
               classButton='text-button-variant'
-              tooltipText={'Chốt sổ'}
+              tooltipText={
+                suspiciousCount > 0
+                  ? `Còn ${suspiciousCount} số liệu nghi ngờ chưa hiệu chỉnh (Không thể chốt sổ)`
+                  : 'Chốt sổ'
+              }
               disabled={isSave}
               onClick={() => {
                 setIsShowDialogSave(true);
@@ -381,9 +473,21 @@ const GCSSum = () => {
               classButton='text-button-variant'
               tooltipText='Xuất file'
               onClick={() => {
-                setIsShowExport(true);
+                handleExportExcel();
               }}
               icon={<FiShare size={20} />}
+              disabled={!(data && data.length > 0)}
+            />
+          )}
+          {data && (
+            <ButtonCommonCustomizable
+              title={_t('')}
+              classButton='text-button-variant'
+              tooltipText='Nhập file'
+              onClick={() => {
+                setIsShowImportExcel(true);
+              }}
+              icon={<FiDownload size={20} />}
               disabled={!(data && data.length > 0)}
             />
           )}
@@ -405,6 +509,7 @@ const GCSSum = () => {
                 setRefreshState={setRefreshState}
               />
             </div>
+
             <div ref={tableRef}>
               <TableGcs
                 dataSource={data ?? []}
@@ -414,6 +519,7 @@ const GCSSum = () => {
             </div>
             <PaginationCommon
               pageSize={size}
+              pageSizeOptions={['24', '48', '96', '192']}
               total={paginationData?.totalCount}
               currentCount={data?.length || 0}
               hasNext={paginationData?.hasNext}
@@ -456,7 +562,7 @@ const GCSSum = () => {
         title={`${GCSName ? GCSName.nameGcs['name'] : 'Sổ ghi'} Tháng ${GCSName?.month}/${GCSName?.year} kì ${GCSName?.periodNumber} (0:00 [ngày ${periodDate}])`}
         dataSource={dataExport}
         listHeader={Constants.listHeaderExport.GcsSum}
-        fileNameCsv={'ghichiso'}
+        fileNameCsv={`MDMS_SoGCS_${(GCSName ? GCSName.nameGcs['name'] : 'SoGCS').replace(/[\\/:*?"<>|]/g, '_')}_Ky${GCSName?.periodNumber}_T${String(GCSName?.month).padStart(2, '0')}_${GCSName?.year}`}
         typeExportAll={'gcs'}
         subTypeExportAll={'gcs-final'}
         requestBody={gcsParams}
@@ -472,16 +578,31 @@ const GCSSum = () => {
         title={''}
         visible={isShowDialogSave}
         handleCancel={() => {
-          setIsShowDialogSave(!isShowDialogSave);
+          setIsShowDialogSave(false);
         }}
         handleConfirm={finalMeterReadingAsync}
-        isButtonSubmit={true}
+        isButtonSubmit={suspiciousCount === 0}
+        disableSubmitButton={suspiciousCount > 0}
         showFooter={true}
       >
         <div className='flex flex-col gap-4'>
-          <div className='flex flex-col justify-center items-center my-10 gap-2'>
+          <div className='flex flex-col justify-center items-center my-6 gap-2'>
             <p className='text-20-20 font-bold'>{'Xác nhận lưu thông tin sổ GCS'}</p>
-            <p className='text-16-16'>{`Sau khi xác nhận sẽ không thể sửa thông tin đã lưu.`}</p>
+            {suspiciousCount === 0 ? (
+              <p className='text-16-16'>{`Sau khi xác nhận sẽ không thể sửa thông tin đã lưu.`}</p>
+            ) : (
+              <div className='mt-3 p-4 bg-red-50 border border-red-300 rounded-lg text-red-900 text-sm text-center font-medium space-y-1'>
+                <div className='text-base font-bold text-red-700 flex items-center justify-center gap-1'>
+                  ⛔ Không thể xác nhận chốt sổ!
+                </div>
+                <div>
+                  Hiện còn <strong>{suspiciousCount}</strong> bản ghi có số liệu nghi ngờ hoặc chưa cập nhật chỉ số mới.
+                </div>
+                <div className='text-xs text-red-600 mt-1'>
+                  Người dùng chỉ được xác nhận chốt sổ nếu không còn số liệu nghi ngờ (sau khi đã nhập liệu thủ công hoặc Import file Excel có chuyển màu sang <strong>Normal</strong>).
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </DialogCommon>
@@ -522,8 +643,50 @@ const GCSSum = () => {
             disabled={false}
             isInteger={false}
           />
+          <div className='flex items-center gap-2 mt-2 pt-1'>
+            <Checkbox
+              checked={isManualChange}
+              onChange={(e) => setIsManualChange(e.target.checked)}
+            >
+              <span className='text-sm text-gray-700 font-medium'>
+                Đánh dấu đã hiệu chỉnh thủ công (ký hiệu <b>M</b>)
+              </span>
+            </Checkbox>
+          </div>
+          <div className='text-xs text-gray-400 italic'>
+            Bỏ chọn nếu đây là số liệu chốt chuẩn từ công tơ hoặc không muốn gắn ký hiệu 'M' trên báo cáo.
+          </div>
         </div>
       </DialogCommon>
+
+      {gcsParams && (
+        <DialogImportExcel
+          open={isShowImportExcel}
+          handleCancel={() => setIsShowImportExcel(false)}
+          onSuccess={() => {
+            setIsShowImportExcel(false);
+            setRefreshState(false);
+            if (dataForm?.statusFilter === 'suspicious') {
+              setDataForm({
+                ...dataForm,
+                statusFilter: '',
+              });
+            }
+            setGetListDataGCSRequest((prev) => {
+              const updated = {
+                ...prev,
+                gcsId: gcsParams?.gcsId ?? 0,
+                periodNumber: gcsParams?.periodNumber ?? 0,
+                month: gcsParams?.month ?? 0,
+                year: gcsParams?.year ?? 0,
+              };
+              return deleteParams(updated, ['before', 'after']);
+            });
+          }}
+          gcsParams={gcsParams}
+          onDownloadTemplate={handleExportExcel}
+        />
+      )}
     </div>
   );
 };

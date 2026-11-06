@@ -61,7 +61,7 @@ public class UserReadOnlyRepository : RestfulRepository<UserEntity, AppReadOnlyD
     {
         var existingUserCount = await _userEntities
             .AsNoTracking()
-            .Where(x => ids.Contains(x.Id))
+            .Where(x => ids.Contains(x.Id) && !x.Deleted)
             .CountAsync(cancellationToken);
 
         return existingUserCount == ids.Count;

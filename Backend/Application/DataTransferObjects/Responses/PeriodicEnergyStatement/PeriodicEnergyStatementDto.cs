@@ -28,6 +28,7 @@ public class PeriodicEnergyStatementDto
     public double ConsumtionTd { get; set; }
     public double ConsumtionSg { get; set; }
     public double ConsumtionVc { get; set; }
+    public double? CosPhi { get; set; }
     public int? PreviousDay { get; set; }
     public int? PreviousMonth { get; set; }
     public int? PreviousYear { get; set; }
@@ -38,4 +39,7 @@ public class PeriodicEnergyStatementDto
     public string SerialNumber { get; set; }
     public DateTimeOffset? SentTime { get; set; }
     public DateTimeOffset CreatedTime { get; set; }
+    public DateTimeOffset? PmaxTime { get; set; }
+    public DateTimeOffset? PreviousPmaxTime { get; set; }
+    public DateTimeOffset? BillingTimestamp { get; set; }
 }

@@ -22,5 +22,23 @@ namespace Infrastructure.Repositories.ReadWrite
                 .Where(x => x.CreatedTime.Value.Hour == DateTime.Now.AddHours(-1).Hour)
                 .ToListAsync(cancellationToken);
         }
+
+        public async Task<Dictionary<(long MeasurementPointId, string TagNameDescription), MeasurementPointMonitoringByStatusEntity>> GetLatestStatusRecordsAsync(
+            List<long> measurementPointIds,
+            CancellationToken cancellationToken)
+        {
+            if (measurementPointIds.Count == 0)
+                return new Dictionary<(long, string), MeasurementPointMonitoringByStatusEntity>();
+
+            var records = await _measurementPointMonitoringByStatusEntities
+                .Where(x => measurementPointIds.Contains(x.MeasurementPointId) && x.TagNameDescription != null)
+                .OrderByDescending(x => x.CreatedTime)
+                .ThenByDescending(x => x.Id)
+                .ToListAsync(cancellationToken);
+
+            return records
+                .GroupBy(x => (x.MeasurementPointId, x.TagNameDescription!))
+                .ToDictionary(g => g.Key, g => g.First());
+        }
     }
 }

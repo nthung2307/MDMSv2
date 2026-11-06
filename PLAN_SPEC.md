@@ -1,414 +1,315 @@
-# [PLAN] NÂNG CẤP HỆ THỐNG EMAIL DOANH NGHIỆP (MICROSOFT GRAPH API & SMTP/GMAIL), QUẢN LÝ ĐA MẪU THÔNG BÁO VÀ NGHIỆP VỤ ĐO ĐẾM CHUYÊN SÂU CÔNG TƠ EDMI MK6 (PMAX, TREO THÁO & CHỐT CHỈ SỐ)
+# [PLAN] KẾ HOẠCH TRIỂN KHAI NÂNG CẤP HỆ THỐNG EMAIL DOANH NGHIỆP, QUẢN LÝ MẪU EMAIL (HTML MODULAR) & PHIẾU BÁO CHỈ SỐ (EXCEL TO PDF QUA LIBREOFFICE HEADLESS) VÀ TÁI CẤU TRÚC NGHIỆP VỤ CHỐT CHỈ SỐ GCS (PURE PUSH REST SERVER)
 
-> **Tài liệu đặc tả kỹ thuật kiến trúc & Kế hoạch triển khai (Technical Specification & Task Breakdown)**  
-> **Phiên bản:** v2.1.0-ENTERPRISE  
-> **Tác giả:** MDMS-Planner (Principal Solution Architect)  
-> **Dự án:** MDMSv2 - Hệ thống Quản trị Dữ liệu Đo đếm Công tơ Điện tử (Meter Data Management System)  
-> **Địa bàn triển khai thực tế:** Khu Công Nghiệp VSIP Hải Phòng  
-> **Mục tiêu thực thi:** Chuyển giao trực tiếp cho `MDMS-Coder` thực thi mã nguồn, `MDMS-Tester` kiểm thử toàn diện và `MDMS-Reviewer` thẩm định chất lượng theo chuỗi Multi-Agent của MDMSv2.
+> **Tài liệu Đặc Tả Kỹ Thuật & Kế Hoạch Triển Khai (Technical Specification & Task Breakdown)**  
+> **Phiên bản:** v2.2.0-ENTERPRISE  
+> **Kiến trúc sư giải pháp:** `MDMS-Planner`  
+> **Dự án:** MDMSv2 - Hệ thống Quản trị Dữ liệu Đo đếm Điện tử (Meter Data Management System)  
+> **Địa bàn áp dụng:** KCN VSIP Hải Phòng & Hệ thống Khách hàng Doanh nghiệp  
+> **Vị trí trong chuỗi Multi-Agent:** Phase 1 - Khởi tạo & Định hướng Kiến trúc  
 
 ---
 
 ## 1. MỤC TIÊU & PHẠM VI (OBJECTIVES & SCOPE)
 
-### 1.1. Module 1: Nâng cấp Đa Nền tảng Dịch vụ Email Doanh Nghiệp (Enterprise Email Providers)
-1. **Hỗ trợ Microsoft Graph API (OAuth 2.0 Client Credentials Grant Flow)**:
-   * Đáp ứng trực tiếp yêu cầu từ phòng IT của **VSIP Hải Phòng** (`noreply.hoadondientu.hp@vsip.com.vn`).
-   * Sử dụng App Registration trên Azure AD/Entra ID với các thông số:
-     - **Tenant ID**: `5e5bd7f8-2adb-4595-956a-a03d68ea32a6`
-     - **Client ID**: `6a86904e-3153-496f-8c1b-986ae398747a`
-     - **Client Secret**: `[AZURE_CLIENT_SECRET]`
-     - **Endpoint**: `https://graph.microsoft.com/v1.0/users/{senderEmail}/sendMail`
-   * Cơ chế tự động quản lý và cache Access Token (kèm refresh token khi hết hạn), hỗ trợ gửi đính kèm file PDF base64.
-2. **Hỗ trợ Custom SMTP Server (Doanh nghiệp nội bộ)**:
-   * Cho phép khách hàng kết nối tới hệ sinh thái máy chủ thư điện tử riêng (Exchange On-Premise, Postfix, Zimbra, Lotus Domino...).
-   * Hỗ trợ cấu hình cổng linh hoạt: Port 25 (Internal IP Relay không yêu cầu mật khẩu), Port 465 (SSL), Port 587 (STARTTLS).
-   * Cơ chế xác thực tùy biến: Có xác thực (Username/Password) hoặc Không xác thực (Relay IP Whitelist).
-3. **Bảo lưu và hoàn thiện kết nối Gmail / Google Workspace (App Password)**:
-   * Hỗ trợ doanh nghiệp vừa và nhỏ sử dụng Gmail SMTP (`smtp.gmail.com:587`).
-4. **Quản trị Cấu hình Động & Kiểm thử Kết nối (Dynamic Configuration & Test Connection)**:
-   * Toàn bộ cấu hình Email Server được quản lý trong Cơ sở dữ liệu và giao diện Quản trị SuperAdmin/Admin (bảo mật mã hóa AES-256 các thông tin nhạy cảm Client Secret, Password).
-   * Bổ sung tính năng **"Kiểm tra kết nối (Test Connection)"**: Nhập địa chỉ email bất kỳ $\to$ Hệ thống gửi thư kiểm tra và hiển thị ngay kết quả thông suốt kèm log chi tiết.
+### 1.1. Module 1: Đa Nền Tảng Dịch Vụ Email Doanh Nghiệp (Đã Hoàn Thành)
+1. **Microsoft Graph API (OAuth 2.0 Client Credentials Grant Flow)**:
+   - Tích hợp chuẩn giao thức gửi thư của tập đoàn VSIP (`noreply.hoadondientu.hp@vsip.com.vn`).
+   - Tự động xác thực qua Microsoft Entra ID (Azure AD), quản lý In-Memory Token Caching tự động refresh khi hết hạn.
+   - Hỗ trợ gửi file đính kèm PDF Base64.
+2. **Custom SMTP Server (Hệ thống Mail Server Doanh nghiệp)**:
+   - Hỗ trợ Exchange On-Premise, Postfix, Zimbra, Lotus Domino...
+   - Cấu hình linh hoạt các cổng: Port 25 (Internal Relay không mật khẩu), Port 465 (SSL/TLS), Port 587 (STARTTLS).
+3. **Gmail / Google Workspace (App Password)**:
+   - Hỗ trợ doanh nghiệp sử dụng tài khoản Google Workspace.
+4. **Quản trị cấu hình động & Test Connection**:
+   - Quản trị viên tùy chọn Provider, nhập tham số và nhấn "Kiểm tra kết nối" gửi mail test thời gian thực.
 
 ---
 
-### 1.2. Module 2: Quản lý Đa Mẫu Email và Đa Mẫu "Phiếu Báo" (Customizable Multi-Templates)
-1. **Quản lý Đa Mẫu Email (Email Templates)**:
-   * Cho phép tạo mới, chỉnh sửa, nhân bản và xóa nhiều mẫu email cho từng nghiệp vụ:
-     - `USER_CREDENTIAL`: Email thông báo tài khoản / mật khẩu khởi tạo cho người dùng.
-     - `FORGOT_PASSWORD`: Email cấp lại mật khẩu hoặc liên kết đặt lại mật khẩu.
-     - `STATEMENT_NOTIFICATION`: Email thông báo chỉ số, sản lượng và gửi kèm Phiếu báo điện năng hàng tháng.
-   * Tích hợp **Template Engine (Fluid / Liquid Syntax)** hỗ trợ bộ thẻ biến nghiệp vụ động (Merge Tags / Placeholders):
-     - Biến khách hàng: `{{CustomerName}}`, `{{PointCode}}`, `{{Address}}`, `{{SerialNumber}}`.
-     - Biến chỉ số & sản lượng: `{{Bt}}`, `{{Cd}}`, `{{Td}}`, `{{Sg}}`, `{{Vc}}`, `{{PreviousBt}}`, `{{ConsumtionBt}}`, `{{ConsumtionTotal}}`.
-     - Biến công suất: `{{Pmax}}`, `{{PmaxTime}}`.
-     - Biến chăm sóc khách hàng: `{{CareFullname}}`, `{{CareEmail}}`, `{{CarePhone}}`.
-   * Giao diện trình soạn thảo trực quan Rich Text Editor kèm tính năng **"Xem trước (Live Preview)"** với dữ liệu mẫu thực tế.
-2. **Quản lý Đa Mẫu "Phiếu Báo" PDF (PDF Statement Templates)**:
-   * Cho phép định nghĩa nhiều Profile mẫu phiếu báo PDF phù hợp với từng phân khúc khách hàng hoặc từng thời điểm:
-     - Tải lên Logo đơn vị bán điện riêng biệt (Base64 / URL).
-     - Tùy chỉnh thông tin Bên A (Đơn vị bán điện): Tên doanh nghiệp, Địa chỉ, Mã số thuế, Hotline, Fax.
-     - Tùy chỉnh kích thước khổ giấy: **A5 Landscape** (khổ ngang truyền thống) hoặc **A4 Portrait** (khổ đứng chuẩn hồ sơ kế toán).
-     - Bật / Tắt linh hoạt các cột dữ liệu: Cột $P_{max}$, Cột Hệ số công suất $Cos\varphi$, Cột Điện năng phản kháng Vô công ($AQ$).
-     - Tùy biến phần xác nhận chân trang (Footer): 1 bên ký hoặc 2 bên cùng ký xác nhận.
-   * Cho phép chọn mẫu Phiếu báo áp dụng mặc định theo Điểm đo (`MeasurementPoint`) hoặc chọn mẫu áp dụng ngay tại thời điểm xuất/phát hành hàng loạt.
+### 1.2. Module 2: Quản Lý Mẫu Email Doanh Nghiệp (HTML Khoa Học - Dễ Hiệu Chỉnh)
+1. **Yêu cầu cốt lõi**:
+   - Quản trị viên hệ thống là cán bộ vận hành, không có kỹ năng lập trình HTML/CSS, do đó mã nguồn email phải được **chia thành các khối (Modular Blocks) rõ ràng bằng các thẻ HTML comment tường minh**.
+   - Khi cần chỉnh sửa nội dung văn bản (đổi tên công ty, đổi số hotline, sửa câu từ chúc mừng/hướng dẫn), quản trị viên chỉ cần tìm đến khối tương ứng, sửa chữ tiếng Việt bình thường mà **không làm vỡ cấu trúc bảng (table) và responsive layout của email**.
+2. **3 Mẫu Email Doanh Nghiệp Chuẩn Hóa**:
+   - **Mẫu 1: `USER_CREDENTIAL` (Thông tin cấp tài khoản người dùng mới)**:
+     * Khối 1: Header - Tên công ty (`{{CompanyName}}`), Hệ thống MDMS.
+     * Khối 2: Bảng thông tin tài khoản: Họ tên (`{{FullName}}`), Tên đăng nhập (`{{Username}}`), Mật khẩu khởi tạo (`{{Password}}`), Đơn vị (`{{CustomerName}}`).
+     * Khối 3: Nút bấm truy cập (CTA Button): "ĐĂNG NHẬP VÀO HỆ THỐNG" (`{{LoginUrl}}`).
+     * Khối 4: Khuyến cáo an toàn thông tin: Nhắc nhở đổi mật khẩu ngay trong lần đăng nhập đầu tiên, không chia sẻ cho bên thứ ba.
+     * Khối 5: Bộ phận hỗ trợ kỹ thuật (`{{CareFullname}}`, `{{SupportPhone}}`, `{{SystemEmail}}`).
+     * Khối 6: Chân trang hệ thống tự động.
+   - **Mẫu 2: `FORGOT_PASSWORD` (Yêu cầu thiết lập lại mật khẩu)**:
+     * Khối 1: Header - Tên công ty (`{{CompanyName}}`), Tiêu đề yêu cầu.
+     * Khối 2: Thông tin tài khoản gửi yêu cầu (`{{Username}}`).
+     * Khối 3: Nút bấm đặt lại mật khẩu: "THIẾT LẬP LẠI MẬT KHẨU" (`{{ResetLink}}`).
+     * Khối 4: Cảnh báo bảo mật: Thời hạn liên kết có hiệu lực chính xác **10 phút**.
+     * Khối 5: Kênh liên hệ kỹ thuật giải đáp khẩn cấp.
+     * Khối 6: Chân trang hệ thống.
+   - **Mẫu 3: `STATEMENT_NOTIFICATION` (Thông báo chỉ số điện, sản lượng & Pmax)**:
+     * Khối 1: Header - Tên công ty (`{{CompanyName}}`), Kỳ ghi chỉ số (`{{Period}}`).
+     * Khối 2: Thông tin khách hàng & Điểm đo: Mã KH (`{{CustomerCode}}`), Tên KH (`{{CustomerName}}`), Tên điểm đo (`{{PointName}}`), Mã điểm đo (`{{PointCode}}`), Số công tơ (`{{MeterSerial}}`), Hệ số nhân HSN (`{{Multiplier}}`), Địa chỉ (`{{Address}}`), Chu kỳ từ ngày (`{{FromDate}}`) đến ngày (`{{ToDate}}`).
+     * Khối 3: Bảng chỉ số đo đếm & sản lượng 3 biểu giá đầy đủ:
+       - Biểu Bình thường (BT): Chỉ số cũ `{{PreviousBt}}` | Chỉ số mới `{{Bt}}` | Sản lượng `{{ConsumtionBt}}` kWh.
+       - Biểu Cao điểm (CD): Chỉ số cũ `{{PreviousCd}}` | Chỉ số mới `{{Cd}}` | Sản lượng `{{ConsumtionCd}}` kWh.
+       - Biểu Thấp điểm (TD): Chỉ số cũ `{{PreviousTd}}` | Chỉ số mới `{{Td}}` | Sản lượng `{{ConsumtionTd}}` kWh.
+       - Tổng hữu công (SG): Chỉ số cũ `{{PreviousSg}}` | Chỉ số mới `{{Sg}}` | Sản lượng `{{ConsumtionTotal}}` kWh.
+       - Điện phản kháng vô công (VC): Chỉ số cũ `{{PreviousVc}}` | Chỉ số mới `{{Vc}}` | Sản lượng `{{ConsumtionVc}}` kVARh.
+     * Khối 4: Thông số vận hành phụ tải:
+       - Công suất cực đại $P_{max}$ (`{{Pmax}}`).
+       - Thời điểm xuất hiện $P_{max}$ (`{{PmaxTime}}`).
+       - Hệ số công suất $\text{Cos}\ \varphi$ (`{{CosPhi}}`).
+     * Khối 5: Thông báo đính kèm tệp: Phiếu báo chỉ số định dạng PDF (`PhieuBaoSo_{{SerialNumber}}.pdf`).
+     * Khối 6: Thông tin liên hệ đối soát: Người phụ trách (`{{CareFullname}}`), Hotline (`{{CarePhone}}`), Email tiếp nhận (`{{CareEmail}}`).
+     * Khối 7: Chân trang hệ thống tự động.
 
 ---
 
-### 1.3. Module 3: Nghiệp vụ Đo đếm Chuyên sâu cho Công tơ EDMI MK6E & MK6N (VSIP Hải Phòng)
-1. **Khai thác Bộ chỉ số Chốt Tự động (Frozen Billing Registers) của EDMI MK6**:
-   * Công tơ EDMI MK6E/MK6N tự động thực hiện Billing Reset vào thời điểm cài đặt (00:00:00 ngày đầu kỳ) và lưu giữ bất biến bộ chỉ số chốt trong bộ nhớ EEPROM.
-   * Hệ thống thiết lập ưu tiên tuyệt đối: Khi thực hiện chốt sổ GCS kỳ, hệ thống sẽ đọc trực tiếp các thanh ghi **Previous Billing Registers** của công tơ. Đảm bảo dữ liệu chốt luôn chính xác 100% tại thời điểm 00:00:00 của công tơ, loại bỏ hoàn toàn sai số trôi dạt do độ trễ truyền thông Modbus RTU qua mạng.
-2. **Ghi nhận Công suất Cực đại ($P_{max}$ - Max Demand) & Thời điểm Ghi nhận ($T_{Pmax}$)**:
-   * Thu thập đồng thời:
-     - $P_{max}$ và $T_{Pmax}$ của kỳ chốt vừa qua (Previous Billing Demand).
-     - $P_{max}$ và $T_{Pmax}$ của kỳ đang vận hành hiện tại (Current Demand).
-   * Lưu trữ dấu thời gian chính xác (Ngày, tháng, năm, giờ, phút) và hiển thị minh bạch trên Phiếu báo số điện.
-3. **Nghiệp vụ "Treo / Tháo" Công tơ (Meter Replacement) & Tính Sản lượng Phân đoạn**:
-   * Xây dựng chức năng lập **"Biên bản Treo / Tháo công tơ"**:
-     - Ghi nhận thông tin công tơ tháo (Serial cũ, Chỉ số tháo $CS_{tháo}$, Hệ số nhân cũ $HS_{cũ}$).
-     - Ghi nhận thông tin công tơ treo (Serial mới, Chỉ số treo ban đầu $CS_{treo}$, Hệ số nhân mới $HS_{mới}$).
-     - Đính kèm tệp biên bản bàn giao hiện trường.
-   * **Thuật toán tính sản lượng phân đoạn tự động**:
-     $$\text{Sản lượng kỳ} = (CS_{tháo} - CS_{đầu\ kỳ}) \times HS_{cũ} + (CS_{cuối\ kỳ} - CS_{treo}) \times HS_{mới}$$
-   * Phiếu báo trong kỳ có treo tháo tự động hiển thị **2 dòng chi tiết** (Dòng công tơ cũ và Dòng công tơ mới) kèm tổng sản lượng gộp, đảm bảo tính pháp lý và minh bạch tuyệt đối đối với khách hàng mua điện.
-4. **Nghiệp vụ "Reset" Chỉ số & Tự động Bù Tràn số Công tơ (Rollover Protection)**:
-   * Ghi nhận sự kiện Reset công tơ (Manual Billing Reset hoặc Reset thanh ghi).
-   * Tự động phát hiện hiện tượng tràn số tự nhiên của công tơ ($CS_{mới} < CS_{cũ}$) để áp dụng công thức bù tràn số:
-     $$\text{Sản lượng} = [(10^n - CS_{cũ}) + CS_{mới}] \times \text{Hệ số nhân}$$
-   * Cơ chế cảnh báo bất thường (`ANOMALY_METER_READING`): Nếu chỉ số mới giảm mà không có biên bản treo tháo/reset và không khớp điều kiện tràn số hợp lý, hệ thống sẽ tự động chặn xuất phiếu báo và đẩy vào hàng đợi phúc tra.
+### 1.3. Module 3: Mẫu Phiếu Báo PDF từ Template Excel (.xlsx) qua LibreOffice Headless CLI
+1. **Vấn đề giải quyết**:
+   - Định dạng HTML-to-PDF hoặc code trực tiếp bằng QuestPDF tuy nhanh nhưng việc thay đổi form mẫu in ấn, căn lề từng milimet, đổi logo, thêm bớt ghi chú, thay đổi font chữ kế toán rất khó khăn với quản trị viên.
+   - Ngược lại, **Microsoft Excel** là công cụ văn phòng mà 100% cán bộ nghiệp vụ, kế toán và quản trị viên đều thành thạo.
+2. **Giải pháp Kiến trúc Excel $\to$ PDF**:
+   - Mẫu phiếu báo được lưu dưới dạng file Excel chuẩn (`.xlsx`).
+   - Cán bộ tải file `.xlsx` mẫu chuẩn về máy, mở trên Excel để căn chỉnh viền ô, màu sắc, font chữ, kích thước lề, thiết lập trang in (Page Setup: A5 Landscape hoặc A4 Portrait), chèn ảnh logo đơn vị.
+   - Các vị trí số liệu động được đánh dấu bằng các placeholder chuẩn: `{{TenCongTy}}`, `{{TenKhachHang}}`, `{{CSC_BT}}`, `{{CSM_BT}}`, `{{SL_BT}}`, `{{PMax}}`, `{{CosPhi}}`...
+   - Cán bộ tải file `.xlsx` đã chỉnh sửa lên hệ thống (Upload Template).
+   - **Backend Pipeline**:
+     ```
+     [Template .xlsx] + [Dữ liệu đo đếm thực tế]
+            │
+            ▼ (EPPlus thay thế các cell có {{...}})
+     [File Excel hoàn chỉnh trong bộ nhớ]
+            │
+            ▼ (Ghi ra file tạm /temp/*.xlsx)
+     [LibreOffice Headless CLI: soffice.exe --headless --convert-to pdf]
+            │
+            ▼ (PDF engine chất lượng cao)
+     [File Phiếu Báo PDF chuẩn in ấn A5/A4]
+            │
+            ▼ (Gửi kèm Email Microsoft Graph / Tải về)
+     ```
+   - Chạy trên máy chủ Windows Server (`192.168.28.130`): Gọi `soffice.exe` thông qua `System.Diagnostics.Process` với cờ `--headless --convert-to pdf --outdir`.
+   - Có cơ chế Fallback (nếu máy chủ chưa cài đặt LibreOffice $\to$ thông báo hướng dẫn cài đặt và tạm thời fallback sang QuestPDF).
 
 ---
 
-## 2. THIẾT KẾ KIẾN TRÚC & DỮ LIỆU (TECHNICAL ARCHITECTURE)
+### 1.4. Module 4: Tái Cấu Trúc Nghiệp Vụ Chốt Chỉ Số GCS (Mô Hình Pure PUSH - REST Server)
+1. **Nguyên nhân thay đổi kiến trúc**:
+   - Kiến trúc cũ đang sử dụng đồng thời cả REST Client và REST Server. Khi chốt chỉ số, Backend MDMS lại đóng vai trò REST Client thực hiện gọi HTTP GET lên Port 39320 của máy chủ Kepware (`BaseUrlGetDataFromServerIoT: http://...:39320/iotgateway/read?ids=...`).
+   - Điểm yếu của việc PULL qua Port 39320:
+     * Máy chủ Kepware thường đặt trong mạng nội bộ trạm biến áp / firewall / NAT, khó mở port ra ngoài.
+     * Dễ bị timeout, nghẽn đường truyền hoặc rớt kết nối tại đúng thời điểm bấm nút chốt.
+2. **Mô hình mới thống nhất: Pure PUSH (MDMS là REST Server duy nhất)**:
+   - Bỏ hoàn toàn outgoing query lên Port 39320.
+   - Agent **Kepware IoT Gateway REST Client** được cấu hình tự động đẩy (POST) dữ liệu gói đo đếm lên REST Server của MDMS (`POST /api/v1/IoT/Get-Data-Gcs` hoặc `ReceiveDataGcsCutoffAsync`).
+3. **Cơ chế kích hoạt chốt chỉ số kỳ (Trigger Event)**:
+   - Điều kiện kích hoạt: Khi thời điểm chốt của công tơ (`THOI_DIEM_CHOT_CONG_TO`) gửi về thay đổi so với thời điểm chốt của kỳ trước, đồng thời thời gian hiện tại đã vượt qua mốc thời gian chốt kỳ cài đặt (ví dụ 00:00:00 ngày đầu kỳ).
+4. **Tính chất bất biến của bộ chỉ số chốt (Billing Registers Latch)**:
+   - Các công tơ điện tử đa chức năng (EDMI MK6, Elster A1700, Landis+Gyr...) tự động khóa thanh ghi chỉ số chốt kỳ (Billing Reset / Latch) tại thời điểm 00:00:00 ngày quy định.
+   - Bộ chỉ số chốt này được lưu bất biến trong thanh ghi EEPROM của công tơ cho tới kỳ chốt tiếp theo.
+   - Do đó, **ngay cả khi kết nối mạng tạm thời bị gián đoạn đúng thời điểm chốt**, khi có mạng trở lại, số liệu công tơ gửi về vẫn là bộ chỉ số chốt chuẩn xác 100%, không bị sai lệch trôi dạt theo thời gian.
+5. **Truy xuất chỉ số cũ (Previous Readings)**:
+   - Hệ thống tự động lấy chỉ số kết thúc (Ending Readings) của kỳ chốt liền trước đã lưu trong CSDL (`GcsMonthlyDetail` hoặc `PeriodicEnergyStatement`).
+   - Đối với **kỳ chốt đầu tiên** của điểm đo mới (chưa có lịch sử trong CSDL): Cung cấp giao diện cho phép cán bộ nghiệp vụ nhập tay chỉ số bắt đầu (Chỉ số cũ ban đầu).
+6. **Bộ quy tắc tự động gắn cờ số liệu nghi ngờ (`IsSuspicious`)**:
+   Hệ thống tự động kiểm tra và đánh dấu `IsSuspicious = true` kèm lý do chi tiết khi:
+   - **Sản lượng bằng 0 (Chỉ số không đổi)**: Chỉ số mới = Chỉ số cũ (nguy cơ mất tín hiệu đọc dữ liệu hoặc phụ tải dừng vận hành).
+   - **Chỉ số mới giảm (Sản lượng âm)**: $CS_{mới} < CS_{cũ}$ (nghi ngờ công tơ bị reset hoặc truyền sai dữ liệu, cần kiểm tra biên bản treo tháo).
+   - **Sản lượng tăng/giảm đột biến**: Sản lượng kỳ này biến động vượt ngưỡng $\pm 30\%$ hoặc $\pm 50\%$ so với mức trung bình các kỳ trước.
+   - **Lệch thời điểm chốt công tơ**: Thời điểm chốt ghi nhận trên công tơ sai lệch quá 24 giờ so với chu kỳ kế hoạch.
+7. **Quy trình Nghiệp vụ & Giao diện Phê duyệt (Approval Workflow)**:
+   - Giao diện UI chia tab trực quan: `[Tất cả điểm đo]` | `[Số liệu chuẩn]` | `[⚠️ Số liệu bị nghi ngờ]`.
+   - Cán bộ được quyền chỉnh sửa thủ công số liệu (chỉ số cũ, chỉ số mới, hệ số nhân) ngay trên bảng và hệ thống tự động tính toán lại tức thì sản lượng.
+   - Nút **"Xác nhận chốt chỉ số kỳ" (Approve & Finalize)**: Khóa sổ kỳ chốt, ghi nhận chính thức vào CSDL, kích hoạt quy trình sinh hàng loạt phiếu báo PDF và sẵn sàng gửi email thông báo cho khách hàng.
+
+---
+
+## 2. THIẾT KẾ KIẾN TRÚC & HỢP ĐỒNG DỮ LIỆU (TECHNICAL ARCHITECTURE)
+
+### 2.1. Sơ đồ Luồng Dữ liệu Nghiệp vụ Chốt Chỉ Số Pure PUSH
 
 ```mermaid
-classDiagram
-    class SystemEmailConfigEntity {
-        +bigint Id PK
-        +string ProviderType "MICROSOFT_GRAPH | CUSTOM_SMTP | GMAIL"
-        +string SenderEmail
-        +string SenderDisplayName
-        +string? TenantId
-        +string? ClientId
-        +string? EncryptedClientSecret
-        +string? SmtpHost
-        +int? SmtpPort
-        +string? SecurityMode "None | Auto | SslOnConnect | StartTls"
-        +bool RequireAuth
-        +string? SmtpUsername
-        +string? EncryptedSmtpPassword
-        +bool IsActive
-    }
+sequenceDiagram
+    autonumber
+    actor Tech as Kỹ thuật viên / Quản trị viên
+    participant Meter as Công tơ Điện tử (EDMI MK6)
+    participant Kepware as Kepware IoT Gateway (REST Client)
+    participant MDMS_API as MDMS WebApi (REST Server)
+    participant DB as MySQL Database
+    participant LibreOffice as LibreOffice Headless (Server 192.168.28.130)
+    participant MailService as Email Provider (MS Graph API)
 
-    class NotificationTemplateEntity {
-        +bigint Id PK
-        +string Code "USER_CREDENTIAL | FORGOT_PASSWORD | STATEMENT_NOTIFICATION"
-        +string Name
-        +string SubjectTemplate
-        +string BodyHtmlTemplate
-        +string Description
-        +bool IsDefault
-        +bool IsActive
-    }
+    Note over Meter: 00:00:00 Ngày chốt kỳ<br/>Đóng băng thanh ghi Billing Registers (Bất biến)
+    Meter->>Kepware: Đọc thanh ghi chốt (CHI_SO_CHOT_BT, CD, TD, SG, VC, PMAX)
+    Kepware->>MDMS_API: POST api/v1/IoT/Get-Data-Gcs (Payload PUSH)
+    
+    Note over MDMS_API: Kiểm tra: Thời điểm chốt thay đổi?<br/>Lấy chỉ số cũ từ kỳ trước trong DB.<br/>Chạy bộ quy tắc IsSuspicious (Spike, Giảm CS, CS không đổi)
+    MDMS_API->>DB: Ghi nhận số liệu tạm kỳ chốt (Pending Approval)
 
-    class StatementPdfTemplateEntity {
-        +bigint Id PK
-        +string Code
-        +string Name
-        +string HeaderTitle
-        +string CompanyName
-        +string CompanyAddress
-        +string ContactPhone
-        +string? LogoBase64
-        +string PaperSize "A4_PORTRAIT | A5_LANDSCAPE"
-        +string DisplayColumnsJson
-        +string FooterNotes
-        +bool IsDefault
-        +bool IsActive
-    }
+    Tech->>MDMS_API: Truy cập giao diện Chốt GCS (Tabs: Tất cả / Chuẩn / Nghi ngờ ⚠️)
+    Tech->>MDMS_API: Hiệu chỉnh chỉ số (nếu có) & Nhấn "Xác nhận chốt chỉ số kỳ"
+    MDMS_API->>DB: Khóa sổ kỳ chốt (Finalize / Locked)
 
-    class MeterReplacementEntity {
-        +bigint Id PK
-        +bigint MeasurementPointId FK
-        +DateTimeOffset ReplacementDate
-        +string Reason
-        +string OldMeterSerial
-        +double OldMeterMultiplier
-        +double OldBt
-        +double OldCd
-        +double OldTd
-        +double OldSg
-        +double OldVc
-        +string NewMeterSerial
-        +double NewMeterMultiplier
-        +double NewBt
-        +double NewCd
-        +double NewTd
-        +double NewSg
-        +double NewVc
-        +string? DocumentUrl
-        +string Status "APPROVED | DRAFT"
-    }
-
-    class PeriodicEnergyStatementEntity {
-        +bigint Id PK
-        +bigint MeasurementPointId FK
-        +double Pmax
-        +DateTimeOffset? PmaxTime
-        +DateTimeOffset? BillingTimestamp
-        +bool HasMeterReplacement
-        +bigint? MeterReplacementId FK
-        +bigint? StatementPdfTemplateId FK
-    }
-
-    MeterReplacementEntity --> PeriodicEnergyStatementEntity : "Liên kết tính phân đoạn"
-    StatementPdfTemplateEntity --> PeriodicEnergyStatementEntity : "Áp dụng mẫu PDF"
+    MDMS_API->>LibreOffice: Nạp Excel Template + EPPlus điền số liệu -> Convert PDF
+    LibreOffice-->>MDMS_API: File PhieuBaoSo_PBxxx.pdf
+    MDMS_API->>MailService: Gửi email mẫu HTML Modular kèm đính kèm PDF
+    MailService-->>Tech: Gửi thành công tới Khách hàng VSIP
 ```
 
 ---
 
-### 2.1. Chi tiết Mô hình Cơ sở Dữ liệu (Database Schema - MySQL EF Core)
+### 2.2. Danh Mục Thẻ Giữ Chỗ (Placeholders & Merge Tags)
 
-#### Bảng `system_email_configs` (Cấu hình Máy chủ Gửi Thư)
-```csharp
-namespace Domain.Entities;
+#### A. Nhóm Thông Tin Đơn Vị Phát Hành & Khách Hàng
+| Thẻ Email | Thẻ Excel | Ý nghĩa | Ví dụ dữ liệu |
+|---|---|---|---|
+| `{{CompanyName}}` | `{{TenCongTy}}` | Tên doanh nghiệp bán điện | CÔNG TY TNHH VSIP HẢI PHÒNG |
+| `{{CustomerName}}` | `{{TenKhachHang}}` | Tên khách hàng sử dụng điện | CÔNG TY TNHH KYOCERA VIỆT NAM |
+| `{{CustomerCode}}` | `{{MaKhachHang}}` | Mã khách hàng | KH_KYOCERA_01 |
+| `{{Address}}` | `{{DiaChiKhachHang}}` | Địa chỉ điểm đo | Lô đất số IN1-4, KCN VSIP Hải Phòng |
+| `{{PointName}}` | `{{TenDiemDo}}` | Tên trạm / điểm đo | Điểm đo Trạm Biến Áp TBA 1 |
+| `{{PointCode}}` | `{{MaDiemDo}}` | Mã định danh điểm đo | 101.402.001 |
+| `{{MeterSerial}}` | `{{SoCongTo}}` | Số chế tạo công tơ | 23098172 |
+| `{{Multiplier}}` | `{{HeSoNhan}}` | Hệ số nhân đo đếm (HSN) | 120 |
+| `{{Period}}` | `{{KyChot}}` | Kỳ ghi chỉ số | Kỳ 1 Tháng 10/2026 |
+| `{{FromDate}}` | `{{TuNgay}}` | Ngày bắt đầu chu kỳ | 01/10/2026 |
+| `{{ToDate}}` | `{{DenNgay}}` | Ngày kết thúc chu kỳ | 31/10/2026 |
 
-public class SystemEmailConfigEntity : IEntity<long>
-{
-    public long Id { get; set; }
-    public string ProviderType { get; set; } = "MICROSOFT_GRAPH"; // MICROSOFT_GRAPH, CUSTOM_SMTP, GMAIL
-    public string SenderEmail { get; set; } = string.Empty;
-    public string SenderDisplayName { get; set; } = string.Empty;
-    
-    // Microsoft Graph API (OAuth 2.0)
-    public string? TenantId { get; set; }
-    public string? ClientId { get; set; }
-    public string? EncryptedClientSecret { get; set; }
-    
-    // Custom SMTP / Gmail
-    public string? SmtpHost { get; set; }
-    public int? SmtpPort { get; set; }
-    public string? SecurityMode { get; set; } = "StartTls"; // None, Auto, SslOnConnect, StartTls
-    public bool RequireAuth { get; set; } = true;
-    public string? SmtpUsername { get; set; }
-    public string? EncryptedSmtpPassword { get; set; }
-    
-    public bool IsActive { get; set; } = true;
-    public DateTimeOffset CreatedTime { get; set; }
-    public DateTimeOffset? ModifiedTime { get; set; }
-}
-```
+#### B. Nhóm Chỉ Số & Sản Lượng Đo Đếm
+| Thẻ Email | Thẻ Excel | Ý nghĩa | Đơn vị |
+|---|---|---|---|
+| `{{PreviousBt}}` | `{{CSC_BT}}` | Chỉ số cũ biểu Bình thường | kWh |
+| `{{Bt}}` | `{{CSM_BT}}` | Chỉ số mới biểu Bình thường | kWh |
+| `{{ConsumtionBt}}` | `{{SL_BT}}` | Sản lượng biểu Bình thường | kWh |
+| `{{PreviousCd}}` | `{{CSC_CD}}` | Chỉ số cũ biểu Cao điểm | kWh |
+| `{{Cd}}` | `{{CSM_CD}}` | Chỉ số mới biểu Cao điểm | kWh |
+| `{{ConsumtionCd}}` | `{{SL_CD}}` | Sản lượng biểu Cao điểm | kWh |
+| `{{PreviousTd}}` | `{{CSC_TD}}` | Chỉ số cũ biểu Thấp điểm | kWh |
+| `{{Td}}` | `{{CSM_TD}}` | Chỉ số mới biểu Thấp điểm | kWh |
+| `{{ConsumtionTd}}` | `{{SL_TD}}` | Sản lượng biểu Thấp điểm | kWh |
+| `{{PreviousSg}}` | `{{CSC_SG}}` | Chỉ số cũ Tổng Hữu Công | kWh |
+| `{{Sg}}` | `{{CSM_SG}}` | Chỉ số mới Tổng Hữu Công | kWh |
+| `{{ConsumtionTotal}}` | `{{SL_SG}}` | Tổng sản lượng điện hữu công | kWh |
+| `{{PreviousVc}}` | `{{CSC_VC}}` | Chỉ số cũ Điện Vô Công | kVARh |
+| `{{Vc}}` | `{{CSM_VC}}` | Chỉ số mới Điện Vô Công | kVARh |
+| `{{ConsumtionVc}}` | `{{SL_VC}}` | Sản lượng điện vô công | kVARh |
 
-#### Bảng `notification_templates` (Quản lý Mẫu Email Đa Dạng)
-```csharp
-namespace Domain.Entities;
-
-public class NotificationTemplateEntity : IEntity<long>
-{
-    public long Id { get; set; }
-    public string Code { get; set; } = string.Empty; // USER_CREDENTIAL, FORGOT_PASSWORD, STATEMENT_NOTIFICATION
-    public string Name { get; set; } = string.Empty;
-    public string SubjectTemplate { get; set; } = string.Empty;
-    public string BodyHtmlTemplate { get; set; } = string.Empty;
-    public string? Description { get; set; }
-    public bool IsDefault { get; set; } = false;
-    public bool IsActive { get; set; } = true;
-    public DateTimeOffset CreatedTime { get; set; }
-    public DateTimeOffset? ModifiedTime { get; set; }
-}
-```
-
-#### Bảng `statement_pdf_templates` (Quản lý Mẫu Phiếu Báo PDF)
-```csharp
-namespace Domain.Entities;
-
-public class StatementPdfTemplateEntity : IEntity<long>
-{
-    public long Id { get; set; }
-    public string Code { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public string HeaderTitle { get; set; } = "PHIẾU GHI SỐ ĐIỆN HÀNG THÁNG";
-    public string SubHeaderTitle { get; set; } = "MONTHLY POWER METER READING";
-    public string CompanyName { get; set; } = "CÔNG TY TNHH VSIP HẢI PHÒNG";
-    public string CompanyAddress { get; set; } = string.Empty;
-    public string ContactPhone { get; set; } = string.Empty;
-    public string? LogoBase64 { get; set; }
-    public string PaperSize { get; set; } = "A5_LANDSCAPE"; // A5_LANDSCAPE, A4_PORTRAIT
-    public string DisplayColumnsJson { get; set; } = "[\"BT\",\"CD\",\"TD\",\"SG\",\"VC\",\"PMAX\",\"COSPHI\"]";
-    public string FooterNotes { get; set; } = string.Empty;
-    public bool RequireDualSignatures { get; set; } = true; // True: Cả Bên A và Bên B ký; False: Chỉ Bên A ký
-    public bool IsDefault { get; set; } = false;
-    public bool IsActive { get; set; } = true;
-    public DateTimeOffset CreatedTime { get; set; }
-    public DateTimeOffset? ModifiedTime { get; set; }
-}
-```
-
-#### Bảng `meter_replacements` (Biên bản Treo / Tháo Công Tơ)
-```csharp
-namespace Domain.Entities;
-
-public class MeterReplacementEntity : IEntity<long>
-{
-    public long Id { get; set; }
-    public long MeasurementPointId { get; set; }
-    public MeasurementPointsEntity MeasurementPoint { get; set; }
-    public DateTimeOffset ReplacementDate { get; set; }
-    public string Reason { get; set; } = string.Empty; // Kiểm định định kỳ, Hỏng màn hình, Nâng công suất
-    
-    // Chỉ số công tơ tháo
-    public string OldMeterSerial { get; set; } = string.Empty;
-    public double OldMeterMultiplier { get; set; } = 1.0;
-    public double OldBt { get; set; }
-    public double OldCd { get; set; }
-    public double OldTd { get; set; }
-    public double OldSg { get; set; }
-    public double OldVc { get; set; }
-    public double OldPmax { get; set; }
-    
-    // Chỉ số công tơ treo mới
-    public string NewMeterSerial { get; set; } = string.Empty;
-    public double NewMeterMultiplier { get; set; } = 1.0;
-    public double NewBt { get; set; }
-    public double NewCd { get; set; }
-    public double NewTd { get; set; }
-    public double NewSg { get; set; }
-    public double NewVc { get; set; }
-    public double NewPmax { get; set; }
-    
-    public string? DocumentUrl { get; set; } // Ảnh scan hoặc PDF biên bản treo tháo
-    public string Status { get; set; } = "APPROVED"; // DRAFT, APPROVED, CANCELLED
-    public DateTimeOffset CreatedTime { get; set; }
-    public long? CreatedBy { get; set; }
-    public string? CreatedName { get; set; }
-}
-```
-
-#### Mở rộng bảng `periodic_energy_statements`
-* Bổ sung các trường:
-  - `Pmax`: double (Công suất cực đại chu kỳ chốt).
-  - `PmaxTime`: DateTimeOffset? (Thời điểm ghi nhận $P_{max}$).
-  - `BillingTimestamp`: DateTimeOffset? (Thời điểm chốt ghi nhận trực tiếp từ thanh ghi EDMI).
-  - `HasMeterReplacement`: bool (Đánh dấu kỳ có phát sinh treo tháo).
-  - `MeterReplacementId`: long? (Khóa ngoại tham chiếu `meter_replacements`).
-  - `StatementPdfTemplateId`: long? (Khóa ngoại tham chiếu `statement_pdf_templates` áp dụng).
+#### C. Nhóm Thông Số Vận Hành Phụ Tải & Chứng Từ
+| Thẻ Email | Thẻ Excel | Ý nghĩa | Ví dụ dữ liệu |
+|---|---|---|---|
+| `{{Pmax}}` | `{{PMax}}` | Công suất cực đại ghi nhận | 1,450.85 kW |
+| `{{PmaxTime}}` | `{{ThoiDiemPMax}}` | Thời điểm xuất hiện $P_{max}$ | 15/10/2026 14:30:00 |
+| `{{CosPhi}}` | `{{CosPhi}}` | Hệ số công suất $\text{Cos}\ \varphi$ | 0.98 |
+| `{{SerialNumber}}` | `{{SoPhieuBao}}` | Số phiếu báo | PB-202610-001 |
+| `{{CareFullname}}` | `{{NguoiLapPhieu}}` | Bộ phận phụ trách đối soát | Phòng Quản Lý Vận Hành Cơ Điện VSIP |
+| `{{CarePhone}}` | `{{Hotline}}` | Số điện thoại hỗ trợ | 0225 3959868 |
+| `{{CareEmail}}` | `{{EmailHoTro}}` | Email tiếp nhận phản hồi | noreply.mdms@vsip.com.vn |
 
 ---
 
-### 2.2. Đặc tả API Specifications (Endpoints & Contracts)
+### 2.3. Cấu Trúc Khối Mẫu Email (Semantic Modular Blocks)
 
-#### A. Nhóm API Quản trị Cấu hình Email (`/api/v1/email-configs`)
-1. **Lấy cấu hình hiện tại**:
-   * `GET /api/v1/email-configs/active`
-   * Response: `SystemEmailConfigResponse` (mật khẩu và client secret được che phủ `******`).
-2. **Cập nhật cấu hình**:
-   * `PUT /api/v1/email-configs`
-   * Body: `UpdateSystemEmailConfigRequest`
-3. **Kiểm tra kết nối và gửi mail thử nghiệm (Test Connection)**:
-   * `POST /api/v1/email-configs/test-connection`
-   * Body:
-     ```json
-     {
-       "testRecipientEmail": "admin.it@vsip.com.vn",
-       "providerType": "MICROSOFT_GRAPH",
-       "tenantId": "5e5bd7f8-2adb-4595-956a-a03d68ea32a6",
-       "clientId": "6a86904e-3153-496f-8c1b-986ae398747a",
-       "clientSecret": "sSC8Q~...",
-       "senderEmail": "noreply.hoadondientu.hp@vsip.com.vn"
-     }
-     ```
-   * Response: Trả về trạng thái `isSuccess: true` hoặc thông báo lỗi chi tiết từ Microsoft Graph API / SMTP Server.
+```html
+<!-- ======================================================== -->
+<!-- [KHỐI 1] HEADER: TÊN CÔNG TY & HỆ THỐNG ĐO ĐẾM (MDMS)   -->
+<!-- ======================================================== -->
+...
 
-#### B. Nhóm API Quản lý Mẫu Email (`/api/v1/notification-templates`)
-1. `GET /api/v1/notification-templates?code=STATEMENT_NOTIFICATION`: Lấy danh sách mẫu theo loại.
-2. `POST /api/v1/notification-templates`: Tạo mới mẫu email.
-3. `PUT /api/v1/notification-templates/{id}`: Cập nhật mẫu email.
-4. `POST /api/v1/notification-templates/preview`: Xem trước nội dung email sau khi bind các biến dữ liệu mẫu.
+<!-- ======================================================== -->
+<!-- [KHỐI 2] THÔNG TIN KHÁCH HÀNG & ĐIỂM ĐO ĐIỆN             -->
+<!-- ======================================================== -->
+...
 
-#### C. Nhóm API Quản lý Mẫu Phiếu Báo PDF (`/api/v1/statement-pdf-templates`)
-1. `GET /api/v1/statement-pdf-templates`: Lấy danh sách mẫu phiếu báo.
-2. `POST /api/v1/statement-pdf-templates`: Thêm mới mẫu phiếu báo.
-3. `PUT /api/v1/statement-pdf-templates/{id}`: Cập nhật cấu hình mẫu phiếu báo.
-4. `POST /api/v1/statement-pdf-templates/preview-pdf`: Render xem trước file PDF của mẫu.
+<!-- ======================================================== -->
+<!-- [KHỐI 3] BẢNG BỘ CHỈ SỐ ĐO ĐẾM & SẢN LƯỢNG 3 BIỂU GIÁ    -->
+<!-- ======================================================== -->
+...
 
-#### D. Nhóm API Nghiệp vụ Treo / Tháo Công tơ (`/api/v1/meter-replacements`)
-1. `POST /api/v1/meter-replacements`: Lập biên bản treo/tháo công tơ cho điểm đo.
-2. `GET /api/v1/meter-replacements/by-point/{pointId}`: Lịch sử treo/tháo của điểm đo.
-3. `GET /api/v1/meter-replacements/{id}`: Chi tiết biên bản treo tháo.
+<!-- ======================================================== -->
+<!-- [KHỐI 4] THÔNG SỐ VẬN HÀNH PHỤ TẢI (PMAX & COS PHI)     -->
+<!-- ======================================================== -->
+...
+
+<!-- ======================================================== -->
+<!-- [KHỐI 5] THÔNG BÁO TỆP ĐÍNH KÈM PHIẾU BÁO (PDF)          -->
+<!-- ======================================================== -->
+...
+
+<!-- ======================================================== -->
+<!-- [KHỐI 6] THÔNG TIN LIÊN HỆ ĐỐI SOÁT & CHĂM SÓC KHÁCH HÀNG -->
+<!-- ======================================================== -->
+...
+
+<!-- ======================================================== -->
+<!-- [KHỐI 7] CHÂN TRANG HỆ THỐNG                             -->
+<!-- ======================================================== -->
+...
+```
 
 ---
 
-### 2.3. Frontend Flow & Trải nghiệm Người dùng (React 18 + Ant Design 5)
-1. **Trang Cấu hình Email Doanh nghiệp (`/settings/email-config`)**:
-   * Lựa chọn Tabs / Radio cards: `Microsoft 365 (Graph API)` vs `Custom SMTP Server` vs `Gmail`.
-   * Form nhập linh hoạt theo loại dịch vụ đã chọn.
-   * Khu vực "Gửi thử nghiệm": Input email nhận + nút **"Kiểm tra kết nối"** có hiệu ứng Spin loading, hiển thị notification popup chi tiết.
-2. **Trang Quản lý Mẫu Thông báo (`/settings/templates`)**:
-   * Quản lý mẫu Email: Danh sách thẻ mẫu, nút set làm Mặc định, trình soạn thảo WYSIWYG có bảng danh sách "Merge tags" bấm là chèn.
-   * Quản lý mẫu Phiếu báo PDF: Cho phép upload Logo trực tiếp, bật/tắt checkbox các cột hiển thị, chọn A4/A5 và khung preview PDF tương tác ngay lập tức.
-3. **Màn hình Treo / Tháo Công tơ (`/measurement-points/meter-replacement`)**:
-   * Cho phép chọn điểm đo $\to$ Hệ thống tự động điền sẵn chỉ số chốt gần nhất của công tơ cũ.
-   * Nhập chỉ số tháo thực tế $\to$ Nhập serial và chỉ số công tơ EDMI mới treo lên.
-   * Cung cấp nút xem trước biểu đồ sản lượng phân đoạn để kỹ thuật viên kiểm tra tính hợp lý trước khi phê duyệt.
-4. **Hộp thoại Chốt Sổ & Gửi Phiếu Báo (`/gcs/statements`)**:
-   * Bổ sung Dropdown: **"Chọn mẫu Email thông báo"** và **"Chọn mẫu Phiếu báo PDF"** trước khi bấm gửi hàng loạt hoặc gửi từng điểm đo.
+## 3. DANH SÁCH CÔNG VIỆC CHI TIẾT (TASK BREAKDOWN - WBS)
 
----
+### Phase 1: Nền tảng Dịch vụ Email Doanh Nghiệp (Hoàn thành 100%)
+- [x] **Task 1.1**: Tạo Entities, cấu hình EF Core DbContext và scripts MySQL (`SystemEmailConfigs`, `NotificationTemplates`, `StatementPdfTemplates`, `MeterReplacements`).
+- [x] **Task 1.2**: Hiện thực hóa `MicrosoftGraphEmailProvider` (OAuth 2.0 Client Credentials Grant Flow, In-Memory Token Cache, Base64 Attachments).
+- [x] **Task 1.3**: Hiện thực hóa `SmtpEmailProvider` trên nền MailKit (hỗ trợ STARTTLS, SSL/TLS, Custom SMTP và Gmail).
+- [x] **Task 1.4**: Hiện thực hóa `EmailProviderFactory` điều phối provider theo Database.
+- [x] **Task 1.5**: Tạo Controller `EmailConfigController` với các API CRUD và `POST /test-connection`.
+- [x] **Task 1.6**: Xây dựng Frontend Quản trị Cấu hình Email Doanh nghiệp (`/email-config`) kèm tính năng Test Connection trực quan.
 
-## 3. DANH SÁCH CÔNG VIỆC CHI TIẾT (TASK BREAKDOWN FOR MDMS-CODER)
+### Phase 2: Đa Mẫu Email Khoa Học & Mẫu Phiếu Báo PDF Excel $\to$ LibreOffice
+- [x] **Task 2.1**: Refactor bộ mẫu Email mặc định (`STATEMENT_NOTIFICATION`, `USER_CREDENTIAL`, `FORGOT_PASSWORD`) trong `NotificationTemplateService.cs` và Frontend theo cấu trúc phân khối comment rõ ràng, bổ sung đầy đủ bộ chỉ số mới/cũ/sản lượng, Pmax, CosPhi, Metadata.
+- [ ] **Task 2.2 [Backend]**: Xây dựng `StatementExcelPdfGenerator.cs`:
+  * Tích hợp thư viện `EPPlus` để nạp file template Excel `.xlsx` và thay thế toàn bộ thẻ giữ chỗ `{{...}}`.
+  * Thực thi LibreOffice Headless CLI (`soffice.exe --headless --convert-to pdf --outdir`) chuyển đổi sang PDF.
+  * Cấu hình đường dẫn LibreOffice trong `appsettings.json` (`"LibreOfficePath": "C:\\Program Files\\LibreOffice\\program\\soffice.exe"`).
+- [ ] **Task 2.3 [Backend/WebApi]**: Bổ sung Endpoint upload template Excel `.xlsx`, tải file template mẫu chuẩn (`.xlsx`), và xem trước PDF chuyển đổi từ file Excel.
+- [ ] **Task 2.4 [Frontend]**: Cập nhật trang `statement-pdf-templates/index.tsx`: Bổ sung nút "Tải tệp mẫu Excel chuẩn (.xlsx)", Upload file Excel template tùy biến, và Preview trực tiếp PDF chuyển đổi qua LibreOffice.
 
-### Phase 1: Nền tảng Dữ liệu & Nhà cung cấp Dịch vụ Email (Backend Infrastructure)
-- [ ] **Task 1.1: [Backend/Domain]** Tạo Entity `SystemEmailConfigEntity`, `NotificationTemplateEntity`, `StatementPdfTemplateEntity`, `MeterReplacementEntity` và bổ sung các trường $P_{max}$, $P_{max}Time$, $BillingTimestamp$ vào `PeriodicEnergyStatementEntity`.
-- [ ] **Task 1.2: [Backend/Infrastructure]** Cấu hình EF Core DbContext, EntityTypeConfigurations, đánh index cho các trường khóa tra cứu và tạo tệp Migration MySQL.
-- [ ] **Task 1.3: [Backend/Application]** Xây dựng abstraction `IEmailProviderService` và các contract DTOs tương ứng.
-- [ ] **Task 1.4: [Backend/Infrastructure]** Hiện thực hóa `MicrosoftGraphEmailProvider`:
-  * Tích hợp HTTP Client kết nối Azure AD OAuth 2.0 Client Credentials Flow.
-  * Quản lý In-Memory Token Caching tự động refresh khi hết hạn.
-  * Đóng gói Payload gửi thư `POST /users/{id}/sendMail` kèm tệp đính kèm Base64.
-- [ ] **Task 1.5: [Backend/Infrastructure]** Hiện thực hóa `SmtpEmailProvider` chuẩn hóa trên thư viện `MailKit` (hỗ trợ cả Custom SMTP nội bộ và Gmail STARTTLS).
-- [ ] **Task 1.6: [Backend/Infrastructure]** Hiện thực hóa `EmailProviderFactory` điều phối provider theo cấu hình kích hoạt trong cơ sở dữ liệu.
-- [ ] **Task 1.7: [Backend/WebApi]** Tạo `EmailConfigController` với các endpoint CRUD và `POST /test-connection`.
+### Phase 3: Nghiệp Vụ Treo / Tháo Công Tơ EDMI MK6 & Tính Sản Lượng Phân Đoạn
+- [ ] **Task 3.1 [Backend/Application]**: Thiết kế DTOs, Command và Validator cho nghiệp vụ Lập Biên Bản Treo/Tháo Công Tơ.
+- [ ] **Task 3.2 [Backend/Infrastructure]**: Hiện thực hóa thuật toán tính sản lượng phân đoạn khi có phát sinh thay thế công tơ trong kỳ:
+  $$\text{Sản lượng kỳ} = (CS_{tháo} - CS_{đầu\ kỳ}) \times HS_{cũ} + (CS_{cuối\ kỳ} - CS_{treo}) \times HS_{mới}$$
+- [ ] **Task 3.3 [Backend/WebApi]**: Tạo `MeterReplacementController`.
+- [ ] **Task 3.4 [Frontend]**: Xây dựng màn hình Lập Biên Bản Treo / Tháo Công Tơ và hiển thị chi tiết 2 dòng trên bảng chốt kỳ.
 
-### Phase 2: Đa Mẫu Email & Đa Mẫu Phiếu Báo PDF (Template Management)
-- [ ] **Task 2.1: [Backend/Application]** Tích hợp thư viện Template Engine (Fluid/Scriban) và xây dựng `NotificationTemplateService` hỗ trợ biên dịch chuỗi động với bộ Merge Tags.
-- [ ] **Task 2.2: [Backend/Infrastructure]** Tái cấu trúc bộ sinh PDF `EmailSenderService` với QuestPDF: Tạo `ModularStatementPdfDocument` nhận tham số cấu hình từ `StatementPdfTemplateEntity` (Header, Logo, Cột $P_{max}$, $Cos\varphi$, Chữ ký, Khổ A4/A5).
-- [ ] **Task 2.3: [Backend/WebApi]** Tạo `NotificationTemplateController` và `StatementPdfTemplateController` kèm API xem trước HTML/PDF.
-- [ ] **Task 2.4: [Frontend]** Xây dựng trang Quản trị Cấu hình Email và Kiểm thử kết nối (`/settings/email-config`).
-- [ ] **Task 2.5: [Frontend]** Xây dựng giao diện Quản lý Đa mẫu Email và Mẫu Phiếu báo PDF kèm chức năng Live Preview.
-
-### Phase 3: Nghiệp vụ Đo đếm EDMI MK6, $P_{max}$ & Treo/Tháo Công Tơ
-- [ ] **Task 3.1: [Backend/Application & Infrastructure]** Nâng cấp `FinalMeterReadingCommandHandler`:
-  * Đọc bổ sung dữ liệu $P_{max}$ và thời điểm $P_{max}$ ($T_{Pmax}$) từ công tơ EDMI MK6.
-  * Ưu tiên chốt chỉ số từ bộ thanh ghi `Previous Billing Frozen` của công tơ.
-- [ ] **Task 3.2: [Backend/Application & Infrastructure]** Xây dựng Command/Handler xử lý nghiệp vụ **Treo / Tháo công tơ**:
-  * Kiểm tra tính hợp lệ dữ liệu tháo và treo.
-  * Thuật toán phân tách sản lượng 2 phân đoạn công tơ cũ - mới khi chốt sổ.
-- [ ] **Task 3.3: [Backend/Infrastructure]** Cập nhật `ModularStatementPdfDocument`: Hiển thị bảng 2 dòng minh bạch cho các kỳ có phát sinh thay thế công tơ.
-- [ ] **Task 3.4: [Backend/WebApi]** Tạo `MeterReplacementController`.
-- [ ] **Task 3.5: [Frontend]** Xây dựng màn hình Lập biên bản Treo/Tháo công tơ và cập nhật giao diện Chốt GCS/Phiếu báo cho phép chọn Mẫu áp dụng.
+### Phase 4: Tái Cấu Trúc Nghiệp Vụ Chốt Chỉ Số GCS (Mô hình Pure PUSH & Rà soát Số liệu Nghi ngờ)
+- [ ] **Task 4.1 [Backend/WebApi & Infrastructure]**:
+  * Loại bỏ hoàn toàn phương thức gọi HTTP GET lên Port 39320 trong `GcsCutOffCycleReadOnlyRepository.cs`.
+  * Xây dựng Endpoint nhận dữ liệu PUSH: `POST api/v1/IoT/Receive-Gcs-Data` (hoặc nâng cấp `IoTController.cs`).
+  * Xử lý nhận diện sự kiện chốt kỳ khi thời điểm chốt công tơ (`THOI_DIEM_CHOT_CONG_TO`) thay đổi so với kỳ trước và sau thời điểm chốt cài đặt.
+- [ ] **Task 4.2 [Backend/Domain & Application]**:
+  * Hiện thực hóa logic truy xuất chỉ số cũ từ CSDL kỳ liền trước.
+  * Bổ sung quy tắc kiểm tra bất thường và gán cờ `IsSuspicious = true` kèm mô tả: Sản lượng = 0, Chỉ số giảm, Sản lượng tăng/giảm đột biến vượt ngưỡng $\pm 30\%$, Sai lệch thời điểm chốt.
+- [ ] **Task 4.3 [Backend/Application & WebApi]**:
+  * Tạo Command/Endpoint cho phép hiệu chỉnh thủ công chỉ số cũ, chỉ số mới, hệ số nhân và tự động tính lại sản lượng.
+  * Tạo Endpoint **"Xác nhận chốt chỉ số kỳ" (Approve & Finalize)**: Khóa sổ kỳ chốt, sinh phiếu báo PDF qua LibreOffice và chuyển trạng thái sẵn sàng gửi email.
+- [ ] **Task 4.4 [Frontend]**:
+  * Nâng cấp giao diện trang Chốt Chỉ Số (`/gcs-management` / `notice-detail`):
+    * Bổ sung Tab lọc nhanh: `[Tất cả điểm đo]` | `[Số liệu chuẩn]` | `[⚠️ Số liệu bị nghi ngờ]`.
+    * Hỗ trợ chỉnh sửa inline số liệu và tự động tính lại ngay sản lượng.
+    * Nút bấm hành động nổi bật: "Xác nhận chốt chỉ số kỳ" kèm modal xác nhận an toàn.
 
 ---
 
 ## 4. TIÊU CHÍ NGHIỆM THU (DEFINITION OF DONE - DOD)
 
-1. **Kiểm định Email Microsoft Graph API**:
-   * Gửi email thành công từ tài khoản `noreply.hoadondientu.hp@vsip.com.vn` với thông số Tenant ID, Client ID, Client Secret thực tế của VSIP Hải Phòng.
-   * Thư gửi đến đích (Outlook, Gmail, Yahoo...) có đầy đủ tệp đính kèm Phiếu báo PDF, hiển thị đúng người gửi, không rơi vào Spam.
-2. **Kiểm định Email SMTP & Gmail**:
-   * Chuyển đổi qua lại giữa các Provider trong trang quản trị mượt mà, tính năng Test Connection phản hồi kết quả chính xác trong vòng < 3 giây.
-3. **Kiểm định Đa Mẫu Thông Báo**:
-   * Khách hàng tự tạo và chỉnh sửa mẫu email / mẫu phiếu báo PDF tùy ý.
-   * Khi gửi phiếu báo cho khách hàng, hệ thống áp dụng chính xác mẫu đã chọn, các biến `{{CustomerName}}`, `{{PointCode}}`, `{{Pmax}}` được thay thế chính xác số liệu đo đếm.
-4. **Kiểm định Nghiệp vụ EDMI MK6 & Treo Tháo**:
-   * Thu thập và thể hiện đầy đủ giá trị $P_{max}$ kèm ngày giờ xuất hiện trên phiếu báo.
-   * Với điểm đo có phát sinh treo tháo công tơ trong kỳ: Sản lượng tính toán chuẩn xác theo công thức phân đoạn 2 công tơ, phiếu báo hiển thị minh bạch 2 dòng dữ liệu cũ và mới, không phát sinh sản lượng âm hoặc sai lệch doanh thu.
-5. **Tiêu chuẩn Kỹ thuật Mã nguồn**:
-   * Toàn bộ mã nguồn Backend build `.NET 8` thành công (`dotnet build`) không có warning/error nghiêm trọng.
-   * Toàn bộ mã nguồn Frontend build Vite + TypeScript (`tsc && vite build`) không phát sinh lỗi kiểu dữ liệu.
-   * Kiểm tra Linter Frontend vượt qua 100%.
-
----
-
-> **Lưu ý bàn giao chuỗi Multi-Agent:**
-> Tài liệu kỹ thuật này được phê duyệt làm cơ sở duy nhất để kích hoạt `MDMS-Coder` thực thi theo từng Task nguyên tử, bảo đảm tính toàn vẹn hệ thống và chất lượng bàn giao cho khách hàng VSIP Hải Phòng.
+1. **Email Templates (HTML Modular)**:
+   - Cả 3 mẫu (`USER_CREDENTIAL`, `FORGOT_PASSWORD`, `STATEMENT_NOTIFICATION`) đều được cấu trúc phân khối comment rành mạch.
+   - Thử nghiệm chỉnh sửa text bất kỳ bởi người không biết code không làm vỡ giao diện.
+   - Hiển thị đầy đủ bộ chỉ số 3 giá, tổng SG, vô công VC, $P_{max}$, $T_{Pmax}$, $\text{Cos}\ \varphi$, thông tin điểm đo và HSN.
+2. **Phiếu Báo PDF Excel $\to$ LibreOffice**:
+   - Quản trị viên tải file Excel mẫu về, chỉnh sửa bằng Microsoft Excel hoặc WPS Office rồi upload lại thành công.
+   - Backend gọi LibreOffice Headless CLI chuyển đổi thành PDF thành công trong thời gian < 2 giây.
+   - File PDF hiển thị đúng chuẩn in ấn khổ A5 ngang hoặc A4 dọc, giữ nguyên toàn bộ định dạng font chữ, viền kẻ và hình ảnh logo.
+3. **Chốt Chỉ Số GCS Pure PUSH**:
+   - Hệ thống không thực hiện bất kỳ truy vấn PULL nào lên Port 39320 của Kepware.
+   - Kepware IoT Gateway REST Client tự động POST dữ liệu bộ chỉ số chốt lên MDMS WebApi.
+   - Hệ thống nhận diện chuẩn xác chu kỳ chốt khi thời điểm chốt công tơ thay đổi sau mốc cài đặt.
+   - Số liệu nghi ngờ (sản lượng = 0, chỉ số giảm, đột biến $\pm 30\%$) được gom riêng vào Tab `[⚠️ Số liệu bị nghi ngờ]`.
+   - Cán bộ chỉnh sửa số liệu và bấm "Xác nhận chốt chỉ số kỳ" thành công, dữ liệu được khóa sổ an toàn trong CSDL.
+4. **Tiêu Chuẩn Kỹ Thuật**:
+   - Backend build `.NET 8` Release thành công với **0 lỗi (`0 Error(s)`)**.
+   - Frontend build Vite + TypeScript (`npm run build:uat`) thành công với **0 lỗi (`0 Error(s)`)**.
+   - **Tuyệt đối tuân thủ**: Không commit hoặc push code lên Git trừ khi người dùng yêu cầu trực tiếp.

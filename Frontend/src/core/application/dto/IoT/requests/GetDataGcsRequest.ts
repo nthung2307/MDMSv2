@@ -31,6 +31,8 @@ export class GetListDataGCSRequest {
 
   quanlity?: boolean;
 
+  isSuspicious?: boolean;
+
   constructor(args: {
     pageSize: number;
     after?: number;
@@ -43,6 +45,7 @@ export class GetListDataGCSRequest {
     year: number;
     isRefresh?: boolean;
     quanlity?: boolean;
+    isSuspicious?: boolean;
   }) {
     this.pageSize = args.pageSize;
 
@@ -61,10 +64,11 @@ export class GetListDataGCSRequest {
     this.gcsId = args.gcsId;
     this.periodNumber = args.periodNumber;
     this.month = args.month;
-    if (args.sortByFields) {
+    if (args.year) {
       this.year = args.year;
     }
     this.isRefresh = args.isRefresh;
     this.quanlity = args.quanlity;
+    this.isSuspicious = args.isSuspicious;
   }
 }

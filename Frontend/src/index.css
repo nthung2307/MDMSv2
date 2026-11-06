@@ -499,6 +499,16 @@ textarea.ant-input {
   color: #b22222;
 }
 
+.suspicious-row .ant-table-cell-fix-left,
+.suspicious-row {
+  background: #fffbeb !important;
+  color: #b45309;
+}
+
+.suspicious-row:hover > td {
+  background: #fef3c7 !important;
+}
+
 .last-record .ant-table-cell {
   border-bottom: 1px solid #000000 !important;
 }

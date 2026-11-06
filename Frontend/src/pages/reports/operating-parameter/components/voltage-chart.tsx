@@ -126,7 +126,7 @@ const VoltageChart: React.FC<VoltageChartProps> = ({ filterData, dataForm }) => 
           (_, i) => `Ngày ${String(i + 1).padStart(2, '0')}` // Monthly: 0:00 ngày 01, ...
         );
 
-    const unit = chartData.currentPeriodData.find((item) => item.phaAUnit)?.phaAUnit; // Check if there is any data for phase A
+    const unit = chartData.currentPeriodData.find((item) => item.phaAUnit)?.phaAUnit || 'kV'; // Check if there is any data for phase A
     const phaAValues = chartData.currentPeriodData.map((item) => item.phaA || null); // Default to 0 if null
     const phaBValues = chartData.currentPeriodData.map((item) => item.phaB || null);
     const phaCValues = chartData.currentPeriodData.map((item) => item.phaC || null);

@@ -1,4 +1,3 @@
-
 using Domain.Entities;
 
 namespace Application.DataTransferObjects.Responses.GcsMonthlyDetail;
@@ -13,6 +12,9 @@ public class GcsMonthlyDetailDto
     public double CurrentReading { get; set; }
     public double MultiplierFactor { get; set; }
     public double Consumption { get; set; }
+    public double? CosPhi { get; set; }
+    public DateTimeOffset? ReadingTime { get; set; }
+    public DateTimeOffset? PmaxTime { get; set; }
     public bool IsChange { get; set; }
     public DateTimeOffset? CreatedTime { get; set; }
 }

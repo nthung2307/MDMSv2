@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
 import Constants from '@/core/application/common/constants';
 import { DataResponse } from '@/core/application/dto/common/responses/successResponse';
+import { DeleteMeasurementPointRequest } from '@/core/application/dto/measurement-point/requests/DeleteMeasurementPointRequest.ts';
 import { GetListMeasurementPointsRequest } from '@/core/application/dto/measurement-point/requests/GetListMeasurementPointsRequest';
 import { ButtonCommonCustomizable } from '@/infrastructure/common/components/button/button-common-customizable.tsx';
 import DialogExportForm from '@/infrastructure/common/components/dialog-export/dialog-export';
@@ -21,6 +22,7 @@ import { notifySuccess } from '@/infrastructure/common/components/toast/toastMes
 import useDebounce from '@/infrastructure/common/libs/hooks/useDebounce.hook';
 import { useStateDataForm } from '@/infrastructure/common/libs/hooks/useStateDataForm.hook';
 import useChangeMeasurementPointStatusHook from '@/infrastructure/repository/measurement-point/hooks/useChangeMeasurementPointStatus.hook';
+import useDeleteMeasurementPointHook from '@/infrastructure/repository/measurement-point/hooks/useDeleteMeasurementPoint.hook.tsx';
 import useGetListMeasurementPointsHook from '@/infrastructure/repository/measurement-point/hooks/useGetListMeasurementPoints.hook';
 import { deleteParams } from '@/infrastructure/utils/helpers';
 import { _t } from '@/infrastructure/utils/translation';
@@ -34,6 +36,9 @@ const PointManagement = () => {
     status: Constants.CustomerStatus.Active,
   });
   const [getListMeasurementPoints] = useGetListMeasurementPointsHook();
+  const [deletePointRequest] = useDeleteMeasurementPointHook();
+  const [selectedPointForDelete, setSelectedPointForDelete] = useState<{ id: number; code: string } | null>(null);
+  const [isShowDeleteDialog, setIsShowDeleteDialog] = useState<boolean>(false);
   const [isShowExport, setIsShowExport] = useState<boolean>(false);
   const [isShowImport, setIsShowImport] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
@@ -44,6 +49,24 @@ const PointManagement = () => {
     record: null,
     status: false,
   });
+
+  const deletePointAsync = async () => {
+    if (!selectedPointForDelete?.id) return;
+    const params = new DeleteMeasurementPointRequest({ id: selectedPointForDelete.id });
+    await deletePointRequest(
+      params,
+      () => {
+        setIsShowDeleteDialog(false);
+        setSelectedPointForDelete(null);
+        notifySuccess('', _t('Xóa điểm đo thành công'));
+        getListMeasurementPointsAsync({ ...getListMeasurementParamsRequest });
+      },
+      () => {
+        setIsShowDeleteDialog(false);
+      },
+      setLoading
+    );
+  };
   const [getListMeasurementParamsRequest, setGetListMeasurementParamsRequest] =
     useState<GetListMeasurementPointsRequest>({
       searchByFields: [
@@ -264,6 +287,10 @@ const PointManagement = () => {
           <TablePointManagement
             dataSource={data ?? []}
             setIsShowDialog={setIsShowDialog}
+            onOpenDeleteDialog={(id, code) => {
+              setSelectedPointForDelete({ id, code });
+              setIsShowDeleteDialog(true);
+            }}
             loading={loading}
           />
         </div>
@@ -303,7 +330,7 @@ const PointManagement = () => {
         title='Quản lý điểm đo'
         dataSource={dataExport}
         listHeader={Constants.listHeaderExport.PointManagement}
-        fileNameCsv={'DanhSachDiemDo'}
+        fileNameCsv={'MDMS_DanhSachDiemDo'}
         typeExportAll={'measurement-points'}
         requestBody={getListMeasurementParamsRequest}
       />
@@ -344,6 +371,26 @@ const PointManagement = () => {
               <p className=''>{_t('Sau khi xác nhận điểm đo sẽ được kích hoạt')}</p>
             </div>
           )}
+        </div>
+      </DialogCommon>
+      <DialogCommon
+        title={''}
+        visible={isShowDeleteDialog}
+        handleCancel={() => {
+          setIsShowDeleteDialog(false);
+          setSelectedPointForDelete(null);
+        }}
+        handleConfirm={deletePointAsync}
+        isButtonSubmit={true}
+        showFooter={true}
+      >
+        <div className='flex flex-col gap-4'>
+          <div className='flex flex-col justify-center items-center my-10 gap-2'>
+            <p className='text-20-20 font-bold'>{_t('Xác nhận xoá điểm đo')}</p>
+            <p className='text-16-16 text-center'>
+              {_t(`Sau khi xác nhận điểm đo "${selectedPointForDelete?.code || ''}" sẽ bị xoá khỏi hệ thống.`)}
+            </p>
+          </div>
         </div>
       </DialogCommon>
     </div>

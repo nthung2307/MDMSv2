@@ -482,7 +482,7 @@ export default class Constants {
             null,
             'Mẫu Email thông báo',
             'Mẫu Email thông báo',
-            [Constants.Role.SuperAdmin.value, Constants.Role.Admin.value],
+            [Constants.Role.SuperAdmin.value],
             ROUTE_PATH.NOTIFICATION_TEMPLATES,
             MenuKeys.MonitoringPoints
           ),
@@ -492,7 +492,7 @@ export default class Constants {
             null,
             'Mẫu phiếu báo chỉ số điện',
             'Mẫu phiếu báo chỉ số điện',
-            [Constants.Role.SuperAdmin.value, Constants.Role.Admin.value],
+            [Constants.Role.SuperAdmin.value],
             ROUTE_PATH.STATEMENT_PDF_TEMPLATES,
             MenuKeys.MonitoringPoints
           ),
@@ -1698,10 +1698,10 @@ export default class Constants {
       { label: 'Mô tả', attr: 'description', width: 25 },
       { label: 'Tên khách hàng', attr: 'customer', width: 15 },
       { label: 'Bộ chỉ số', attr: 'meterReadingSet', width: 7 },
-      { label: 'Chỉ số cũ', attr: 'previousReading', width: 10 },
-      { label: 'Chỉ số mới', attr: 'currentReading', width: 10 },
-      { label: 'Hệ số nhân', attr: 'multiplierFactor', width: 10 },
-      { label: 'Sản lượng', attr: 'consumption', width: 10 },
+      { label: 'Chỉ số cũ', attr: 'previousReading', width: 10, numFmt: '#,##0' },
+      { label: 'Chỉ số mới', attr: 'currentReading', width: 10, numFmt: '#,##0' },
+      { label: 'Hệ số nhân', attr: 'multiplierFactor', width: 10, numFmt: '#,##0' },
+      { label: 'Sản lượng', attr: 'consumption', width: 10, numFmt: '#,##0' },
     ];
 
     static GcsSum: Array<any> = [
@@ -1709,10 +1709,10 @@ export default class Constants {
       { label: 'Mô tả', attr: 'description', width: 18 },
       { label: 'Tên khách hàng', attr: 'customer', width: 15 },
       { label: 'Bộ chỉ số', attr: 'meterReadingSet', width: 10 },
-      { label: 'Chỉ số cũ', attr: 'previousReading', width: 10 },
-      { label: 'Chỉ số mới', attr: 'currentReading', width: 10 },
-      { label: 'Hệ số nhân', attr: 'multiplierFactor', width: 10 },
-      { label: 'Sản lượng', attr: 'consumption', width: 10 },
+      { label: 'Chỉ số cũ', attr: 'previousReading', width: 10, numFmt: '#,##0' },
+      { label: 'Chỉ số mới', attr: 'currentReading', width: 10, numFmt: '#,##0' },
+      { label: 'Hệ số nhân', attr: 'multiplierFactor', width: 10, numFmt: '#,##0' },
+      { label: 'Sản lượng', attr: 'consumption', width: 10, numFmt: '#,##0' },
     ];
 
     static TotalOutputPoint: Array<any> = [

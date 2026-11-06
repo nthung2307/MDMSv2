@@ -1,6 +1,7 @@
 using Application.Commands.IoT;
 using Application.Common;
 using Application.Common.Responses.Common.Responses;
+using Application.Common.ValueObjects;
 using Application.Common.ValueObjects.CursorBased;
 using Application.DataTransferObjects.Requests.IoT;
 using Application.DataTransferObjects.Responses.IoT;
@@ -104,8 +105,15 @@ public class IoTController : ControllerBase
         }
         catch (Exception e)
         {
-            _loggerService.LogError(e, nameof(ReceiveDataAsync));
-            throw;
+            _loggerService.LogError(e, nameof(GetDataLatchAsync));
+            return RequestResult<CursorPaginationResponse<GetDataLatchResponse>>.Fail(new[]
+            {
+                new ErrorItem()
+                {
+                    FieldName = "System",
+                    Error = $"Có lỗi xử lý dữ liệu chốt sổ: {e.Message}"
+                }
+            });
         }
     }
 }

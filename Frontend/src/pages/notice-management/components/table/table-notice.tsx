@@ -138,13 +138,14 @@ const TableDetailNotice = (props: Props) => {
         </div>
       ),
       dataIndex: 'measurementPoint',
-      width: '5%',
+      width: 50,
+      align: 'center',
       render: (_, record: any) => {
         const canSend = isPointSendable(record);
         const isChecked = canSend && sendData.listSend.some((item: any) => item.id === record.id);
 
         return (
-          <div>
+          <div className='flex justify-center'>
             <CheckboxCommon
               dataAttribute={isChecked}
               disabled={!canSend}
@@ -160,221 +161,130 @@ const TableDetailNotice = (props: Props) => {
       },
     },
     {
-      title: 'Mã khách hàng',
+      title: 'Mã điểm đo',
       dataIndex: 'measurementPoint',
-      render: (value) => {
-        return <div>{value.customer.customerCode}</div>;
+      width: 160,
+      render: (mp: any) => {
+        const code = mp?.code || '';
+        return (
+          <Tooltip title={code}>
+            <div className='max-w-[150px] truncate whitespace-nowrap font-medium text-gray-800'>
+              {code}
+            </div>
+          </Tooltip>
+        );
       },
     },
     {
       title: 'Tên khách hàng',
       dataIndex: 'measurementPoint',
-      render: (record) => {
-        return <div>{record.customer.fullName}</div>;
-      },
-    },
-    {
-      title: 'Mã điểm đo',
-      dataIndex: 'measurementPoint',
-      render: (record) => {
-        return <div className='font-medium'>{record?.code}</div>;
+      width: 280,
+      render: (mp: any) => {
+        const name = mp?.customer?.fullName || '';
+        return (
+          <Tooltip title={name}>
+            <div className='max-w-[270px] truncate whitespace-nowrap font-medium text-gray-700'>
+              {name}
+            </div>
+          </Tooltip>
+        );
       },
     },
     {
       title: 'Email nhận phiếu báo',
       dataIndex: 'measurementPoint',
+      width: 280,
       render: (_, record: any) => {
         const emails = getPointEmails(record);
         if (emails.length === 0) {
-          return <span style={{ fontSize: '12px', color: '#faad14' }}>Chưa có email</span>;
+          return <span className='text-xs text-amber-500 whitespace-nowrap'>Chưa có email</span>;
         }
 
         const parsedStatus = parseStatusDetail(record?.status);
 
-        return (
-          <div className='flex flex-col gap-1.5 py-0.5'>
+        const tooltipContent = (
+          <div className='flex flex-col gap-1 py-1 max-w-[320px]'>
             {emails.map((email, idx) => {
               const trimmed = email.trim();
               const isValid = isEmailFormatValid(trimmed);
               const detail = parsedStatus.details.find(
                 (d) => d.email.trim().toLowerCase() === trimmed.toLowerCase()
               );
-
-              // 1. Neu email khong dung dinh dang
+              let statusText = 'Chờ gửi';
+              let colorClass = 'text-gray-300';
               if (!isValid) {
-                return (
-                  <div key={idx} className='flex items-center gap-1.5' style={{ fontSize: '12px' }}>
-                    <span style={{ color: '#ff4d4f' }}>{trimmed}</span>
-                    <Tag
-                      color='error'
-                      style={{
-                        fontSize: '10px',
-                        margin: 0,
-                        padding: '0 4px',
-                        lineHeight: '18px',
-                        height: '18px',
-                      }}
-                    >
-                      Sai cú pháp
-                    </Tag>
-                  </div>
-                );
+                statusText = 'Sai cú pháp';
+                colorClass = 'text-red-400';
+              } else if (detail?.status === 'SUCCESS' || parsedStatus.overall === 'SEND_SUCCESS') {
+                statusText = 'Đã gửi';
+                colorClass = 'text-green-400';
+              } else if (detail?.status === 'FAILED' || parsedStatus.overall === 'SEND_FAILED') {
+                statusText = `Thất bại${detail?.error ? `: ${detail.error}` : ''}`;
+                colorClass = 'text-red-400';
               }
-
-              // 2. Neu co chi tiet tu JSON trang thai
-              if (detail) {
-                if (detail.status === 'SUCCESS') {
-                  return (
-                    <div key={idx} className='flex items-center gap-1.5' style={{ fontSize: '12px' }}>
-                      <span style={{ color: '#2b8a3e', fontWeight: 500 }}>{trimmed}</span>
-                      <Tag
-                        color='success'
-                        style={{
-                          fontSize: '10px',
-                          margin: 0,
-                          padding: '0 4px',
-                          lineHeight: '18px',
-                          height: '18px',
-                        }}
-                      >
-                        Đã gửi
-                      </Tag>
-                    </div>
-                  );
-                }
-
-                if (detail.status === 'FAILED') {
-                  return (
-                    <div key={idx} className='flex items-center gap-1.5' style={{ fontSize: '12px' }}>
-                      <span style={{ color: '#d32f2f', fontWeight: 500 }}>{trimmed}</span>
-                      <Tooltip title={detail.error || 'Gửi thất bại'}>
-                        <Tag
-                          color='error'
-                          style={{
-                            fontSize: '10px',
-                            margin: 0,
-                            padding: '0 4px',
-                            lineHeight: '18px',
-                            height: '18px',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Thất bại
-                        </Tag>
-                      </Tooltip>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div key={idx} className='flex items-center gap-1.5' style={{ fontSize: '12px' }}>
-                    <span style={{ color: '#595959' }}>{trimmed}</span>
-                    <Tag
-                      color='default'
-                      style={{
-                        fontSize: '10px',
-                        margin: 0,
-                        padding: '0 4px',
-                        lineHeight: '18px',
-                        height: '18px',
-                      }}
-                    >
-                      Chờ gửi
-                    </Tag>
-                  </div>
-                );
-              }
-
-              // 3. Fallback cho du lieu cu (overall string) hoac chua gui
-              if (parsedStatus.overall === 'SEND_SUCCESS') {
-                return (
-                  <div key={idx} className='flex items-center gap-1.5' style={{ fontSize: '12px' }}>
-                    <span style={{ color: '#2b8a3e', fontWeight: 500 }}>{trimmed}</span>
-                    <Tag
-                      color='success'
-                      style={{
-                        fontSize: '10px',
-                        margin: 0,
-                        padding: '0 4px',
-                        lineHeight: '18px',
-                        height: '18px',
-                      }}
-                    >
-                      Đã gửi
-                    </Tag>
-                  </div>
-                );
-              }
-
-              if (parsedStatus.overall === 'SEND_FAILED') {
-                return (
-                  <div key={idx} className='flex items-center gap-1.5' style={{ fontSize: '12px' }}>
-                    <span style={{ color: '#d32f2f', fontWeight: 500 }}>{trimmed}</span>
-                    <Tag
-                      color='error'
-                      style={{
-                        fontSize: '10px',
-                        margin: 0,
-                        padding: '0 4px',
-                        lineHeight: '18px',
-                        height: '18px',
-                      }}
-                    >
-                      Thất bại
-                    </Tag>
-                  </div>
-                );
-              }
-
               return (
-                <div key={idx} style={{ fontSize: '12px', color: '#1677ff' }}>
-                  {trimmed}
+                <div
+                  key={idx}
+                  className='text-xs flex items-center justify-between gap-2 border-b border-gray-600 last:border-none pb-0.5'
+                >
+                  <span className='truncate'>{trimmed}</span>
+                  <span className={`font-medium ${colorClass} shrink-0`}>[{statusText}]</span>
                 </div>
               );
             })}
           </div>
+        );
+
+        return (
+          <Tooltip title={tooltipContent} placement='topLeft'>
+            <div className='max-w-[270px] truncate whitespace-nowrap text-xs text-blue-600 font-normal cursor-pointer hover:underline'>
+              {emails.join('; ')}
+            </div>
+          </Tooltip>
         );
       },
     },
     {
       title: 'Trạng thái gửi Email',
       dataIndex: 'status',
+      width: 180,
       render: (status, record: any) => {
         const emails = getPointEmails(record);
         const hasValidEmails = emails.length > 0 && emails.every(isEmailFormatValid);
 
         // 1. Neu diem do chua co email hoac email khong hop le -> luon hien thi canh bao
         if (emails.length === 0) {
-          return <Tag color='warning'>Chưa cấu hình Email</Tag>;
+          return <Tag color='warning' className='whitespace-nowrap'>Chưa cấu hình Email</Tag>;
         }
         if (!hasValidEmails) {
-          return <Tag color='error'>Email không hợp lệ</Tag>;
+          return <Tag color='error' className='whitespace-nowrap'>Email không hợp lệ</Tag>;
         }
 
         const parsed = parseStatusDetail(status);
         switch (parsed.overall) {
           case 'SEND_SUCCESS':
-            return <Tag color='success'>Thành công</Tag>;
+            return <Tag color='success' className='whitespace-nowrap'>Thành công</Tag>;
           case 'PARTIAL_SUCCESS': {
             const successCount = parsed.details.filter((d) => d.status === 'SUCCESS').length;
             const totalCount = emails.length || parsed.details.length;
-            return <Tag color='orange'>Gửi một phần ({successCount}/{totalCount})</Tag>;
+            return <Tag color='orange' className='whitespace-nowrap'>Gửi một phần ({successCount}/{totalCount})</Tag>;
           }
           case 'SEND_FAILED':
-            return <Tag color='error'>Thất bại</Tag>;
+            return <Tag color='error' className='whitespace-nowrap'>Thất bại</Tag>;
           case 'PENDING':
           case 'PROCESSING':
-            return <Tag color='processing'>Chờ gửi</Tag>;
+            return <Tag color='processing' className='whitespace-nowrap'>Chờ gửi</Tag>;
           case 'NO_EMAIL_CONFIGURED':
-            return <Tag color='warning'>Chưa cấu hình Email</Tag>;
+            return <Tag color='warning' className='whitespace-nowrap'>Chưa cấu hình Email</Tag>;
           default:
-            return <Tag color='default'>Chưa gửi</Tag>;
+            return <Tag color='default' className='whitespace-nowrap'>Chưa gửi</Tag>;
         }
       },
     },
     {
       title: 'Thời gian gửi gần nhất',
       dataIndex: 'sentTime',
+      width: 180,
       render: (sentTime, record: any) => {
         const emails = getPointEmails(record);
         const hasValidEmails = emails.length > 0 && emails.every(isEmailFormatValid);
@@ -389,10 +299,15 @@ const TableDetailNotice = (props: Props) => {
             parsed.overall === 'SEND_FAILED') &&
           latestTime
         ) {
-          return <div>{convertDateTime(latestTime, 'dd/mm/yyyy hh:mi:ss')}</div>;
+          const timeStr = convertDateTime(latestTime, 'dd/mm/yyyy hh:mi:ss');
+          return (
+            <Tooltip title={timeStr}>
+              <div className='whitespace-nowrap text-gray-700'>{timeStr}</div>
+            </Tooltip>
+          );
         }
 
-        return <span style={{ color: '#bfbfbf' }}>-</span>;
+        return <span className='text-gray-400 whitespace-nowrap'>-</span>;
       },
     },
   ];
@@ -402,7 +317,7 @@ const TableDetailNotice = (props: Props) => {
       columns={columns}
       dataSource={dataSource}
       pagination={false}
-      // scroll={{ x: 'max-content', y: window.innerHeight * 0.66 }}
+      scroll={{ x: 'max-content' }}
       onRow={(record) => {
         return {
           onClick: (e) => {

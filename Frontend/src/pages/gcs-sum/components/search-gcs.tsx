@@ -52,22 +52,25 @@ const SearchGCS = (props: Props) => {
           <div className='basis-1/2'>
             <InputSelectCommon
               label={null}
-              attribute={'quanlity'}
-              dataAttribute={dataForm?.quanlity}
+              attribute={'statusFilter'}
+              dataAttribute={dataForm?.statusFilter}
               placeholder={_t('Trạng thái chỉ số')}
               setData={setDataForm}
               allowClear={true}
               isRequired={false}
-              listDataItem={[{ label: 'Chỉ số lỗi', value: 1 }]}
+              listDataItem={[
+                { label: 'Số liệu đúng', value: 'valid' },
+                { label: 'Số liệu nghi ngờ', value: 'suspicious' },
+              ]}
               onCallBackFunction={(data: any) => {
                 setRefreshState(false);
-                setDataForm({ quanlity: data.value });
+                setDataForm({ statusFilter: data?.value });
               }}
             />
           </div>
         </div>
         <div className='flex gap-1'>
-          {dataForm?.fullName || dataForm?.quanlity || dataForm?.measurementPointId ? (
+          {dataForm?.fullName || dataForm?.statusFilter || dataForm?.measurementPointId ? (
             <ButtonCommonCustomizable
               title={_t('')}
               classButton='text-button-variant'

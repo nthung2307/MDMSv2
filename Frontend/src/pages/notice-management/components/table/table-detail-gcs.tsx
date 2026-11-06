@@ -18,16 +18,47 @@ interface Props {
 const TableDetailGcs = (props: Props) => {
   const { dataSource, GCSName, gcsId, loading } = props;
   const navigate = useNavigate();
-  const getPreviousDate = (day: number, month: number, year: number) => {
-    let date = new Date(year, month - 1, day);
-    date.setDate(date.getDate() - 1);
+  const formatCycleDate = (record: any) => {
+    if (!record) return '';
+    const month = Number(record.month) || 1;
+    const year = Number(record.year) || new Date().getFullYear();
+    const lastDayOfMonth = new Date(year, month, 0).getDate();
 
-    let prevDay = date.getDate();
-    let prevMonth = date.getMonth() + 1;
-    let prevYear = date.getFullYear();
+    const gcsNameLower = (GCSName || '').toLowerCase();
+    const isOnePeriod =
+      record.totalPeriod === 1 ||
+      gcsNameLower.includes('1 kỳ') ||
+      gcsNameLower.includes('1 ky') ||
+      (record.periodNumber === 1 && (!record.totalPeriod || record.totalPeriod <= 1));
 
-    return `${renderTextNumber(prevDay)}/${renderTextNumber(prevMonth)}/${prevYear}`;
+    if (isOnePeriod) {
+      // Sổ 1 kỳ: chu kỳ luôn trọn vẹn từ ngày 01 đến ngày cuối tháng
+      return `Từ 01/${renderTextNumber(month)}/${year} đến ${renderTextNumber(lastDayOfMonth)}/${renderTextNumber(month)}/${year}`;
+    }
+
+    // Sổ nhiều kỳ: Kỳ 1 bắt đầu từ ngày 01 đầu tháng
+    if (record.periodNumber === 1) {
+      let toDay = record.day && record.day > 0 && record.day < lastDayOfMonth ? record.day : lastDayOfMonth;
+      return `Từ 01/${renderTextNumber(month)}/${year} đến ${renderTextNumber(toDay)}/${renderTextNumber(month)}/${year}`;
+    }
+
+    // Các kỳ tiếp theo (kỳ 2, 3...)
+    let fromDay = record.previousDay && record.previousDay > 0 ? record.previousDay + 1 : 1;
+    let fromMonth = record.previousMonth || month;
+    let fromYear = record.previousYear || year;
+    const lastDayOfPrev = new Date(fromYear, fromMonth, 0).getDate();
+    if (fromDay > lastDayOfPrev) {
+      fromDay = lastDayOfPrev;
+    }
+
+    let toDay = record.day && record.day > 0 ? record.day : lastDayOfMonth;
+    if (toDay >= 28 || toDay === 999) {
+      toDay = lastDayOfMonth;
+    }
+
+    return `Từ ${renderTextNumber(fromDay)}/${renderTextNumber(fromMonth)}/${fromYear} đến ${renderTextNumber(toDay)}/${renderTextNumber(month)}/${year}`;
   };
+
   const columns: TableProps['columns'] = [
     {
       title: 'Số phiếu báo',
@@ -42,13 +73,9 @@ const TableDetailGcs = (props: Props) => {
       dataIndex: 'month',
       align: 'center',
       render: (_, record) => {
-        const previousTime =
-          record.previousDay !== 0
-            ? `${renderTextNumber(record.previousDay)}/${renderTextNumber(record.previousMonth)}/${record.previousYear}`
-            : convertDateTime(record.createdTime, 'dd/mm/yyyy');
         return (
-          <div>
-            {`ngày ${previousTime} - ${getPreviousDate(record.day, record.month, record.year)}`}
+          <div className='whitespace-nowrap'>
+            {formatCycleDate(record)}
           </div>
         );
       },
@@ -58,7 +85,7 @@ const TableDetailGcs = (props: Props) => {
       dataIndex: 'periodNumber',
       align: 'center',
       render: (val, record) => {
-        return <div>{`K${val} tháng ${record.month}/${record.year}`}</div>;
+        return <div className='whitespace-nowrap'>{`K${val} tháng ${record.month}/${record.year}`}</div>;
       },
     },
     {
@@ -68,11 +95,7 @@ const TableDetailGcs = (props: Props) => {
       fixed: 'right',
       width: 90,
       render: (_, record) => {
-        const previousTime =
-          record.previousDay !== 0
-            ? `${renderTextNumber(record.previousDay)}/${renderTextNumber(record.previousMonth)}/${record.previousYear}`
-            : convertDateTime(record.createdTime, 'dd/mm/yyyy');
-        const date = `Từ ${previousTime} đến ${getPreviousDate(record.day, record.month, record.year)}`;
+        const date = formatCycleDate(record);
         const url = `${ROUTE_PATH.NOTICE_DETAIl}?gcsId=${gcsId}&cycleId=${record.id}`;
 
         const handlePrepareStorage = () => {

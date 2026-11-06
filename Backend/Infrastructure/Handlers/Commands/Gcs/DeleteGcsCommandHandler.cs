@@ -1,4 +1,4 @@
-﻿using Application.Commands.Gcs;
+using Application.Commands.Gcs;
 using Application.Common.Responses.Common.Responses;
 using Application.Common.ValueObjects;
 using Application.DataTransferObjects.Responses.Gcs;
@@ -67,6 +67,12 @@ public class DeleteGcsCommandHandler : IDeleteGcsCommandHandler
                 });
             }
 
+            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            if (!string.IsNullOrEmpty(gcs.Code) && !gcs.Code.Contains("_deleted_"))
+            {
+                gcs.Code = $"{gcs.Code}_deleted_{timestamp}";
+            }
+            gcs.Status = EntityStatus.Deleted;
             gcs.Deleted = true;
             gcs.DeletedBy = currentId;
             gcs.DeletedTime = DateTimeOffset.Now;

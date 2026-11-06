@@ -51,4 +51,27 @@ export interface IGCSManagementService {
     params: UpdateGCSTemporaryRequest,
     cancellationToken: CancelToken
   ): Promise<RequestResponse>;
+
+  exportExcelTemporary(
+    endpoint: string,
+    params: {
+      gcsId: number;
+      month: number;
+      year: number;
+      periodNumber: number;
+      onlySuspicious?: boolean;
+    },
+    cancellationToken?: CancelToken
+  ): Promise<Blob>;
+
+  importExcelTemporary(
+    endpoint: string,
+    file: File,
+    params: {
+      gcsId: number;
+      month: number;
+      year: number;
+      periodNumber: number;
+    }
+  ): Promise<RequestResponse>;
 }

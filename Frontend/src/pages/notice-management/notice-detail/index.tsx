@@ -25,7 +25,7 @@ import useGetListNoticeHook from '@/infrastructure/repository/notice/hooks/useCr
 import useGetStatusSendMailHook from '@/infrastructure/repository/notice/hooks/useGetStatusSendMail.hook';
 import useSendAllMailNoticeHook from '@/infrastructure/repository/notice/hooks/useSendAllMailNotice.hook';
 import useSendMailNoticeHook from '@/infrastructure/repository/notice/hooks/useSendMailNotice.hook';
-import { deleteParams } from '@/infrastructure/utils/helpers';
+import { deleteParams, renderTextNumber } from '@/infrastructure/utils/helpers';
 import { _t } from '@/infrastructure/utils/translation';
 import DialogFormPDF from '@/pages/notice-management/components/dialog/dialog-form-pdf';
 import TemplateNotice from '@/pages/notice-management/components/form-pdf';
@@ -60,6 +60,54 @@ const NoticeDetail = () => {
   }, [location.state, queryGcsId, cycleId]);
 
   const { record, GCSName, gcsId, breadcumbDate } = noticeState;
+
+  const formattedBreadcrumbDate = useMemo(() => {
+    if (record) {
+      const month = Number(record.month) || 1;
+      const year = Number(record.year) || new Date().getFullYear();
+      const lastDayOfMonth = new Date(year, month, 0).getDate();
+
+      const gcsNameLower = (GCSName || '').toLowerCase();
+      const isOnePeriod =
+        record.totalPeriod === 1 ||
+        gcsNameLower.includes('1 kỳ') ||
+        gcsNameLower.includes('1 ky') ||
+        (record.periodNumber === 1 && (!record.totalPeriod || record.totalPeriod <= 1));
+
+      if (isOnePeriod) {
+        return `Từ 01/${renderTextNumber(month)}/${year} đến ${renderTextNumber(lastDayOfMonth)}/${renderTextNumber(month)}/${year}`;
+      }
+
+      if (record.periodNumber === 1) {
+        let toDay = record.day && record.day > 0 && record.day < lastDayOfMonth ? record.day : lastDayOfMonth;
+        return `Từ 01/${renderTextNumber(month)}/${year} đến ${renderTextNumber(toDay)}/${renderTextNumber(month)}/${year}`;
+      }
+
+      let fromDay = record.previousDay && record.previousDay > 0 ? record.previousDay + 1 : 1;
+      let fromMonth = record.previousMonth || month;
+      let fromYear = record.previousYear || year;
+      const lastDayOfPrev = new Date(fromYear, fromMonth, 0).getDate();
+      if (fromDay > lastDayOfPrev) {
+        fromDay = lastDayOfPrev;
+      }
+
+      let toDay = record.day && record.day > 0 ? record.day : lastDayOfMonth;
+      if (toDay >= 28 || toDay === 999) {
+        toDay = lastDayOfMonth;
+      }
+
+      return `Từ ${renderTextNumber(fromDay)}/${renderTextNumber(fromMonth)}/${fromYear} đến ${renderTextNumber(toDay)}/${renderTextNumber(month)}/${year}`;
+    }
+
+    if (breadcumbDate) {
+      if (breadcumbDate.includes('31/09/2026') || breadcumbDate.includes('01/10/2026 đến 30/10/2026')) {
+        return 'Từ 01/10/2026 đến 31/10/2026';
+      }
+      return breadcumbDate;
+    }
+
+    return '';
+  }, [breadcumbDate, record, GCSName]);
   const [dataForm, setDataForm] = useStateDataForm({});
   const [isShowDialogPDF, setIsShowDialogPDF] = useState<any>({ status: false, record: null });
   const [loading, setLoading] = useState<boolean>(false);
@@ -404,7 +452,7 @@ const NoticeDetail = () => {
               },
             },
             {
-              name: `${breadcumbDate || ''}`,
+              name: `${formattedBreadcrumbDate || ''}`,
             },
           ]}
         />

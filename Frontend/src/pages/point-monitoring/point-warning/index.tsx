@@ -114,6 +114,16 @@ const PointMonitoringWarning = () => {
     });
   }, [debounceMeasurementPoint, debounceEventName, dataForm.date]);
 
+  const isUnfilteredRequest = (params: GetListMeasurementPointMonitoringRequest) => {
+    return (
+      !params.measurementpointCode &&
+      !params.measurementPointCode &&
+      !params.startDate &&
+      !params.endDate &&
+      (!params.searchByFields || params.searchByFields.length === 0)
+    );
+  };
+
   const getListMeasurementPointAlertAsync = async ({
     pageSize = size,
     before,
@@ -148,7 +158,7 @@ const PointMonitoringWarning = () => {
           hasPrevious: data.hasPrevious,
           totalCount: data.totalCount,
         });
-        if (typeof data?.totalCount === 'number') {
+        if (typeof data?.totalCount === 'number' && isUnfilteredRequest(params)) {
           setRecoilStateAsync(CountState, data.totalCount);
         }
       },
@@ -186,7 +196,7 @@ const PointMonitoringWarning = () => {
           hasPrevious: resData?.hasPrevious || false,
           totalCount: resData?.totalCount,
         });
-        if (typeof resData?.totalCount === 'number') {
+        if (typeof resData?.totalCount === 'number' && isUnfilteredRequest(params)) {
           setRecoilStateAsync(CountState, resData.totalCount);
         }
       },
@@ -220,7 +230,7 @@ const PointMonitoringWarning = () => {
   }, [dataSocket]);
 
   useEffect(() => {
-    if (countState) {
+    if (typeof countState === 'number') {
       refreshCurrentPageAsync();
     }
   }, [countState]);
@@ -341,7 +351,7 @@ const PointMonitoringWarning = () => {
           title='Quản lý cảnh báo'
           dataSource={dataExport}
           listHeader={Constants.listHeaderExport.warningParams}
-          fileNameCsv={'DanhSachCanhBao'}
+          fileNameCsv={'MDMS_DanhSachCanhBao'}
           typeExportAll={'measurement-point-monitoring'}
           subTypeExportAll={'measurement-point-alert'}
         />

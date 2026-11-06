@@ -14,6 +14,9 @@ public class GcsMonthlyDetailEntity : IEntity<long>
     public double? CurrentReading { get; set; }
     public double MultiplierFactor { get; set; }
     public double? Consumption { get; set; }
+    public double? CosPhi { get; set; }
+    public DateTimeOffset? ReadingTime { get; set; }
+    public DateTimeOffset? PmaxTime { get; set; }
     public bool IsChange { get; set; }
     public DateTimeOffset? CreatedTime { get; set; }
     public long? CreatedBy { get; set; }

@@ -11,4 +11,5 @@ public class GetDataLatchRequest : CursorPaginationRequest
     public bool IsRefresh { get; set; }
     public bool? Quanlity { get; set; }
     public string? Type { get; set; }
+    public bool? IsSuspicious { get; set; }
 }

@@ -12,6 +12,8 @@ using Nobisoft.Core.Database.Repository;
 using Nobisoft.Core.Interfaces;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
+using Nobisoft.Core.Authorization;
+using Nobisoft.Core.Authorization.Interfaces;
 using QuestPDF.Infrastructure;
 
 namespace Infrastructure.Repositories.ReadWrite;
@@ -22,11 +24,44 @@ public class MeasurementPointHalfHourEnergyReportReadWriteRepository :
 {
     private readonly DbSet<MeasurementPointHalfHourEnergyReportEntity> _measurementPointHalfHourEnergyReportEntity;
     private readonly AppReadWriteDbContext _context;
+    private readonly ICurrentUserService? _currentUserService;
     
-    public MeasurementPointHalfHourEnergyReportReadWriteRepository(AppReadWriteDbContext context, ISnowflakeIdService snowflakeIdService) : base(context, snowflakeIdService)
+    public MeasurementPointHalfHourEnergyReportReadWriteRepository(
+        AppReadWriteDbContext context, 
+        ISnowflakeIdService snowflakeIdService,
+        ICurrentUserService? currentUserService = null) : base(context, snowflakeIdService)
     {
         _context = context;
         _measurementPointHalfHourEnergyReportEntity = context.Set<MeasurementPointHalfHourEnergyReportEntity>();
+        _currentUserService = currentUserService;
+    }
+
+    private async Task<(bool IsCustomer, List<long> LinkedCustomerIds)> GetCustomerAccessFilterAsync(CancellationToken cancellationToken)
+    {
+        if (_currentUserService == null) return (false, new List<long>());
+        try
+        {
+            var userId = _currentUserService.UserId;
+            if (userId <= 0) return (false, new List<long>());
+
+            var user = await _context.Set<UserEntity>().AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == userId && !u.Deleted, cancellationToken);
+
+            if (user != null && string.Equals(user.RoleName, DefaultRoles.Customer, StringComparison.OrdinalIgnoreCase))
+            {
+                var customerIds = await _context.Set<UserCustomerEntity>().AsNoTracking()
+                    .Where(uc => uc.UserId == userId)
+                    .Select(uc => uc.CustomerId)
+                    .ToListAsync(cancellationToken);
+
+                return (true, customerIds);
+            }
+        }
+        catch
+        {
+            // ignored
+        }
+        return (false, new List<long>());
     }
 
     public async Task<byte[]> GeneratePdf(HalfHourFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
@@ -288,6 +323,12 @@ public class MeasurementPointHalfHourEnergyReportReadWriteRepository :
             .AsNoTracking()
             .Include(p => p.Customer)
             .Where(p => !p.Deleted && p.Status == "ACTIVE");
+
+        var customerFilter = await GetCustomerAccessFilterAsync(cancellationToken);
+        if (customerFilter.IsCustomer)
+        {
+            pointQuery = pointQuery.Where(p => customerFilter.LinkedCustomerIds.Contains(p.CustomerId));
+        }
 
         if (request.CustomerId.HasValue && request.CustomerId.Value > 0)
         {

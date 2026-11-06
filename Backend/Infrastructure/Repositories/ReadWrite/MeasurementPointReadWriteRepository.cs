@@ -33,18 +33,24 @@ namespace Infrastructure.Repositories.ReadWrite
 
         public async Task<MeasurementPointsEntity?> GetMeasurementPointByIdAsync(long id, CancellationToken cancellationToken)
         {
-            return await _measurementPointsEntities.Where(x => x.Id == id).FirstOrDefaultAsync(cancellationToken);
+            return await _measurementPointsEntities.Where(x => x.Id == id && !x.Deleted).FirstOrDefaultAsync(cancellationToken);
         }
 
         public async Task<MeasurementPointsEntity?> GetMeasurementPointForUpdateByIdAsync(long id, CancellationToken cancellationToken)
         {
-            return await _measurementPointsEntities.Include(x => x.Customer).Include(x => x.Gcs).Where(x => x.Id == id).FirstOrDefaultAsync(cancellationToken);
-
+            return await _measurementPointsEntities.Include(x => x.Customer).Include(x => x.Gcs).Where(x => x.Id == id && !x.Deleted).FirstOrDefaultAsync(cancellationToken);
         }
 
         public async Task<List<MeasurementPointsEntity>> GetMeasurementPointByIdsAsync(List<long> ids, long customerId, CancellationToken cancellationToken)
         {
-            return await _measurementPointsEntities.Where(x => ids.Contains(x.Id) && x.CustomerId == customerId).ToListAsync(cancellationToken);
+            return await _measurementPointsEntities.Where(x => ids.Contains(x.Id) && x.CustomerId == customerId && !x.Deleted).ToListAsync(cancellationToken);
+        }
+
+        public async Task<List<MeasurementPointsEntity>> GetDeletedPointsByCodeAsync(string code, CancellationToken cancellationToken)
+        {
+            return await _measurementPointsEntities
+                .Where(x => x.Code == code && x.Deleted)
+                .ToListAsync(cancellationToken);
         }
 
         public async Task<byte[]> GenerateCustomerPdf(ExportPdfAndExcelRequest request, CancellationToken cancellationToken)
@@ -276,7 +282,8 @@ namespace Infrastructure.Repositories.ReadWrite
         private static string NormalizeHeaderText(string? text)
         {
             if (string.IsNullOrWhiteSpace(text)) return string.Empty;
-            var normalized = text.Trim().Normalize(NormalizationForm.FormD);
+            var trimmed = text.Trim('\uFEFF', ' ', '\t', '"', '\'');
+            var normalized = trimmed.Normalize(NormalizationForm.FormD);
             var sb = new StringBuilder();
             foreach (var c in normalized)
             {
@@ -286,7 +293,8 @@ namespace Infrastructure.Repositories.ReadWrite
                     sb.Append(c);
                 }
             }
-            return sb.ToString().Normalize(NormalizationForm.FormC).ToLowerInvariant();
+            return sb.ToString().Normalize(NormalizationForm.FormC).ToLowerInvariant()
+                .Replace("đ", "d").Replace("Đ", "D");
         }
 
         public async Task<ImportMeasurementPointResponse> ImportMeasurementPointsFromCsvAsync(Stream fileStream, long currentUserId, string currentUserName, CancellationToken cancellationToken)
@@ -349,65 +357,95 @@ namespace Infrastructure.Repositories.ReadWrite
             };
 
             using var csv = new CsvReader(reader, csvConfig);
-            await csv.ReadAsync();
-            csv.ReadHeader();
-
-            if (csv.HeaderRecord == null || csv.HeaderRecord.Length == 0)
-            {
-                response.Errors.Add(new ImportMeasurementPointRowError { RowNumber = 0, ErrorMessage = "Không tìm thấy tiêu đề cột trong tệp CSV!" });
-                response.ErrorCount = 1;
-                return response;
-            }
-
             int colCode = -1, colType = -1, colDesc = -1, colCustomer = -1, colEmail = -1, colEmail2 = -1, colEmail3 = -1, colAddress = -1, colStatus = -1;
-            for (int i = 0; i < csv.HeaderRecord.Length; i++)
+            bool headerFound = false;
+
+            // Quét tìm dòng tiêu đề thực sự (bỏ qua các dòng banner, ngày giờ xuất báo cáo)
+            while (await csv.ReadAsync())
             {
-                var header = NormalizeHeaderText(csv.HeaderRecord[i]);
-                if (header.Contains("ma diem do") || header.Contains("pointcode") || header.Contains("point_code") || header.Equals("madiemdo") || (header.Contains("diem do") && !header.Contains("loai")) || header.Equals("code"))
+                csv.ReadHeader();
+                if (csv.HeaderRecord == null || csv.HeaderRecord.Length == 0) continue;
+
+                // Loại trừ các dòng banner bị merged cells (nhiều cột có cùng nội dung) hoặc tiêu đề hệ thống
+                var uniqueHeaders = csv.HeaderRecord
+                    .Select(h => NormalizeHeaderText(h))
+                    .Where(h => !string.IsNullOrWhiteSpace(h))
+                    .Distinct()
+                    .ToList();
+                if (uniqueHeaders.Count <= 2) continue;
+
+                var joinedHeader = string.Join(" ", uniqueHeaders);
+                if (joinedHeader.Contains("he thong quan ly") ||
+                    joinedHeader.Contains("quan ly diem do") ||
+                    joinedHeader.Contains("thoi gian xuat"))
                 {
-                    colCode = i;
+                    continue;
                 }
-                else if (header.Contains("loai diem do") || header.Contains("loaidiemdo") || header.Contains("point_type") || header.Equals("type") || header.Equals("loai"))
+
+                colCode = -1; colType = -1; colDesc = -1; colCustomer = -1; colEmail = -1; colEmail2 = -1; colEmail3 = -1; colAddress = -1; colStatus = -1;
+                for (int i = 0; i < csv.HeaderRecord.Length; i++)
                 {
-                    colType = i;
+                    var header = NormalizeHeaderText(csv.HeaderRecord[i]);
+                    if (header.Equals("ma diem do") || header.Contains("ma diem do") ||
+                        header.Equals("pointcode") || header.Equals("point_code") ||
+                        header.Equals("madiemdo") ||
+                        (header.Contains("diem do") && !header.Contains("loai") && !header.Contains("quan ly") && !header.Contains("he thong") && !header.Contains("ten")) ||
+                        header.Equals("code"))
+                    {
+                        colCode = i;
+                    }
+                    else if (header.Contains("loai diem do") || header.Contains("loaidiemdo") || header.Contains("point_type") || header.Equals("type") || header.Equals("loai"))
+                    {
+                        colType = i;
+                    }
+                    else if (header.Contains("mo ta") || header.Contains("description") || header.Equals("mota"))
+                    {
+                        colDesc = i;
+                    }
+                    else if (header.Contains("ten khach hang") || header.Contains("ten kh") || header.Contains("customername") || header.Contains("khach hang") || header.Equals("customer") || header.Equals("tenkh") || header.Contains("customercode") || header.Equals("makh") || header.Contains("ma kh"))
+                    {
+                        colCustomer = i;
+                    }
+                    else if (header.Contains("email 2") || header.Contains("email2") || header.Contains("mail 2"))
+                    {
+                        colEmail2 = i;
+                    }
+                    else if (header.Contains("email 3") || header.Contains("email3") || header.Contains("mail 3"))
+                    {
+                        colEmail3 = i;
+                    }
+                    else if (header.Contains("email") || header.Contains("mail") || header.Contains("phieu bao"))
+                    {
+                        colEmail = i;
+                    }
+                    else if (header.Contains("dia chi") || header.Contains("address") || header.Equals("diachi"))
+                    {
+                        colAddress = i;
+                    }
+                    else if (header.Contains("trang thai") || header.Contains("status") || header.Equals("trangthai"))
+                    {
+                        colStatus = i;
+                    }
                 }
-                else if (header.Contains("mo ta") || header.Contains("description") || header.Equals("mota"))
+
+                // Dòng tiêu đề hợp lệ phải có ít nhất cột Mã điểm đo và một cột khác
+                if (colCode != -1 && (colType != -1 || colCustomer != -1 || colDesc != -1 || colEmail != -1 || colStatus != -1))
                 {
-                    colDesc = i;
-                }
-                else if (header.Contains("ten khach hang") || header.Contains("ten kh") || header.Contains("customername") || header.Contains("khach hang") || header.Equals("customer") || header.Equals("tenkh") || header.Contains("customercode") || header.Equals("makh") || header.Contains("ma kh"))
-                {
-                    colCustomer = i;
-                }
-                else if (header.Contains("email 2") || header.Contains("email2") || header.Contains("mail 2"))
-                {
-                    colEmail2 = i;
-                }
-                else if (header.Contains("email 3") || header.Contains("email3") || header.Contains("mail 3"))
-                {
-                    colEmail3 = i;
-                }
-                else if (header.Contains("email") || header.Contains("mail") || header.Contains("phieu bao"))
-                {
-                    colEmail = i;
-                }
-                else if (header.Contains("dia chi") || header.Contains("address") || header.Equals("diachi"))
-                {
-                    colAddress = i;
-                }
-                else if (header.Contains("trang thai") || header.Contains("status") || header.Equals("trangthai"))
-                {
-                    colStatus = i;
+                    headerFound = true;
+                    break;
                 }
             }
 
-            // Positional fallback matching standard export format (STT, Mã điểm đo, Loại điểm đo, Mô tả, Tên khách hàng, Email nhận phiếu báo, Trạng thái)
-            if (colCode == -1 && csv.HeaderRecord.Length > 1) colCode = 1;
-            if (colType == -1 && csv.HeaderRecord.Length > 2) colType = 2;
-            if (colDesc == -1 && csv.HeaderRecord.Length > 3) colDesc = 3;
-            if (colCustomer == -1 && csv.HeaderRecord.Length > 4) colCustomer = 4;
-            if (colEmail == -1 && csv.HeaderRecord.Length > 5) colEmail = 5;
-            if (colStatus == -1 && csv.HeaderRecord.Length > 6) colStatus = 6;
+            if (colCode == -1 && csv.HeaderRecord != null)
+            {
+                // Positional fallback matching standard export format (STT, Mã điểm đo, Loại điểm đo, Mô tả, Tên khách hàng, Email nhận phiếu báo, Trạng thái)
+                if (colCode == -1 && csv.HeaderRecord.Length > 1) colCode = 1;
+                if (colType == -1 && csv.HeaderRecord.Length > 2) colType = 2;
+                if (colDesc == -1 && csv.HeaderRecord.Length > 3) colDesc = 3;
+                if (colCustomer == -1 && csv.HeaderRecord.Length > 4) colCustomer = 4;
+                if (colEmail == -1 && csv.HeaderRecord.Length > 5) colEmail = 5;
+                if (colStatus == -1 && csv.HeaderRecord.Length > 6) colStatus = 6;
+            }
 
             if (colCode == -1)
             {
@@ -459,6 +497,31 @@ namespace Infrastructure.Repositories.ReadWrite
             int rowNumber = 1;
             var now = DateTimeOffset.UtcNow;
 
+            // Dọn dẹp tự động các bản ghi điểm đo rác từ tiêu đề file nếu đã bị lưu nhầm trước đó
+            var junkPoints = await _measurementPointsEntities
+                .Where(x => !x.Deleted && (
+                    x.Code == "Mã điểm đo" ||
+                    x.Code == "QUẢN LÝ ĐIỂM ĐO" ||
+                    x.Code == "Trạng thái" ||
+                    x.Code == "Đang sử dụng" ||
+                    x.Code == "Ngừng sử dụng" ||
+                    x.Code.StartsWith("Thời gian xuất") ||
+                    x.Code.StartsWith("HỆ THỐNG QUẢN LÝ")
+                ))
+                .ToListAsync(cancellationToken);
+            if (junkPoints.Count > 0)
+            {
+                _measurementPointsEntities.RemoveRange(junkPoints);
+                await SaveChangesAsync(cancellationToken);
+                foreach (var jp in junkPoints)
+                {
+                    if (jp.Code != null)
+                    {
+                        existingPoints.Remove(jp.Code.Trim().ToUpperInvariant());
+                    }
+                }
+            }
+
             while (await csv.ReadAsync())
             {
                 rowNumber++;
@@ -473,6 +536,18 @@ namespace Infrastructure.Repositories.ReadWrite
                 var rawStatus = colStatus >= 0 ? csv.GetField(colStatus)?.Trim() : null;
 
                 if (string.IsNullOrWhiteSpace(code) && string.IsNullOrWhiteSpace(type) && string.IsNullOrWhiteSpace(customerRaw) && string.IsNullOrWhiteSpace(emailRaw))
+                {
+                    continue;
+                }
+
+                // Bỏ qua dòng tiêu đề lặp lại hoặc các dòng banner vô tình lẫn vào dữ liệu
+                var normCode = NormalizeHeaderText(code);
+                if (normCode.Contains("ma diem do") || normCode.Contains("quan ly") ||
+                    normCode.Contains("thoi gian xuat") || normCode.Contains("he thong quan ly") ||
+                    normCode.Equals("trang thai") || normCode.Equals("dang su dung") ||
+                    normCode.Equals("ngung su dung") || normCode.Equals("stt") ||
+                    normCode.Equals("loai diem do") || normCode.Equals("mo ta") ||
+                    normCode.Equals("ten khach hang") || normCode.Equals("email"))
                 {
                     continue;
                 }

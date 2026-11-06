@@ -364,7 +364,9 @@ const DialogExportForm = (props: Props) => {
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.setAttribute('download', `${fileNameCsv || 'Export'}.xlsx`);
+      const cleanBase = (fileNameCsv || 'Export').replace(/\.(xlsx|xls|csv)$/i, '').trim();
+      const prefixedName = cleanBase.toUpperCase().startsWith('MDMS_') ? cleanBase : `MDMS_${cleanBase}`;
+      link.setAttribute('download', `${prefixedName}.xlsx`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

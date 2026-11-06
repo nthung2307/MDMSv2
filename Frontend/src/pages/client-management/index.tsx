@@ -1,6 +1,7 @@
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import { Card, TableProps } from 'antd';
 import { useEffect, useState } from 'react';
+import { FaRegTrashCan } from 'react-icons/fa6';
 import { FiDownload, FiShare } from 'react-icons/fi';
 import { IoBackspaceOutline, IoSearch } from 'react-icons/io5';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
 import Constants from '@/core/application/common/constants';
 import { DataResponse } from '@/core/application/dto/common/responses/successResponse';
+import { DeleteCustomerRequest } from '@/core/application/dto/customer/request/DeleteCustomerRequest.ts';
 import { GetListCustomerRequest } from '@/core/application/dto/customer/request/GetListCustomerRequest';
 import { ICustomerListResponseInterface } from '@/core/application/interfaces/response/customer/customerResponse.interface';
 import { ButtonCommonCustomizable } from '@/infrastructure/common/components/button/button-common-customizable.tsx';
@@ -16,12 +18,15 @@ import DialogExportForm from '@/infrastructure/common/components/dialog-export/d
 import InputSelectCommon from '@/infrastructure/common/components/input/input-select-common.tsx';
 import InputTextCommon from '@/infrastructure/common/components/input/input-text-common';
 import PaginationCommon from '@/infrastructure/common/components/pagination/pagination-common';
+import DialogCommon from '@/infrastructure/common/components/popup/dialogCommon.tsx';
 import PrivateComponent from '@/infrastructure/common/components/private-component/private-component.tsx';
 import StatusTagCommon from '@/infrastructure/common/components/status-tag/status-tag-common.tsx';
 import TableCommon from '@/infrastructure/common/components/table/table-common';
 import PageTitle from '@/infrastructure/common/components/title/page-title.tsx';
+import { notifySuccess } from '@/infrastructure/common/components/toast/toastMessage.tsx';
 import useDebounce from '@/infrastructure/common/libs/hooks/useDebounce.hook';
 import { useStateDataForm } from '@/infrastructure/common/libs/hooks/useStateDataForm.hook';
+import useDeleteCustomerHook from '@/infrastructure/repository/customer/hooks/useDeleteCustomer.hook.tsx';
 import useGetListCustomerHook from '@/infrastructure/repository/customer/hooks/useGetCustomerList.hook';
 import { deleteParams } from '@/infrastructure/utils/helpers.ts';
 import { _t } from '@/infrastructure/utils/translation';
@@ -35,8 +40,9 @@ const ClientManagement = () => {
   const [isShowExport, setIsShowExport] = useState<boolean>(false);
   const [isShowImport, setIsShowImport] = useState<boolean>(false);
   const [getListCustomer] = useGetListCustomerHook();
-  // const [deleteCustomerRequest] = useDeleteCustomerHook();
-  // const [changeCustomerStatus] = useChangeCustomerStatusHook();
+  const [deleteCustomerRequest] = useDeleteCustomerHook();
+  const [selectedCustomerForDelete, setSelectedCustomerForDelete] = useState<{ id: number; name: string } | null>(null);
+  const [isShowDeleteDialog, setIsShowDeleteDialog] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [size, setSize] = useState<number>(10);
   const [data, setData] = useState<ICustomerListResponseInterface>();
@@ -50,9 +56,24 @@ const ClientManagement = () => {
       ],
       sortByFields: [],
     });
-  // const [id, setId] = useState<number>(0);
-  // const [isShowDeleteDialog, setIsShowDeleteDialog] = useState<boolean>(false);
-  // const [isShowChangeStatusDialog, setIsShowChangeStatusDialog] = useState<boolean>(false);
+
+  const deleteCustomerAsync = async () => {
+    if (!selectedCustomerForDelete?.id) return;
+    const params = new DeleteCustomerRequest({ id: selectedCustomerForDelete.id });
+    await deleteCustomerRequest(
+      params,
+      () => {
+        setIsShowDeleteDialog(false);
+        setSelectedCustomerForDelete(null);
+        notifySuccess('', _t('Xóa khách hàng thành công'));
+        getListCustomerAsync({ ...getListCustomerParamsRequest });
+      },
+      () => {
+        setIsShowDeleteDialog(false);
+      },
+      setLoading
+    );
+  };
 
   const [paginationData, setPaginationData] = useState<{
     hasNext: boolean;
@@ -159,10 +180,12 @@ const ClientManagement = () => {
           record.key
         );
         return (
-          <ActionDetailLink
-            href={url}
-            title={`Chi tiết khách hàng: ${record.name || record.code}`}
-          />
+          <div className='flex items-center justify-center'>
+            <ActionDetailLink
+              href={url}
+              title={`Chi tiết khách hàng: ${record.name || record.code}`}
+            />
+          </div>
         );
       },
     },
@@ -345,7 +368,7 @@ const ClientManagement = () => {
         title='Quản lý khách hàng'
         dataSource={tableDataSource}
         listHeader={Constants.listHeaderExport.clients}
-        fileNameCsv={'DanhSachKhachHang'}
+        fileNameCsv={'MDMS_DanhSachKhachHang'}
         typeExportAll={'customers'}
         requestBody={getListCustomerParamsRequest}
       />
@@ -359,6 +382,26 @@ const ClientManagement = () => {
           getListCustomerAsync({ ...getListCustomerParamsRequest });
         }}
       />
+      <DialogCommon
+        title={''}
+        visible={isShowDeleteDialog}
+        handleCancel={() => {
+          setIsShowDeleteDialog(false);
+          setSelectedCustomerForDelete(null);
+        }}
+        handleConfirm={deleteCustomerAsync}
+        isButtonSubmit={true}
+        showFooter={true}
+      >
+        <div className='flex flex-col gap-4'>
+          <div className='flex flex-col justify-center items-center my-10 gap-2'>
+            <p className='text-20-20 font-bold'>{_t('Xác nhận xoá khách hàng')}</p>
+            <p className='text-16-16 text-center'>
+              {_t(`Sau khi xác nhận khách hàng "${selectedCustomerForDelete?.name || ''}" sẽ bị xoá khỏi hệ thống.`)}
+            </p>
+          </div>
+        </div>
+      </DialogCommon>
     </div>
   );
 };

@@ -1,4 +1,4 @@
-﻿using Application.Commands.Customers;
+using Application.Commands.Customers;
 using Application.Common.Responses.Common.Responses;
 using Application.Common.ValueObjects;
 using Application.DataTransferObjects.Responses.Customers;
@@ -69,6 +69,19 @@ public class UpdateCustomerCommandHandler : IUpdateCustomerCommandHandler
                         Error = "Mã khách hàng đã tồn tại trong hệ thống. Vui lòng thử lại!"
                     }
                 });
+            }
+
+            // Giải phóng mã khách hàng từ các bản ghi đã xóa mềm trước đó nếu còn trùng
+            var legacyDeletedCustomers = await _customerReadWriteRepository.GetDeletedCustomersByCodeAsync(command.CustomerCode, cancellationToken);
+            if (legacyDeletedCustomers != null && legacyDeletedCustomers.Count > 0)
+            {
+                var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                foreach (var del in legacyDeletedCustomers)
+                {
+                    del.CustomerCode = $"{del.CustomerCode}_deleted_{timestamp}_{del.Id}";
+                    await _customerReadWriteRepository.UpdateAsync(del, cancellationToken);
+                }
+                await _customerReadWriteRepository.SaveChangesAsync(cancellationToken);
             }
 
             var existUsers = await _userReadOnlyRepository.IsExistUsersAsync(command.UserIds.ToList(), cancellationToken);

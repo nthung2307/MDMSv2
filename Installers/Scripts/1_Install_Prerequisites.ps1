@@ -261,8 +261,99 @@ function Install-MicrosoftEdgeIfMissing {
 }
 Install-MicrosoftEdgeIfMissing | Out-Null
 
-# 5. Cau hinh Windows Firewall
-Write-Host "`n5. Dang cau hinh Windows Firewall cho he thong MDMSv2..." -ForegroundColor Yellow
+# 5. Kiem tra va cai dat LibreOffice Headless (chuyen doi mau phieu bao Excel -> PDF)
+Write-Host "`n5. Dang kiem tra va cai dat LibreOffice Headless (chuyen doi Excel -> PDF)..." -ForegroundColor Yellow
+
+function Install-LibreOfficeIfMissing {
+    $sofficePaths = @(
+        "C:\Program Files\LibreOffice\program\soffice.exe",
+        "C:\Program Files (x86)\LibreOffice\program\soffice.exe"
+    )
+    $sofficeInstalled = $false
+    $installedPath = $null
+    foreach ($sp in $sofficePaths) {
+        if (Test-Path $sp) {
+            $sofficeInstalled = $true
+            $installedPath = $sp
+            break
+        }
+    }
+
+    if ($sofficeInstalled) {
+        Write-Host "   -> [PASS] LibreOffice da duoc cai dat tai: $installedPath" -ForegroundColor Green
+        return $true
+    }
+
+    Write-Host "   -> Phat hien chua co LibreOffice. Dang tim bo cai de cai dat tu dong..." -ForegroundColor Yellow
+    $possibleDirs = @(
+        "$PSScriptRoot\..\Prerequisites",
+        "C:\MDMSv2\Prerequisites",
+        "$PSScriptRoot\Prerequisites",
+        "$PSScriptRoot"
+    )
+
+    $libreOfficePkg = $null
+    foreach ($d in $possibleDirs) {
+        if (Test-Path $d) {
+            $found = Get-ChildItem -Path $d -Include "*LibreOffice*.msi", "*LibreOffice*.exe" -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) {
+                $libreOfficePkg = $found.FullName
+                break
+            }
+        }
+    }
+
+    # Neu khong co offline, thu tai tu Internet (neu may chu co ket noi mang)
+    if (-not $libreOfficePkg) {
+        Write-Host "      Khong tim thay bo cai offline trong Prerequisites. Dang thu tai tu Internet..." -ForegroundColor Gray
+        $tempMsi = "$env:TEMP\LibreOffice_Win_x64.msi"
+        $downloadUrls = @(
+            "https://download.documentfoundation.org/libreoffice/stable/24.8.3/win/x86_64/LibreOffice_24.8.3_Win_x86-64.msi",
+            "https://download.documentfoundation.org/libreoffice/stable/24.2.7/win/x86_64/LibreOffice_24.2.7_Win_x86-64.msi",
+            "https://ftp.nluug.nl/tdf/libreoffice/stable/24.8.3/win/x86_64/LibreOffice_24.8.3_Win_x86-64.msi"
+        )
+        
+        foreach ($url in $downloadUrls) {
+            try {
+                Write-Host "      Dang thu tai tu: $url..." -ForegroundColor Gray
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                Invoke-WebRequest -Uri $url -OutFile $tempMsi -UseBasicParsing -TimeoutSec 180
+                if ((Test-Path $tempMsi) -and ((Get-Item $tempMsi).Length -gt 10000000)) {
+                    $libreOfficePkg = $tempMsi
+                    Write-Host "      Tai xuong thanh cong bo cai LibreOffice!" -ForegroundColor Green
+                    break
+                }
+            } catch {
+                Write-Host "      Khong the tai tu $url: $($_.Exception.Message)" -ForegroundColor Gray
+            }
+        }
+    }
+
+    if ($libreOfficePkg) {
+        Write-Host "      Tim thay bo cai LibreOffice: $libreOfficePkg" -ForegroundColor Gray
+        Write-Host "      Dang cai dat LibreOffice silent (/qn /norestart)..." -ForegroundColor Gray
+        if ($libreOfficePkg -like "*.msi") {
+            $proc = Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$libreOfficePkg`" /qn /norestart ALLUSERS=1 CREATEDESKTOPICON=0 REGISTER_ALL_MSO_TYPES=0" -Wait -PassThru
+        } else {
+            $proc = Start-Process -FilePath $libreOfficePkg -ArgumentList "/S" -Wait -PassThru
+        }
+        if ($proc.ExitCode -eq 0 -or $proc.ExitCode -eq 3010) {
+            Write-Host "   -> [PASS] Da cai dat thanh cong LibreOffice Headless!" -ForegroundColor Green
+            return $true
+        } else {
+            Write-Warning "      Cai dat LibreOffice tra ve ma thoat: $($proc.ExitCode)"
+            return $false
+        }
+    } else {
+        Write-Warning "      Chua cai duoc LibreOffice! He thong van hoat dong binh thuong nho co che tu dong Fallback sang QuestPDF."
+        Write-Host "      (Luu y: De su dung tinh nang xuat file mau Excel sang PDF, ban co the dat file LibreOffice_*.msi vao thu muc Prerequisites hoac cai dat thu cong)" -ForegroundColor Cyan
+        return $false
+    }
+}
+Install-LibreOfficeIfMissing | Out-Null
+
+# 6. Cau hinh Windows Firewall
+Write-Host "`n6. Dang cau hinh Windows Firewall cho he thong MDMSv2..." -ForegroundColor Yellow
 
 function Add-FirewallPortRule {
     param([string]$RuleName, [int]$Port, [string]$Protocol = "TCP")

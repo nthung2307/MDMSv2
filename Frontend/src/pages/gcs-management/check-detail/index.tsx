@@ -38,7 +38,7 @@ const GCSCheckDetail = () => {
   const [isShowExport, setIsShowExport] = useState<boolean>(false);
   const [dataForm, setDataForm] = useStateDataForm({});
   const [loading, setLoading] = useState<boolean>(false);
-  const [size, setSize] = useState<number>(10);
+  const [size, setSize] = useState<number>(24);
   const tableRef = useRef(null);
   const [data, setData] = useState<any[]>([]);
   const [gcsMonthlyDetailRequest] = useGcsMonthlyDetailHook();
@@ -126,10 +126,10 @@ const GCSCheckDetail = () => {
       description: item.measurementPoint.description ?? 'N/A',
       customer: item.measurementPoint.customer.fullName ?? 'N/A',
       meterReadingSet: item.meterReadingSet ?? 'N/A',
-      previousReading: formatNumberWithCommas(item.previousReading) ?? '????',
-      currentReading: formatNumberWithCommas(item.currentReading) ?? '????',
-      multiplierFactor: item.multiplierFactor ?? '????',
-      consumption: formatNumberWithCommas(item.consumption) ?? '????',
+      previousReading: item.previousReading !== null && item.previousReading !== undefined ? Math.round(Number(item.previousReading)) : '',
+      currentReading: item.currentReading !== null && item.currentReading !== undefined ? Math.round(Number(item.currentReading)) : '',
+      multiplierFactor: item.multiplierFactor !== null && item.multiplierFactor !== undefined ? Math.round(Number(item.multiplierFactor)) : '',
+      consumption: item.consumption !== null && item.consumption !== undefined ? Math.round(Number(item.consumption)) : (item.meterReadingSet === 'Pmax' ? 'N/A' : ''),
       isChange: item.isChange,
     };
   });
@@ -143,7 +143,7 @@ const GCSCheckDetail = () => {
       <div className='flex justify-between items-center'>
         <BreadcrumbUI
           items={[
-            { name: 'Quản lý sổ ghi chỉ số' },
+            { name: 'Quản lý sổ GCS', link: ROUTE_PATH.GCS_MANAGEMENT },
             { name: `${GCSName}`, link: ROUTE_PATH.GCS_CHECK, state: { record: gcs } },
             {
               name: `Tháng ${record.month}/${record.year} kì ${record.periodNumber}`,
@@ -179,6 +179,7 @@ const GCSCheckDetail = () => {
           </div>
           <PaginationCommon
             pageSize={size}
+            pageSizeOptions={['24', '48', '96', '192']}
             total={paginationData?.totalCount}
             currentCount={data?.length || 0}
             hasNext={paginationData?.hasNext}
@@ -191,13 +192,13 @@ const GCSCheckDetail = () => {
             }}
             hasPrevious={paginationData?.hasPrevious}
             onClickPrevious={() => {
-              setGetGCSCutOffCycleRequest((prev) => {
+              setGCSMonthlyDetailRequest((prev) => {
                 const updatedParams = { ...prev, before: firstPointID };
                 return deleteParams(updatedParams, ['after']); // Remove 'after' parameter
               });
             }}
             onClickNext={() => {
-              setGetGCSCutOffCycleRequest((prev) => {
+              setGCSMonthlyDetailRequest((prev) => {
                 const updatedParams = { ...prev, after: lastPointID };
                 return deleteParams(updatedParams, ['before']); // Remove 'before' parameter
               });
@@ -206,18 +207,28 @@ const GCSCheckDetail = () => {
         </Card>
       </div>
       {/* Dialog export file */}
-      <DialogExportForm
-        open={isShowExport}
-        handleCancel={() => {
-          setIsShowExport(false);
-        }}
-        title={`${GCSName}: Tháng ${record.month}/${record.year} kì ${record.periodNumber}`}
-        dataSource={dataExport}
-        listHeader={Constants.listHeaderExport.GcsCheckDetail}
-        fileNameCsv={`trasoat_${GCSName}_`}
-        typeExportAll={'gcs-monthly-detail'}
-        paramsId={{ gcsCutOffId: Number(record.id) }}
-      />
+      {(() => {
+        const safeGcsName = (GCSName || 'SoGCS').replace(/[\\/:*?"<>|]/g, '_').trim();
+        const periodStr = record?.periodNumber
+          ? `Ky${record.periodNumber}_T${String(record.month).padStart(2, '0')}_${record.year}`
+          : '';
+        const exportFileName = `MDMS_TraSoat_${safeGcsName}${periodStr ? `_${periodStr}` : ''}`;
+
+        return (
+          <DialogExportForm
+            open={isShowExport}
+            handleCancel={() => {
+              setIsShowExport(false);
+            }}
+            title={`${GCSName}: Tháng ${record.month}/${record.year} kì ${record.periodNumber}`}
+            dataSource={dataExport}
+            listHeader={Constants.listHeaderExport.GcsCheckDetail}
+            fileNameCsv={exportFileName}
+            typeExportAll={'gcs-monthly-detail'}
+            paramsId={{ gcsCutOffId: Number(record.id) }}
+          />
+        );
+      })()}
     </div>
   );
 };

@@ -68,6 +68,7 @@ flowchart TD
 4. **Microsoft Edge**: Trình duyệt hiện đại thay thế Internet Explorer trên Windows Server 2019 (được Wizard cài đặt tự động).
 5. **MySQL Community Server 8.0 (64-bit)**: Chạy dưới dạng Windows Service.
 6. **Kepware KEPServerEX V6.6.350.00**: Bộ thu thập dữ liệu công tơ Modbus.
+7. **LibreOffice Headless (64-bit)**: Chuyển đổi mẫu phiếu báo Excel (`.xlsx`) sang PDF giữ nguyên 100% định dạng Microsoft Excel (được Wizard tự động cài đặt nếu có tệp `.msi` trong `Prerequisites/` hoặc tự tải từ Internet; nếu không cài thì hệ thống tự động Fallback sang QuestPDF).
 
 ---
 
@@ -94,10 +95,12 @@ MDMSv2_InstallPackage/
 │   ├── kepware_iot_gateway_config.md       # Hướng dẫn cấu hình IoT Gateway REST Server/Client
 │   └── (Đặt file cài đặt Kepware tại đây)
 ├── Prerequisites/                          # Thư viện phụ trợ offline
+│   ├── README.md                           # Hướng dẫn bổ sung bộ cài offline
 │   ├── rewrite_amd64_en-US.msi             # IIS URL Rewrite 2.1
 │   ├── requestRouter_amd64.msi             # IIS Application Request Routing (ARR) 3.0
 │   ├── jre-8u451-windows-i586-iftw.exe     # Java Runtime Environment (cho Kepware IoT Gateway)
-│   └── MicrosoftEdgeSetup.exe              # Microsoft Edge Browser (thay thế IE trên Server 2019)
+│   ├── MicrosoftEdgeSetup.exe              # Microsoft Edge Browser (thay thế IE trên Server 2019)
+│   └── (Tùy chọn) LibreOffice_*_Win_x86-64.msi # LibreOffice Headless (chuyển đổi mẫu Excel sang PDF)
 ├── Database/                               # Script cơ sở dữ liệu
 │   ├── amr_full.sql                        # Script DDL chuẩn toàn bộ cấu trúc CSDL 'amr' (khung trắng)
 │   ├── amr_master_data.sql                 # [KHUYÊN DÙNG] Dữ liệu Master Data: Khách hàng, Điểm đo, Tags (~3.2 MB)

@@ -30,6 +30,7 @@ public class PeriodicEnergyStatementEntity : IEntity<long>
     public double ConsumtionTd { get; set; }
     public double ConsumtionSg { get; set; }
     public double ConsumtionVc { get; set; }
+    public double? CosPhi { get; set; }
     public int? PreviousDay { get; set; }
     public int? PreviousMonth { get; set; }
     public int? PreviousYear { get; set; }

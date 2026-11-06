@@ -17,13 +17,17 @@ public class GetDataLatchResponse
     public int PeriodNumber { get; set; }
     public int? PreviousPeriodNumber { get; set; }
     public DateTimeOffset ReadingTime { get; set; }
+    public DateTimeOffset? PmaxTime { get; set; }
     public string? MeterReadingSet { get; set; }
     public double? PreviousReading { get; set; }
     public bool Quanlity { get; set; }
     public double? CurrentReading { get; set; }
     public double? MultiplierFactor { get; set; }
     public double? Consumption { get; set; }
+    public double? CosPhi { get; set; }
     public double? NewCurrentReading { get; set; }
     public double? NewPreviousReading { get; set; }
+    public bool IsSuspicious { get; set; }
+    public string? SuspiciousReason { get; set; }
     public DateTimeOffset? ModifiedTime { get; set; }
 }

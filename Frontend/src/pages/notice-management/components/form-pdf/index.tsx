@@ -21,7 +21,13 @@ const TemplateNotice = (props: Props) => {
       : `${renderTextNumber(record.previousDay)}/${renderTextNumber(record.previousMonth)}/${record.previousYear}`;
   const readingDate = `${renderTextNumber(record.day)}/${renderTextNumber(record.month)}/${record.year}`;
   const resultCosTB = (AP: any, AQ: any) => {
-    return AP == 0 ? 0 : (AP / Math.sqrt(AP * AP + AQ * AQ)).toFixed(2);
+    if (record.cosPhi !== null && record.cosPhi !== undefined) {
+      return Number(record.cosPhi).toFixed(2);
+    }
+    const p = Number(AP ?? 0);
+    const q = Math.max(0, Number(AQ ?? 0));
+    const s = Math.sqrt(p * p + q * q);
+    return s <= 0 ? '0.00' : (p / s).toFixed(2);
   };
   const data = [
     {
@@ -225,7 +231,7 @@ const TemplateNotice = (props: Props) => {
             <Col span={8} className='flex text-[11px] leading-[20px] pr-1'>
               <p>For month (Tháng):</p>
               <span className='result-pdf relative flex-1 text-left pl-2'>
-                {`Chỉ số T${renderTextNumber(record.previousMonth)}/${record.previousYear}`}
+                {`Chỉ số T${renderTextNumber(record.month)}/${record.year}`}
               </span>
             </Col>
           </Row>

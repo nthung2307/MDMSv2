@@ -30,14 +30,21 @@ namespace Infrastructure.Repositories.ReadWrite
 
         public async Task<GcsEntity?> GetGcsByIdAsync(long id, CancellationToken cancellationToken)
         {
-            return await _gcsEntities.Include(x => x.MeasurementPoints).Where(x => x.Id == id).FirstOrDefaultAsync(cancellationToken);
+            return await _gcsEntities.Include(x => x.MeasurementPoints).Where(x => x.Id == id && !x.Deleted).FirstOrDefaultAsync(cancellationToken);
         }
 
         public async Task<bool> IsExistGcsCodeAsync(long? id, string code, CancellationToken cancellationToken)
         {
             if(id == null)
-                return await _gcsEntities.AsNoTracking().Where(x => x.Code == code).AnyAsync(cancellationToken);
-            return await _gcsEntities.AsNoTracking().Where(x => x.Code == code && x.Id != id).AnyAsync(cancellationToken);
+                return await _gcsEntities.AsNoTracking().Where(x => x.Code == code && !x.Deleted).AnyAsync(cancellationToken);
+            return await _gcsEntities.AsNoTracking().Where(x => x.Code == code && x.Id != id && !x.Deleted).AnyAsync(cancellationToken);
+        }
+
+        public async Task<List<GcsEntity>> GetDeletedGcsByCodeAsync(string code, CancellationToken cancellationToken)
+        {
+            return await _gcsEntities
+                .Where(x => x.Code == code && x.Deleted)
+                .ToListAsync(cancellationToken);
         }
 
         public async Task<byte[]> GenerateGcsPdf(ExportPdfAndExcelRequest request, CancellationToken cancellationToken)

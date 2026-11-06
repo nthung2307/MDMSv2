@@ -19,8 +19,15 @@ export const OperatingParameterTable: React.FC<OperatingParameterTableProps> = (
 }) => {
   const voltageUnit = useMemo(() => {
     if (propVoltageUnit) return propVoltageUnit;
-    const itemWithUnit = data.find((d) => d.dienApPhaAUnit);
-    return itemWithUnit?.dienApPhaAUnit || 'kV';
+    const itemWithUnit = data.find(
+      (d) => d.dienApPhaAUnit || d.dienApPhaBUnit || d.dienApPhaCUnit
+    );
+    return (
+      itemWithUnit?.dienApPhaAUnit ||
+      itemWithUnit?.dienApPhaBUnit ||
+      itemWithUnit?.dienApPhaCUnit ||
+      'kV'
+    );
   }, [data, propVoltageUnit]);
 
   const formatNumber = (val?: number, fractionDigits = 2) => {

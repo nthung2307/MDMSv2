@@ -1,4 +1,4 @@
-﻿using Application.Commands.Gcs;
+using Application.Commands.Gcs;
 using Application.Common.Responses.Common.Responses;
 using Application.Common.ValueObjects;
 using Application.DataTransferObjects.Responses.Gcs;
@@ -72,6 +72,19 @@ public class UpdateGcsCommandHandler : IUpdateGcsCommandHandler
                         Error = "Mã sổ đã tồn tại. Vui lòng thử lại"
                     }
                 });
+            }
+
+            // Giải phóng mã sổ từ các bản ghi đã xóa mềm trước đó nếu còn trùng
+            var legacyDeletedGcs = await _gcsReadWriteRepository.GetDeletedGcsByCodeAsync(command.Request.Code, cancellationToken);
+            if (legacyDeletedGcs != null && legacyDeletedGcs.Count > 0)
+            {
+                var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                foreach (var del in legacyDeletedGcs)
+                {
+                    del.Code = $"{del.Code}_deleted_{timestamp}_{del.Id}";
+                    await _gcsReadWriteRepository.UpdateAsync(del, cancellationToken);
+                }
+                await _gcsReadWriteRepository.SaveChangesAsync(cancellationToken);
             }
 
             if (command.Request.DayPeriod.Any(x => (x <= 0 || x > 28) && x != 999))

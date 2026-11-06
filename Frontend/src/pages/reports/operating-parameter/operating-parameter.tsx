@@ -43,10 +43,48 @@ const OperatingParameter = () => {
   const [isShowExport, setIsShowExport] = useState<boolean>(false);
   const chartRef = useRef<HTMLDivElement>(null);
 
+  const [dataForm, setDataForm] = useStateDataForm({});
+  const [showClearSearch, setShowClearSearch] = useState(false);
+  const [listMeasurementPoint, setListMeasurementPoint] = useState<any>([]);
+  const [listCustomer, setListCustomer] = useState<any>([]);
+
   const currentVoltageUnit = useMemo(() => {
-    const itemWithUnit = tableData.find((d) => d.dienApPhaAUnit);
-    return itemWithUnit?.dienApPhaAUnit || 'V';
-  }, [tableData]);
+    const itemWithDataAndUnit = tableData.find(
+      (d) =>
+        (d.dienApPhaA !== null && d.dienApPhaA !== undefined && d.dienApPhaAUnit) ||
+        (d.dienApPhaB !== null && d.dienApPhaB !== undefined && d.dienApPhaBUnit) ||
+        (d.dienApPhaC !== null && d.dienApPhaC !== undefined && d.dienApPhaCUnit)
+    );
+    if (itemWithDataAndUnit) {
+      return (
+        itemWithDataAndUnit.dienApPhaAUnit ||
+        itemWithDataAndUnit.dienApPhaBUnit ||
+        itemWithDataAndUnit.dienApPhaCUnit ||
+        'kV'
+      );
+    }
+
+    const itemWithUnit = tableData.find(
+      (d) => d.dienApPhaAUnit || d.dienApPhaBUnit || d.dienApPhaCUnit
+    );
+    if (itemWithUnit) {
+      return (
+        itemWithUnit.dienApPhaAUnit ||
+        itemWithUnit.dienApPhaBUnit ||
+        itemWithUnit.dienApPhaCUnit ||
+        'kV'
+      );
+    }
+
+    const selectedPoint = listMeasurementPoint?.find(
+      (p: any) => p.value === dataForm?.monitorPoint
+    );
+    if (selectedPoint?.voltageUnit) {
+      return selectedPoint.voltageUnit;
+    }
+
+    return 'kV';
+  }, [tableData, listMeasurementPoint, dataForm?.monitorPoint]);
 
   const operatingHeaders = useMemo(
     () => [
@@ -70,10 +108,6 @@ const OperatingParameter = () => {
   const [getListMeasurementPointRequest] = useGetListMeasurementPointsForReportHook();
   const [getOperatingParameterReport] = useGetOperatingParameterReportHook();
 
-  const [dataForm, setDataForm] = useStateDataForm({});
-  const [showClearSearch, setShowClearSearch] = useState(false);
-  const [listMeasurementPoint, setListMeasurementPoint] = useState<any>([]);
-  const [listCustomer, setListCustomer] = useState<any>([]);
   const [searchData, setSearchData] = useState<{ customerCode: string; monitorPoint: string }>({
     customerCode: '',
     monitorPoint: '',
@@ -125,6 +159,7 @@ const OperatingParameter = () => {
         const measurementPoints = res?.data?.data?.map((it: any) => ({
           value: it?.id,
           label: it?.code,
+          voltageUnit: it?.voltageUnit,
         }));
         setListMeasurementPoint(measurementPoints);
       },
@@ -149,7 +184,7 @@ const OperatingParameter = () => {
     const point = listMeasurementPoint?.find((p: any) => p.value === dataForm?.monitorPoint)?.label || dataForm?.monitorPoint || '';
     const dateStr = dateMode === 'single' ? singleDate.format('YYYYMMDD') : `${rangeDate[0].format('YYYYMMDD')}_${rangeDate[1].format('YYYYMMDD')}`;
     const pointPart = point ? `_${point}` : '';
-    return `BaoCao_ThongSoVanHanh${pointPart}_${dateStr}`;
+    return `MDMS_BaoCao_ThongSoVanHanh${pointPart}_${dateStr}`;
   };
 
   const normalizeOperatingHalfHourData = (

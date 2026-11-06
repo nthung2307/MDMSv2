@@ -72,15 +72,21 @@ const DialogGCS = (props: Props) => {
     if (isValidData() && data.gcsId) {
       const nameGcs = listGcs.find((gcs: any) => gcs.id == data.gcsId);
       // resetData();
-      handelSubmit({
-        gcsId: data.gcsId,
-        periodNumber: data.periodNumber,
-        month: data.month,
-        year: data.year,
-        nameGcs: nameGcs,
-      }).then(() => {
-        setSubmittedTime(null);
-      });
+      Promise.resolve(
+        handelSubmit({
+          gcsId: data.gcsId,
+          periodNumber: data.periodNumber,
+          month: data.month,
+          year: data.year,
+          nameGcs: nameGcs,
+        })
+      )
+        .then(() => {
+          setSubmittedTime(null);
+        })
+        .catch(() => {
+          setSubmittedTime(null);
+        });
     }
   };
   const ValidateDateTimeGCSSum = (current: any, data: any) => {

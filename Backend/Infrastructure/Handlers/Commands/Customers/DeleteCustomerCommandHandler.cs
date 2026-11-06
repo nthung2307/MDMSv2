@@ -1,4 +1,4 @@
-﻿using Application.Commands.Customers;
+using Application.Commands.Customers;
 using Application.Common.Responses.Common.Responses;
 using Application.Common.ValueObjects;
 using Application.DataTransferObjects.Responses.Customers;
@@ -69,6 +69,11 @@ public class DeleteCustomerCommandHandler : IDeleteCustomerCommandHandler
                 });
             }
 
+            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            if (!string.IsNullOrEmpty(profile.CustomerCode) && !profile.CustomerCode.Contains("_deleted_"))
+            {
+                profile.CustomerCode = $"{profile.CustomerCode}_deleted_{timestamp}";
+            }
             profile.Status = EntityStatus.Deleted;
             profile.Deleted = true;
             profile.DeletedBy = currentId;

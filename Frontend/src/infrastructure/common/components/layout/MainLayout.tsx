@@ -33,13 +33,13 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     if (dataSocket) {
       setRecoilStateAsync(AlertState, dataSocket);
-      if (audioPlayer.current) {
+      if (dataSocket === 'New Alert' && audioPlayer.current) {
         notifySuccess('', _t('Có cảnh báo mới'));
         if (statusNoti) {
           audioPlayer.current.play();
         }
-        setDataSocket(null);
       }
+      setDataSocket(null);
     }
   }, [dataSocket]);
 
@@ -184,4 +184,3 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
 };
 
 export default MainLayout;
-

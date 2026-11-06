@@ -41,7 +41,7 @@ public class MeasurementPointHalfHourOperatingReportReadOnlyRepository :
         OperatingParameterReportRequest request,
         CancellationToken cancellationToken)
     {
-        var configuredVoltageUnit = await GetConfiguredVoltageUnitAsync(request.MeasurementPointId, cancellationToken);
+        var (unitA, unitB, unitC) = await GetConfiguredVoltageUnitsAsync(request.MeasurementPointId, cancellationToken);
         try
         {
             var query = _dbSet.AsNoTracking()
@@ -55,9 +55,15 @@ public class MeasurementPointHalfHourOperatingReportReadOnlyRepository :
             {
                 foreach (var it in result.Data)
                 {
-                    if (string.IsNullOrWhiteSpace(it.DienApPhaAUnit)) it.DienApPhaAUnit = configuredVoltageUnit;
-                    if (string.IsNullOrWhiteSpace(it.DienApPhaBUnit)) it.DienApPhaBUnit = configuredVoltageUnit;
-                    if (string.IsNullOrWhiteSpace(it.DienApPhaCUnit)) it.DienApPhaCUnit = configuredVoltageUnit;
+                    it.DienApPhaAUnit = !string.IsNullOrWhiteSpace(unitA)
+                        ? unitA
+                        : (!string.IsNullOrWhiteSpace(it.DienApPhaAUnit) ? it.DienApPhaAUnit : "kV");
+                    it.DienApPhaBUnit = !string.IsNullOrWhiteSpace(unitB)
+                        ? unitB
+                        : (!string.IsNullOrWhiteSpace(it.DienApPhaBUnit) ? it.DienApPhaBUnit : "kV");
+                    it.DienApPhaCUnit = !string.IsNullOrWhiteSpace(unitC)
+                        ? unitC
+                        : (!string.IsNullOrWhiteSpace(it.DienApPhaCUnit) ? it.DienApPhaCUnit : "kV");
                 }
                 return result;
             }
@@ -76,7 +82,7 @@ public class MeasurementPointHalfHourOperatingReportReadOnlyRepository :
         OperatingParameterReportRequest request,
         CancellationToken cancellationToken)
     {
-        var configuredVoltageUnit = await GetConfiguredVoltageUnitAsync(request.MeasurementPointId, cancellationToken);
+        var (unitA, unitB, unitC) = await GetConfiguredVoltageUnitsAsync(request.MeasurementPointId, cancellationToken);
         try
         {
             var query = _dbSet.AsNoTracking()
@@ -91,9 +97,15 @@ public class MeasurementPointHalfHourOperatingReportReadOnlyRepository :
             {
                 foreach (var it in list)
                 {
-                    if (string.IsNullOrWhiteSpace(it.DienApPhaAUnit)) it.DienApPhaAUnit = configuredVoltageUnit;
-                    if (string.IsNullOrWhiteSpace(it.DienApPhaBUnit)) it.DienApPhaBUnit = configuredVoltageUnit;
-                    if (string.IsNullOrWhiteSpace(it.DienApPhaCUnit)) it.DienApPhaCUnit = configuredVoltageUnit;
+                    it.DienApPhaAUnit = !string.IsNullOrWhiteSpace(unitA)
+                        ? unitA
+                        : (!string.IsNullOrWhiteSpace(it.DienApPhaAUnit) ? it.DienApPhaAUnit : "kV");
+                    it.DienApPhaBUnit = !string.IsNullOrWhiteSpace(unitB)
+                        ? unitB
+                        : (!string.IsNullOrWhiteSpace(it.DienApPhaBUnit) ? it.DienApPhaBUnit : "kV");
+                    it.DienApPhaCUnit = !string.IsNullOrWhiteSpace(unitC)
+                        ? unitC
+                        : (!string.IsNullOrWhiteSpace(it.DienApPhaCUnit) ? it.DienApPhaCUnit : "kV");
                 }
                 return list;
             }
@@ -106,20 +118,37 @@ public class MeasurementPointHalfHourOperatingReportReadOnlyRepository :
         return await GetFallbackOperatingReportsAsync(request, cancellationToken);
     }
 
-    private async Task<string> GetConfiguredVoltageUnitAsync(long measurementPointId, CancellationToken cancellationToken)
+    private async Task<(string? UnitA, string? UnitB, string? UnitC)> GetConfiguredVoltageUnitsAsync(
+        long measurementPointId,
+        CancellationToken cancellationToken)
     {
         try
         {
-            var unit = await _dbContext.Set<TagNameEntity>().AsNoTracking()
+            var tags = await _dbContext.Set<TagNameEntity>().AsNoTracking()
                 .Where(t => t.MeasurementPointId == measurementPointId &&
-                            (t.Description == ListDataMeasurementPoint.DienApPhaA || t.Description.Contains("Điện áp") || t.Description.Contains("dien ap")) &&
-                            !t.Deleted && !string.IsNullOrEmpty(t.Unit))
-                .Select(t => t.Unit)
-                .FirstOrDefaultAsync(cancellationToken);
-            if (!string.IsNullOrWhiteSpace(unit)) return unit;
+                            !t.Deleted &&
+                            !string.IsNullOrEmpty(t.Unit) &&
+                            (t.Description == ListDataMeasurementPoint.DienApPhaA ||
+                             t.Description == ListDataMeasurementPoint.DienApPhaB ||
+                             t.Description == ListDataMeasurementPoint.DienApPhaC ||
+                             t.Description.Contains("DIEN_AP") ||
+                             t.Description.Contains("Điện áp") ||
+                             t.Description.Contains("dien ap")))
+                .Select(t => new { t.Description, t.Unit })
+                .ToListAsync(cancellationToken);
+
+            if (tags.Any())
+            {
+                var unitA = tags.FirstOrDefault(t => t.Description == ListDataMeasurementPoint.DienApPhaA)?.Unit;
+                var unitB = tags.FirstOrDefault(t => t.Description == ListDataMeasurementPoint.DienApPhaB)?.Unit;
+                var unitC = tags.FirstOrDefault(t => t.Description == ListDataMeasurementPoint.DienApPhaC)?.Unit;
+                var fallback = unitA ?? unitB ?? unitC ?? tags.First().Unit;
+                return (unitA ?? fallback, unitB ?? fallback, unitC ?? fallback);
+            }
         }
         catch { }
-        return "kV";
+
+        return (null, null, null);
     }
 
     private async Task<List<OperatingParameterReportResponse>> GetFallbackOperatingReportsAsync(
@@ -127,7 +156,8 @@ public class MeasurementPointHalfHourOperatingReportReadOnlyRepository :
         CancellationToken cancellationToken)
     {
         var cultureInfo = CultureInfo.InvariantCulture;
-        var configuredVoltageUnit = await GetConfiguredVoltageUnitAsync(request.MeasurementPointId, cancellationToken);
+        var (unitA, unitB, unitC) = await GetConfiguredVoltageUnitsAsync(request.MeasurementPointId, cancellationToken);
+        var defaultVoltageUnit = unitA ?? unitB ?? unitC ?? "kV";
 
         // 1. Kiểm tra bảng MeasurementPointMonitoringHourly
         try
@@ -157,11 +187,17 @@ public class MeasurementPointHalfHourOperatingReportReadOnlyRepository :
                         Id = h.Id,
                         CreatedTime = h.CreatedTime,
                         DienApPhaA = double.TryParse(h.TrungBinhDienApPhaA, NumberStyles.Any, cultureInfo, out var ua) ? ua : null,
-                        DienApPhaAUnit = !string.IsNullOrWhiteSpace(h.TrungBinhDienApPhaAUnit) ? h.TrungBinhDienApPhaAUnit : configuredVoltageUnit,
+                        DienApPhaAUnit = !string.IsNullOrWhiteSpace(unitA)
+                            ? unitA
+                            : (!string.IsNullOrWhiteSpace(h.TrungBinhDienApPhaAUnit) ? h.TrungBinhDienApPhaAUnit : defaultVoltageUnit),
                         DienApPhaB = double.TryParse(h.TrungBinhDienApPhaB, NumberStyles.Any, cultureInfo, out var ub) ? ub : null,
-                        DienApPhaBUnit = !string.IsNullOrWhiteSpace(h.TrungBinhDienApPhaBUnit) ? h.TrungBinhDienApPhaBUnit : configuredVoltageUnit,
+                        DienApPhaBUnit = !string.IsNullOrWhiteSpace(unitB)
+                            ? unitB
+                            : (!string.IsNullOrWhiteSpace(h.TrungBinhDienApPhaBUnit) ? h.TrungBinhDienApPhaBUnit : defaultVoltageUnit),
                         DienApPhaC = double.TryParse(h.TrungBinhDienApPhaC, NumberStyles.Any, cultureInfo, out var uc) ? uc : null,
-                        DienApPhaCUnit = !string.IsNullOrWhiteSpace(h.TrungBinhDienApPhaCUnit) ? h.TrungBinhDienApPhaCUnit : configuredVoltageUnit,
+                        DienApPhaCUnit = !string.IsNullOrWhiteSpace(unitC)
+                            ? unitC
+                            : (!string.IsNullOrWhiteSpace(h.TrungBinhDienApPhaCUnit) ? h.TrungBinhDienApPhaCUnit : defaultVoltageUnit),
                         DongDienPhaA = double.TryParse(h.TrungBinhDongDienPhaA, NumberStyles.Any, cultureInfo, out var ia) ? ia : null,
                         DongDienPhaAUnit = !string.IsNullOrWhiteSpace(h.TrungBinhDongDienPhaAUnit) ? h.TrungBinhDongDienPhaAUnit : "A",
                         DongDienPhaB = double.TryParse(h.TrungBinhDongDienPhaB, NumberStyles.Any, cultureInfo, out var ib) ? ib : null,
@@ -238,11 +274,11 @@ public class MeasurementPointHalfHourOperatingReportReadOnlyRepository :
                         Id = g.First().Id,
                         CreatedTime = g.Key,
                         DienApPhaA = GetTagAvg(ListDataMeasurementPoint.DienApPhaA),
-                        DienApPhaAUnit = GetTagUnit(ListDataMeasurementPoint.DienApPhaA, configuredVoltageUnit),
+                        DienApPhaAUnit = !string.IsNullOrWhiteSpace(unitA) ? unitA : GetTagUnit(ListDataMeasurementPoint.DienApPhaA, defaultVoltageUnit),
                         DienApPhaB = GetTagAvg(ListDataMeasurementPoint.DienApPhaB),
-                        DienApPhaBUnit = GetTagUnit(ListDataMeasurementPoint.DienApPhaB, configuredVoltageUnit),
+                        DienApPhaBUnit = !string.IsNullOrWhiteSpace(unitB) ? unitB : GetTagUnit(ListDataMeasurementPoint.DienApPhaB, defaultVoltageUnit),
                         DienApPhaC = GetTagAvg(ListDataMeasurementPoint.DienApPhaC),
-                        DienApPhaCUnit = GetTagUnit(ListDataMeasurementPoint.DienApPhaC, configuredVoltageUnit),
+                        DienApPhaCUnit = !string.IsNullOrWhiteSpace(unitC) ? unitC : GetTagUnit(ListDataMeasurementPoint.DienApPhaC, defaultVoltageUnit),
                         DongDienPhaA = GetTagAvg(ListDataMeasurementPoint.DongDienPhaA),
                         DongDienPhaAUnit = GetTagUnit(ListDataMeasurementPoint.DongDienPhaA, "A"),
                         DongDienPhaB = GetTagAvg(ListDataMeasurementPoint.DongDienPhaB),

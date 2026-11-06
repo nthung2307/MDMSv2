@@ -68,7 +68,7 @@ const GCSDetails = () => {
       <div className='flex justify-between items-center'>
         <BreadcrumbUI
           items={[
-            { name: 'Quản lý sổ ghi chỉ số', link: ROUTE_PATH.GCS_MANAGEMENT },
+            { name: 'Quản lý sổ GCS', link: ROUTE_PATH.GCS_MANAGEMENT },
             { name: 'Thông tin sổ' },
           ]}
         />
@@ -88,7 +88,7 @@ const GCSDetails = () => {
               />
             </div>
           </PrivateComponent>
-          <PrivateComponent roles={[Constants.Role.SuperAdmin.value]}>
+          <PrivateComponent roles={[Constants.Role.Admin.value, Constants.Role.SuperAdmin.value]}>
             <ButtonCommonCustomizable
               title={null}
               onClick={() => {

@@ -11,6 +11,7 @@ public interface IMeasurementPointsReadWriteRepository : IRepository<Measurement
     Task<MeasurementPointsEntity?> GetMeasurementPointByIdAsync(long id, CancellationToken cancellationToken);
     Task<MeasurementPointsEntity?> GetMeasurementPointForUpdateByIdAsync(long id, CancellationToken cancellationToken);
     Task<List<MeasurementPointsEntity>> GetMeasurementPointByIdsAsync(List<long> ids, long customerId, CancellationToken cancellationToken);
+    Task<List<MeasurementPointsEntity>> GetDeletedPointsByCodeAsync(string code, CancellationToken cancellationToken);
     Task<byte[]> GenerateCustomerPdf(ExportPdfAndExcelRequest request, CancellationToken cancellationToken);
     Task<byte[]> GenerateCustomerCsv(ExportMeasurementPointsCsvRequest? request, CancellationToken cancellationToken);
     Task<ImportMeasurementPointResponse> ImportMeasurementPointsFromCsvAsync(Stream fileStream, long currentUserId, string currentUserName, CancellationToken cancellationToken);

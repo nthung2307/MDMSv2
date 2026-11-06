@@ -185,6 +185,16 @@ SET
   ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan = REPLACE(REPLACE(ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, '*', ''), '(Not Topical)', ''),
   ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan = REPLACE(REPLACE(ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, '*', ''), '(Not Topical)', '')
 WHERE CreatedTime >= NOW() - INTERVAL 7 DAY;
+
+ALTER TABLE `GcsTemporary` ADD COLUMN `NewPreviousReading` double DEFAULT NULL;
+ALTER TABLE `GcsTemporary` ADD COLUMN `IsSuspicious` tinyint(1) NOT NULL DEFAULT '0';
+ALTER TABLE `GcsTemporary` ADD COLUMN `SuspiciousReason` varchar(500) DEFAULT NULL;
+ALTER TABLE `gcstemporary` ADD COLUMN `NewPreviousReading` double DEFAULT NULL;
+ALTER TABLE `gcstemporary` ADD COLUMN `IsSuspicious` tinyint(1) NOT NULL DEFAULT '0';
+ALTER TABLE `gcstemporary` ADD COLUMN `SuspiciousReason` varchar(500) DEFAULT NULL;
+ALTER TABLE `StatementPdfTemplates` ADD COLUMN `EngineType` varchar(50) DEFAULT 'EXCEL_LIBREOFFICE';
+ALTER TABLE `StatementPdfTemplates` ADD COLUMN `ExcelTemplateBase64` longtext;
+ALTER TABLE `StatementPdfTemplates` ADD COLUMN `ExcelTemplateFileName` varchar(255) DEFAULT NULL;
 "@
     try {
         $tempSqlFile = Join-Path $env:TEMP "clean_suspected.sql"
@@ -192,7 +202,7 @@ WHERE CreatedTime >= NOW() - INTERVAL 7 DAY;
         & $mysqlExe "--host=$dbServer" "--port=$dbPort" "--user=$dbUser" "--password=$dbPassword" "$dbName" "-e" "source $tempSqlFile"
         Remove-Item $tempSqlFile -Force -ErrorAction SilentlyContinue
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "   -> [OK] Da loai bo cac dau sao (*) nghi ngo cu trong CSDL." -ForegroundColor Green
+            Write-Host "   -> [OK] Da don dep du lieu cu va dam bao cau truc cac cot moi (GcsTemporary, StatementPdfTemplates)." -ForegroundColor Green
         }
     } catch {
         Write-Warning "   Khong the tu dong don dep du lieu cu qua mysql.exe: $_"
@@ -234,6 +244,53 @@ if (Test-Path $srcFrontend) {
     Write-Host "   -> [OK] Cap nhat Frontend thanh cong." -ForegroundColor Green
 } else {
     Write-Warning "Khong tim thay thu muc Frontend nguon, bo qua cap nhat Frontend."
+}
+
+# 3.5 Kiem tra va cai dat LibreOffice Headless (ho tro mau phieu bao Excel -> PDF)
+Write-Host ""
+Write-Host "[3.5/5] Dang kiem tra LibreOffice Headless (chuyen doi Excel -> PDF)..." -ForegroundColor Yellow
+$sofficePaths = @(
+    "C:\Program Files\LibreOffice\program\soffice.exe",
+    "C:\Program Files (x86)\LibreOffice\program\soffice.exe"
+)
+$hasLibreOffice = $false
+foreach ($sp in $sofficePaths) {
+    if (Test-Path $sp) {
+        $hasLibreOffice = $true
+        Write-Host "   -> [OK] LibreOffice da duoc cai dat tai: $sp" -ForegroundColor Green
+        break
+    }
+}
+
+if (-not $hasLibreOffice) {
+    Write-Host "   -> Phat hien chua co LibreOffice. Dang tim bo cai trong Prerequisites..." -ForegroundColor Yellow
+    $possibleDirs = @(
+        (Join-Path $SourcePackageDir "Prerequisites"),
+        (Join-Path $parentDir "Prerequisites"),
+        "C:\MDMSv2\Prerequisites",
+        "$PSScriptRoot\..\Prerequisites"
+    )
+    $libreOfficePkg = $null
+    foreach ($d in $possibleDirs) {
+        if ($d -and (Test-Path $d)) {
+            $found = Get-ChildItem -Path $d -Include "*LibreOffice*.msi", "*LibreOffice*.exe" -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) { $libreOfficePkg = $found.FullName; break }
+        }
+    }
+    if ($libreOfficePkg) {
+        Write-Host "      Tim thay bo cai: $libreOfficePkg. Dang cai dat silent..." -ForegroundColor Gray
+        if ($libreOfficePkg -like "*.msi") {
+            $proc = Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$libreOfficePkg`" /qn /norestart ALLUSERS=1 CREATEDESKTOPICON=0 REGISTER_ALL_MSO_TYPES=0" -Wait -PassThru
+        } else {
+            $proc = Start-Process -FilePath $libreOfficePkg -ArgumentList "/S" -Wait -PassThru
+        }
+        if ($proc.ExitCode -eq 0 -or $proc.ExitCode -eq 3010) {
+            Write-Host "   -> [OK] Da cai dat thanh cong LibreOffice Headless!" -ForegroundColor Green
+        }
+    } else {
+        Write-Host "   -> Chua cai dat LibreOffice. He thong van hoat dong 100% on dinh nho co che Fallback QuestPDF." -ForegroundColor Gray
+        Write-Host "      (Luu y: De su dung mau Excel tuy bien xuat PDF, ban co the cai LibreOffice hoac chep bo cai vao Prerequisites)" -ForegroundColor Cyan
+    }
 }
 
 # 4. Khoi dong lai dich vu

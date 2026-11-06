@@ -455,7 +455,7 @@ const LoadChart = () => {
   };
 
   const fileNameBuilder = () => {
-    return `${filterData?.chartType}_${listCustomer?.find((customer: any) => customer.value === dataForm?.customerCode)?.label}_${listMeasurementPoint?.find((measurementPoint: any) => measurementPoint.value === dataForm?.monitorPoint)?.label}`;
+    return `MDMS_${filterData?.chartType}_${listCustomer?.find((customer: any) => customer.value === dataForm?.customerCode)?.label}_${listMeasurementPoint?.find((measurementPoint: any) => measurementPoint.value === dataForm?.monitorPoint)?.label}`;
   };
 
   useEffect(() => {

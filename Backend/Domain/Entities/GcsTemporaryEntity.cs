@@ -18,6 +18,7 @@ public class GcsTemporaryEntity : IEntity<long>
     public int PeriodNumber { get; set; }
     public int? PreviousPeriodNumber { get; set; }
     public DateTimeOffset ReadingTime { get; set; }
+    public DateTimeOffset? PmaxTime { get; set; }
     public string MeterReadingSet { get; set; }
     public double? PreviousReading { get; set; }
     public double? CurrentReading { get; set; }
@@ -26,6 +27,10 @@ public class GcsTemporaryEntity : IEntity<long>
     public double? NewPreviousReading { get; set; }
     public double MultiplierFactor { get; set; }
     public double? Consumption { get; set; }
+    public double? CosPhi { get; set; }
+    public bool IsSuspicious { get; set; } = false;
+    public string? SuspiciousReason { get; set; }
+    public bool IsChange { get; set; } = false;
     public DateTimeOffset? ModifiedTime { get; set; }
     public long? ModifiedBy { get; set; }
     public string? ModifiedName { get; set; }

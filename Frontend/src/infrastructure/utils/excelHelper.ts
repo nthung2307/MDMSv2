@@ -482,12 +482,14 @@ export const exportToExcelWithChart = async (options: ExportExcelOptions) => {
         isStt ||
         col.key.toLowerCase() === 'periodnumber' ||
         col.header.trim().toLowerCase() === 'số kì' ||
-        col.header.trim().toLowerCase() === 'số kỳ';
+        col.header.trim().toLowerCase() === 'số kỳ' ||
+        col.numFmt === '#,##0' ||
+        col.numFmt === '0';
 
       if (isIntegerCol) {
         if (typeof val === 'number') return Math.round(val);
-        const parsedInt = parseInt(String(val), 10);
-        return isNaN(parsedInt) ? val : parsedInt;
+        const parsedFloat = parseFloat(String(val).replace(/,/g, ''));
+        return isNaN(parsedFloat) ? val : Math.round(parsedFloat);
       }
 
       const isValueCol =
@@ -549,7 +551,9 @@ export const exportToExcelWithChart = async (options: ExportExcelOptions) => {
         isStt ||
         colDef?.key.toLowerCase() === 'periodnumber' ||
         colDef?.header.trim().toLowerCase() === 'số kì' ||
-        colDef?.header.trim().toLowerCase() === 'số kỳ';
+        colDef?.header.trim().toLowerCase() === 'số kỳ' ||
+        colDef?.numFmt === '#,##0' ||
+        colDef?.numFmt === '0';
 
       const isValueCol =
         colDef?.key.toLowerCase() === 'value' ||
@@ -557,7 +561,7 @@ export const exportToExcelWithChart = async (options: ExportExcelOptions) => {
 
       let align = colDef?.align;
       if (!align) {
-        if (isIntegerCol || isValueCol) align = 'center';
+        if (isStt || colDef?.key.toLowerCase() === 'periodnumber' || isValueCol) align = 'center';
         else if (typeof cell.value === 'number') align = 'right';
         else if (typeof cell.value === 'string' && cell.value.includes('*')) align = 'right';
         else align = 'left';
@@ -583,7 +587,7 @@ export const exportToExcelWithChart = async (options: ExportExcelOptions) => {
       // Format số
       if (typeof cell.value === 'number') {
         if (isIntegerCol) {
-          cell.numFmt = '0'; // Số nguyên, không có số thập phân
+          cell.numFmt = colDef?.numFmt || '#,##0'; // Số nguyên, có dấu phân cách hàng nghìn, không có số thập phân
         } else if (colDef?.numFmt) {
           cell.numFmt = colDef.numFmt;
         } else if (
@@ -791,9 +795,13 @@ export const exportToExcelWithChart = async (options: ExportExcelOptions) => {
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  const finalFileName = fileName.toLowerCase().endsWith('.xlsx')
-    ? fileName
-    : `${fileName.replace(/\.csv$/i, '')}.xlsx`;
+  const cleanBase = (fileName || 'BaoCao')
+    .replace(/\.(xlsx|xls|csv)$/i, '')
+    .trim();
+  const prefixedName = cleanBase.toUpperCase().startsWith('MDMS_')
+    ? cleanBase
+    : `MDMS_${cleanBase}`;
+  const finalFileName = `${prefixedName}.xlsx`;
 
   saveAs(blob, finalFileName);
 };
@@ -867,11 +875,20 @@ export const downloadExcelTemplate = async (
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  saveAs(blob, templateFileName.endsWith('.xlsx') ? templateFileName : `${templateFileName}.xlsx`);
+  const cleanTemplate = (templateFileName || 'Template')
+    .replace(/\.(xlsx|xls|csv)$/i, '')
+    .trim();
+  const prefixedTemplate = cleanTemplate.toUpperCase().startsWith('MDMS_')
+    ? cleanTemplate
+    : `MDMS_${cleanTemplate}`;
+  const finalTemplateName = `${prefixedTemplate}.xlsx`;
+
+  saveAs(blob, finalTemplateName);
 };
 
 /**
  * Đọc file Excel (.xlsx / .xls) và chuyển đổi thành đối tượng File CSV UTF-8 an toàn để gửi lên API Backend
+ * Tự động nhận diện dòng tiêu đề thực sự (Header Row) và loại bỏ các dòng banner/tiêu đề báo cáo bên trên.
  */
 export const convertExcelFileToCsvFile = async (file: File): Promise<File> => {
   const fileName = file.name.toLowerCase();
@@ -888,22 +905,128 @@ export const convertExcelFileToCsvFile = async (file: File): Promise<File> => {
     throw new Error('Tệp Excel không có trang tính nào (Sheet rỗng)!');
   }
 
-  const csvRows: string[] = [];
+  // Danh mục từ khóa đặc trưng nhận diện dòng Tiêu đề cột (Header Row)
+  const headerKeywords = [
+    'stt',
+    'ma kh', 'makh', 'customercode', 'customer_code', 'ma khach hang',
+    'ten kh', 'tenkh', 'customername', 'customer_name', 'ten khach hang',
+    'ma diem do', 'madiemdo', 'pointcode', 'point_code',
+    'ten diem do', 'tendiemdo',
+    'loai diem do', 'loaidiemdo', 'point_type', 'pointtype',
+    'mo ta', 'mota', 'description',
+    'so dien thoai', 'sdt', 'dien thoai', 'phone',
+    'email', 'mail', 'phieu bao',
+    'dia chi', 'diachi', 'address',
+    'trang thai', 'trangthai', 'status',
+    'ma tag', 'matag', 'ten tag', 'tentag', 'tagcode',
+    'bo chi so', 'chi so cu', 'chi so moi', 'he so nhan', 'san luong'
+  ];
 
-  worksheet.eachRow((row) => {
-    const values = (row.values as any[]).slice(1); // ExcelJS values 1-indexed
+  const normalizeToken = (val: any): string => {
+    if (!val) return '';
+    return String(val)
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/[^a-z0-9 ]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  // 1. Quét tìm dòng tiêu đề thực sự (bỏ qua các dòng banner, tiêu đề báo cáo, ngày giờ xuất)
+  let headerRowIndex = 1;
+  let maxMatchCount = 0;
+  const maxScanRows = Math.min(25, worksheet.rowCount || 25);
+
+  for (let r = 1; r <= maxScanRows; r++) {
+    const row = worksheet.getRow(r);
+    if (!row || !row.values) continue;
+    const values = (row.values as any[]).slice(1);
+    if (!values || values.length === 0) continue;
+
+    // Loại trừ các dòng banner bị merge (nhiều ô có cùng giá trị lặp lại) hoặc các dòng tiêu đề chung
+    const tokens = values.map((v) => normalizeToken(v)).filter(Boolean);
+    const uniqueTokens = new Set(tokens);
+    if (uniqueTokens.size <= 2) {
+      // Dòng banner merged hoặc tiêu đề rỗng
+      continue;
+    }
+
+    const rowText = tokens.join(' ');
+    if (
+      rowText.includes('he thong quan ly') ||
+      rowText.includes('quan ly diem do') ||
+      rowText.includes('quan ly khach hang') ||
+      rowText.includes('quan ly so gcs') ||
+      rowText.includes('thoi gian xuat') ||
+      rowText.includes('thoi gian xuat bao cao')
+    ) {
+      continue;
+    }
+
+    let matchCount = 0;
+    tokens.forEach((token) => {
+      if (headerKeywords.some((kw) => token === kw || token.includes(kw))) {
+        matchCount++;
+      }
+    });
+
+    // Ưu tiên dòng có số lượng cột tiêu đề trùng khớp nhiều nhất (dùng >= để ưu tiên dòng bên dưới nếu bằng)
+    if (matchCount >= maxMatchCount && matchCount >= 2) {
+      maxMatchCount = matchCount;
+      headerRowIndex = r;
+    }
+  }
+
+  // 2. Chuyển đổi các dòng từ headerRowIndex trở đi thành CSV
+  const csvRows: string[] = [];
+  const totalRows = worksheet.rowCount || 0;
+
+  for (let r = headerRowIndex; r <= totalRows; r++) {
+    const row = worksheet.getRow(r);
+    if (!row || !row.values) continue;
+    const values = (row.values as any[]).slice(1);
+    if (!values || values.length === 0) continue;
+
+    // Kiểm tra dòng có dữ liệu hay không
+    const hasData = values.some((val) => {
+      if (val === null || val === undefined) return false;
+      if (typeof val === 'string' && val.trim() === '') return false;
+      return true;
+    });
+
+    if (!hasData) continue;
+
+    // Bỏ qua nếu dòng bị lặp lại banner/tiêu đề
+    const rowText = values.map((v) => normalizeToken(v)).join(' ');
+    if (
+      rowText.includes('he thong quan ly') ||
+      rowText.includes('quan ly khach hang') ||
+      rowText.includes('quan ly diem do') ||
+      rowText.includes('quan ly so gcs') ||
+      rowText.includes('thoi gian xuat')
+    ) {
+      continue;
+    }
+
     const line = values
       .map((val) => {
         if (val === null || val === undefined) return '""';
+        let strVal = '';
         if (typeof val === 'object') {
-          if (val.text !== undefined) return `"${String(val.text).replace(/"/g, '""')}"`;
-          if (val.result !== undefined) return `"${String(val.result).replace(/"/g, '""')}"`;
+          if (val.text !== undefined) strVal = String(val.text);
+          else if (val.result !== undefined) strVal = String(val.result);
+          else strVal = String(val);
+        } else {
+          strVal = String(val);
         }
-        return `"${String(val).replace(/"/g, '""')}"`;
+        return `"${strVal.replace(/"/g, '""')}"`;
       })
       .join(',');
+
     csvRows.push(line);
-  });
+  }
 
   const csvContent = '\uFEFF' + csvRows.join('\r\n');
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });

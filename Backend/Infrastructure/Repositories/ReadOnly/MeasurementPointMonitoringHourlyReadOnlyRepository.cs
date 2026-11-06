@@ -7,6 +7,7 @@ using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Nobisoft.Core.Authorization;
 using Nobisoft.Core.Authorization.Interfaces;
+using Nobisoft.Core.Constants;
 using Nobisoft.Core.Database.DbContext;
 using Nobisoft.Core.Database.Repository;
 using Nobisoft.Core.Interfaces;
@@ -17,6 +18,7 @@ public class MeasurementPointMonitoringHourlyReadOnlyRepository : RestfulReposit
 {
     private readonly DbSet<MeasurementPointMonitoringHourlyEntity> _measurementPointMonitoringHourlyEntities;
     private readonly DbSet<GcsCutoffCycleEntity> _gcsCutoffCycleEntities;
+    private readonly DbSet<TagNameEntity> _tagNameEntities;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUserReadOnlyRepository _userReadOnlyRepository;
     private readonly IUserCustomerReadWriteRepository _userCustomerReadWriteRepository;
@@ -28,6 +30,7 @@ public class MeasurementPointMonitoringHourlyReadOnlyRepository : RestfulReposit
         _userCustomerReadWriteRepository = userCustomerReadWriteRepository;
         _measurementPointMonitoringHourlyEntities = applicationDbContext.Set<MeasurementPointMonitoringHourlyEntity>();
         _gcsCutoffCycleEntities = applicationDbContext.Set<GcsCutoffCycleEntity>();
+        _tagNameEntities = applicationDbContext.Set<TagNameEntity>();
     }
 
     public async Task<LoadChartResponse?> GetLoadChartAsync(LoadChartRequest request, CancellationToken cancellationToken)
@@ -285,6 +288,34 @@ public class MeasurementPointMonitoringHourlyReadOnlyRepository : RestfulReposit
                 })
                 .ToList();
             response.CurrentPeriodData = CreatePeriodVoltageData(monthlyData, "Monthly", request.Type, currentTime.Year, currentTime.Month);
+        }
+        if (request.Type == "DienAp" && response.CurrentPeriodData != null && response.CurrentPeriodData.Any())
+        {
+            var configuredVoltageUnit = await _tagNameEntities.AsNoTracking()
+                .Where(t => t.MeasurementPointId == request.MeasurementPointId &&
+                            !t.Deleted &&
+                            !string.IsNullOrEmpty(t.Unit) &&
+                            (t.Description == ListDataMeasurementPoint.DienApPhaA ||
+                             t.Description == ListDataMeasurementPoint.DienApPhaB ||
+                             t.Description == ListDataMeasurementPoint.DienApPhaC ||
+                             t.Description.Contains("DIEN_AP") ||
+                             t.Description.Contains("Điện áp") ||
+                             t.Description.Contains("dien ap")))
+                .Select(t => t.Unit)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(configuredVoltageUnit))
+            {
+                foreach (var pt in response.CurrentPeriodData)
+                {
+                    pt.PhaAUnit = configuredVoltageUnit;
+                    pt.PhaBUnit = configuredVoltageUnit;
+                    pt.PhaCUnit = configuredVoltageUnit;
+                }
+            }
+        }
+        if (false)
+        {
         }
         return response;
     }

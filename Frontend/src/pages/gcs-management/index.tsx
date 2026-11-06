@@ -1,6 +1,7 @@
 import { PlusOutlined } from '@ant-design/icons';
 import { Card, TableProps } from 'antd';
 import { useEffect, useState } from 'react';
+import { FaRegTrashCan } from 'react-icons/fa6';
 import { FiCheckSquare, FiShare } from 'react-icons/fi';
 import { IoBackspaceOutline, IoSearch } from 'react-icons/io5';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { ROUTE_PATH } from '@/core/application/common/appRouters';
 import Constants from '@/core/application/common/constants.ts';
 import { DataResponse } from '@/core/application/dto/common/responses/successResponse';
+import { DeleteGCSRequest } from '@/core/application/dto/gcs/request/DeleteGCSRequest';
 import { GetListGCSRequest } from '@/core/application/dto/gcs/request/GetListGCSRequest';
 import { IGCSListResponseInterface } from '@/core/application/interfaces/response/gcs/gcsResponse.interface';
 import { ButtonCommonCustomizable } from '@/infrastructure/common/components/button/button-common-customizable.tsx';
@@ -16,12 +18,15 @@ import DialogExportForm from '@/infrastructure/common/components/dialog-export/d
 import InputSelectCommon from '@/infrastructure/common/components/input/input-select-common.tsx';
 import InputTextCommon from '@/infrastructure/common/components/input/input-text-common.tsx';
 import PaginationCommon from '@/infrastructure/common/components/pagination/pagination-common.tsx';
+import DialogCommon from '@/infrastructure/common/components/popup/dialogCommon.tsx';
 import PrivateComponent from '@/infrastructure/common/components/private-component/private-component.tsx';
 import StatusTagCommon from '@/infrastructure/common/components/status-tag/status-tag-common.tsx';
 import TableCommon from '@/infrastructure/common/components/table/table-common.tsx';
 import PageTitle from '@/infrastructure/common/components/title/page-title.tsx';
+import { notifySuccess } from '@/infrastructure/common/components/toast/toastMessage.tsx';
 import useDebounce from '@/infrastructure/common/libs/hooks/useDebounce.hook';
 import { useStateDataForm } from '@/infrastructure/common/libs/hooks/useStateDataForm.hook';
+import useDeleteGCSHook from '@/infrastructure/repository/gcs/hooks/useDeleteGCS.hook.tsx';
 import useGetListGCSHook from '@/infrastructure/repository/gcs/hooks/useGetGCSList.hook';
 import { deleteParams } from '@/infrastructure/utils/helpers.ts';
 import { _t } from '@/infrastructure/utils/translation.ts';
@@ -29,6 +34,9 @@ import { _t } from '@/infrastructure/utils/translation.ts';
 const GCSManagement = () => {
   const navigate = useNavigate();
   const [getListGCS] = useGetListGCSHook();
+  const [deleteGCSRequest] = useDeleteGCSHook();
+  const [selectedGcsForDelete, setSelectedGcsForDelete] = useState<{ id: number; name: string } | null>(null);
+  const [isShowDeleteDialog, setIsShowDeleteDialog] = useState<boolean>(false);
   const [isShowExport, setIsShowExport] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [data, setData] = useState<IGCSListResponseInterface>();
@@ -36,6 +44,24 @@ const GCSManagement = () => {
     code: '',
     status: Constants.CustomerStatus.Active,
   });
+
+  const deleteGCSAsync = async () => {
+    if (!selectedGcsForDelete?.id) return;
+    const params = new DeleteGCSRequest({ id: selectedGcsForDelete.id });
+    await deleteGCSRequest(
+      params,
+      () => {
+        setIsShowDeleteDialog(false);
+        setSelectedGcsForDelete(null);
+        notifySuccess('', _t('Xóa sổ GCS thành công'));
+        getListGCSAsync({ ...getListGCSParamsRequest });
+      },
+      () => {
+        setIsShowDeleteDialog(false);
+      },
+      setLoading
+    );
+  };
   const [getListGCSParamsRequest, setGetListGCSParamsRequest] = useState<GetListGCSRequest>({
     searchByFields: [
       {
@@ -200,7 +226,7 @@ const GCSManagement = () => {
     <div>
       <PageTitle title={'Quản lý sổ GCS'} />
       <div className='flex justify-between items-center'>
-        <h1 className='text-24-28 font-bold'>{_t('Quản lý sổ ghi chỉ số')}</h1>
+        <h1 className='text-24-28 font-bold'>{_t('Quản lý sổ GCS')}</h1>
         <div className='flex gap-1'>
           <PrivateComponent roles={[Constants.Role.SuperAdmin.value, Constants.Role.Admin.value]}>
             <ButtonCommonCustomizable
@@ -313,9 +339,29 @@ const GCSManagement = () => {
         title='Quản lý sổ GCS'
         dataSource={tableDataSource}
         listHeader={Constants.listHeaderExport.GcsManagement}
-        fileNameCsv={'DanhSachSoGCS'}
+        fileNameCsv={'MDMS_DanhSachSoGCS'}
         typeExportAll={'gcs'}
       />
+      <DialogCommon
+        title={''}
+        visible={isShowDeleteDialog}
+        handleCancel={() => {
+          setIsShowDeleteDialog(false);
+          setSelectedGcsForDelete(null);
+        }}
+        handleConfirm={deleteGCSAsync}
+        isButtonSubmit={true}
+        showFooter={true}
+      >
+        <div className='flex flex-col gap-4'>
+          <div className='flex flex-col justify-center items-center my-10 gap-2'>
+            <p className='text-20-20 font-bold'>{_t('Xác nhận xoá sổ GCS')}</p>
+            <p className='text-16-16 text-center'>
+              {_t(`Sau khi xác nhận sổ "${selectedGcsForDelete?.name || ''}" sẽ bị xoá khỏi hệ thống.`)}
+            </p>
+          </div>
+        </div>
+      </DialogCommon>
     </div>
   );
 };

@@ -137,7 +137,7 @@ const ActivePointsEnergyReport: React.FC = () => {
   const exportConfig = useMemo(() => {
     return {
       title: 'Báo cáo chỉ số điện các điểm đo',
-      fileNameCsv: `BaoCao_ChiSoDien_CacDiemDo_${selectedDate.format('YYYYMMDD')}_${selectedSlot.replace(':', '')}`,
+      fileNameCsv: `MDMS_BaoCao_ChiSoDien_CacDiemDo_${selectedDate.format('YYYYMMDD')}_${selectedSlot.replace(':', '')}`,
       typeExportAll: '',
       listHeader: Constants.listHeaderExport.ActivePointsEnergyReport,
       requestBody: {

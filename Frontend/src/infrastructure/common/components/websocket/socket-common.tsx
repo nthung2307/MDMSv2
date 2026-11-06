@@ -12,7 +12,7 @@ interface Props {
 }
 
 const SocketCommon = ({ children, setDataSocket, endPoint, status }: Props) => {
-  const baseURL = `${import.meta.env.VITE_APP_SOCKET_URL}`;
+  const baseURL = `${import.meta.env.VITE_APP_SOCKET_URL ?? import.meta.env.VITE_APP_API_URL ?? ''}`;
   const role = getAccountRole();
 
   // Initialize SignalR connection

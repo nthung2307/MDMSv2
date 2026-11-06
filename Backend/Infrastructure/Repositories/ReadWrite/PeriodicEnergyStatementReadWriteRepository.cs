@@ -57,9 +57,18 @@ namespace Infrastructure.Repositories.ReadWrite
                 cancellationToken);
             foreach (var entity in entities)
             {
-                var (prevPMax, prev2PMax) = previousPMax[entity.MeasurementPointId];
-                entity.Pmax = prevPMax;
-                entity.PreviousPmax = prev2PMax;
+                if (previousPMax.TryGetValue(entity.MeasurementPointId, out var pmaxTuple))
+                {
+                    var (prevPMax, prev2PMax) = pmaxTuple;
+                    if (entity.Pmax <= 0 && prevPMax > 0)
+                    {
+                        entity.Pmax = prevPMax;
+                    }
+                    if (entity.PreviousPmax <= 0 && prevPMax > 0)
+                    {
+                        entity.PreviousPmax = prevPMax;
+                    }
+                }
             }
             return entities;
         }

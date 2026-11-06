@@ -60,7 +60,7 @@ public class FinalMeterReadingCommandHandler : IFinalMeterReadingCommandHandler
                     new ErrorItem()
                     {
                         FieldName = nameof(request.Request.GcsId),
-                        Error = "Còn chỉ số lỗi"
+                        Error = "Không thể chốt sổ: Còn chỉ số chưa cập nhật hoặc số liệu nghi ngờ chưa được kiểm tra / hiệu chỉnh. Người dùng chỉ được xác nhận chốt sổ sau khi không còn số liệu nghi ngờ (hoặc sau khi đã nhập liệu thủ công / Import file Excel chuyển màu sang Normal)."
                     }
                 });
             }
@@ -78,6 +78,12 @@ public class FinalMeterReadingCommandHandler : IFinalMeterReadingCommandHandler
                 });
             }
 
+            try
+            {
+                await _gcsTemporaryReadWriteRepository.EnsureColumnsExistAsync(cancellationToken);
+            }
+            catch { }
+
             var gcsTemporary = await _gcsTemporaryReadWriteRepository.GetListGcsTemporaryAsync(new GetDataLatchRequest()
             {
                 GcsId = request.Request.GcsId,
@@ -87,36 +93,84 @@ public class FinalMeterReadingCommandHandler : IFinalMeterReadingCommandHandler
                 IsRefresh = false
             }, cancellationToken);
 
+            // Đảm bảo toàn bộ Sản lượng và hệ số CosPhi (PF) trung bình được tính toán chuẩn xác trước khi chốt sổ
+            foreach (var ptGroup in gcsTemporary.GroupBy(x => x.MeasurementPointId))
+            {
+                Infrastructure.Repositories.ReadWrite.GcsTemporaryReadWriteRepository.RecalculatePointConsumptionAndCosPhi(ptGroup);
+            }
+
             var groupedTemporary = gcsTemporary.GroupBy(x => x.MeasurementPointId)
-                .Select(group => new
+                .Select(group =>
                 {
-                    MeasurementPointId = group.Key,
-                    Bt = group.FirstOrDefault(x => x.MeterReadingSet == "BT")?.Quanlity == null || group.FirstOrDefault(x => x.MeterReadingSet == "BT")?.Quanlity == false ? group.FirstOrDefault(x => x.MeterReadingSet == "BT")?.NewCurrentReading ?? 0 : group.FirstOrDefault(x => x.MeterReadingSet == "BT")?.CurrentReading ?? 0,
-                    Cd = group.FirstOrDefault(x => x.MeterReadingSet == "CD")?.Quanlity == null || group.FirstOrDefault(x => x.MeterReadingSet == "CD")?.Quanlity == false ? group.FirstOrDefault(x => x.MeterReadingSet == "CD")?.NewCurrentReading ?? 0 : group.FirstOrDefault(x => x.MeterReadingSet == "CD")?.CurrentReading ?? 0,
-                    Td = group.FirstOrDefault(x => x.MeterReadingSet == "TD")?.Quanlity == null || group.FirstOrDefault(x => x.MeterReadingSet == "TD")?.Quanlity == false ? group.FirstOrDefault(x => x.MeterReadingSet == "TD")?.NewCurrentReading ?? 0 : group.FirstOrDefault(x => x.MeterReadingSet == "TD")?.CurrentReading ?? 0,
-                    Sg = group.FirstOrDefault(x => x.MeterReadingSet == "SG")?.Quanlity == null || group.FirstOrDefault(x => x.MeterReadingSet == "SG")?.Quanlity == false ? group.FirstOrDefault(x => x.MeterReadingSet == "SG")?.NewCurrentReading ?? 0 : group.FirstOrDefault(x => x.MeterReadingSet == "SG")?.CurrentReading ?? 0,
-                    Vc = group.FirstOrDefault(x => x.MeterReadingSet == "VC")?.Quanlity == null || group.FirstOrDefault(x => x.MeterReadingSet == "VC")?.Quanlity == false ? group.FirstOrDefault(x => x.MeterReadingSet == "VC")?.NewCurrentReading ?? 0 : group.FirstOrDefault(x => x.MeterReadingSet == "VC")?.CurrentReading ?? 0,
-                    Pmax = group.FirstOrDefault(x => x.MeterReadingSet == "Pmax")?.Quanlity == null || group.FirstOrDefault(x => x.MeterReadingSet == "Pmax")?.Quanlity == false ? group.FirstOrDefault(x => x.MeterReadingSet == "Pmax")?.NewCurrentReading ?? 0 : group.FirstOrDefault(x => x.MeterReadingSet == "Pmax")?.CurrentReading ?? 0,
-                    PreviousBt = group.FirstOrDefault(x => x.MeterReadingSet == "BT")?.NewPreviousReading ?? group.FirstOrDefault(x => x.MeterReadingSet == "BT")?.PreviousReading ?? 0,
-                    PreviousCd = group.FirstOrDefault(x => x.MeterReadingSet == "CD")?.NewPreviousReading ?? group.FirstOrDefault(x => x.MeterReadingSet == "CD")?.PreviousReading ?? 0,
-                    PreviousTd = group.FirstOrDefault(x => x.MeterReadingSet == "TD")?.NewPreviousReading ?? group.FirstOrDefault(x => x.MeterReadingSet == "TD")?.PreviousReading ?? 0,
-                    PreviousSg = group.FirstOrDefault(x => x.MeterReadingSet == "SG")?.NewPreviousReading ?? group.FirstOrDefault(x => x.MeterReadingSet == "SG")?.PreviousReading ?? 0,
-                    PreviousVc = group.FirstOrDefault(x => x.MeterReadingSet == "VC")?.NewPreviousReading ?? group.FirstOrDefault(x => x.MeterReadingSet == "VC")?.PreviousReading ?? 0,
-                    PreviousPmax = group.FirstOrDefault(x => x.MeterReadingSet == "Pmax")?.NewPreviousReading ?? group.FirstOrDefault(x => x.MeterReadingSet == "Pmax")?.PreviousReading ?? 0,
-                    Multiplier = group.FirstOrDefault(x => x.MeterReadingSet == "BT")?.MultiplierFactor ?? 0,
-                    ConsumtionBt = group.FirstOrDefault(x => x.MeterReadingSet == "BT")?.Consumption ?? 0,
-                    ConsumtionCd = group.FirstOrDefault(x => x.MeterReadingSet == "CD")?.Consumption ?? 0,
-                    ConsumtionTd = group.FirstOrDefault(x => x.MeterReadingSet == "TD")?.Consumption ?? 0,
-                    ConsumtionSg = group.FirstOrDefault(x => x.MeterReadingSet == "SG")?.Consumption ?? 0,
-                    ConsumtionVc = group.FirstOrDefault(x => x.MeterReadingSet == "VC")?.Consumption ?? 0,
-                    PreviousDay = group.FirstOrDefault()?.PreviousDay,
-                    PreviousMonth = group.FirstOrDefault()?.PreviousMonth,
-                    PreviousYear = group.FirstOrDefault()?.PreviousYear,
-                    PreviousPeriodNumber = group.FirstOrDefault()?.PreviousPeriodNumber,
-                    Day = group.FirstOrDefault()?.Day,
-                    Month = group.FirstOrDefault()?.Month,
-                    Year = group.FirstOrDefault()?.Year,
-                    PeriodNumber = group.FirstOrDefault()?.PeriodNumber
+                    var btRec = group.FirstOrDefault(x => x.MeterReadingSet == "BT");
+                    var cdRec = group.FirstOrDefault(x => x.MeterReadingSet == "CD");
+                    var tdRec = group.FirstOrDefault(x => x.MeterReadingSet == "TD");
+                    var sgRec = group.FirstOrDefault(x => x.MeterReadingSet == "SG");
+                    var vcRec = group.FirstOrDefault(x => x.MeterReadingSet == "VC");
+                    var pmaxRec = group.FirstOrDefault(x => x.MeterReadingSet == "Pmax");
+
+                    var btCurr = btRec?.NewCurrentReading ?? btRec?.CurrentReading ?? 0;
+                    var cdCurr = cdRec?.NewCurrentReading ?? cdRec?.CurrentReading ?? 0;
+                    var tdCurr = tdRec?.NewCurrentReading ?? tdRec?.CurrentReading ?? 0;
+                    var sgCurr = sgRec?.NewCurrentReading ?? sgRec?.CurrentReading ?? 0;
+                    var vcCurr = vcRec?.NewCurrentReading ?? vcRec?.CurrentReading ?? 0;
+                    var pmaxCurr = pmaxRec?.NewCurrentReading ?? pmaxRec?.CurrentReading ?? 0;
+
+                    var btPrev = btRec?.NewPreviousReading ?? btRec?.PreviousReading ?? 0;
+                    var cdPrev = cdRec?.NewPreviousReading ?? cdRec?.PreviousReading ?? 0;
+                    var tdPrev = tdRec?.NewPreviousReading ?? tdRec?.PreviousReading ?? 0;
+                    var sgPrev = sgRec?.NewPreviousReading ?? sgRec?.PreviousReading ?? 0;
+                    var vcPrev = vcRec?.NewPreviousReading ?? vcRec?.PreviousReading ?? 0;
+                    var pmaxPrev = pmaxRec?.NewPreviousReading ?? pmaxRec?.PreviousReading ?? 0;
+
+                    var mult = btRec?.MultiplierFactor ?? sgRec?.MultiplierFactor ?? group.FirstOrDefault()?.MultiplierFactor ?? 1;
+
+                    var consBt = btRec?.Consumption ?? ((btCurr - btPrev) * mult);
+                    var consCd = cdRec?.Consumption ?? ((cdCurr - cdPrev) * mult);
+                    var consTd = tdRec?.Consumption ?? ((tdCurr - tdPrev) * mult);
+                    var consSg = sgRec?.Consumption ?? ((sgCurr - sgPrev) * mult);
+                    var consVc = vcRec?.Consumption ?? ((vcCurr - vcPrev) * mult);
+
+                    double? effectiveAp = consSg > 0 ? consSg : ((consBt + consCd + consTd) > 0 ? (consBt + consCd + consTd) : consSg);
+                    var cosPhi = group.FirstOrDefault(x => x.CosPhi.HasValue)?.CosPhi
+                                 ?? Infrastructure.Repositories.ReadWrite.GcsTemporaryReadWriteRepository.CalculateAverageCosPhi(effectiveAp, consVc);
+
+                    var billingTimestamp = sgRec?.ReadingTime ?? btRec?.ReadingTime ?? group.FirstOrDefault()?.ReadingTime;
+                    var pmaxTime = pmaxRec?.PmaxTime ?? group.FirstOrDefault(x => x.PmaxTime.HasValue)?.PmaxTime;
+
+                    return new
+                    {
+                        MeasurementPointId = group.Key,
+                        Bt = btCurr,
+                        Cd = cdCurr,
+                        Td = tdCurr,
+                        Sg = sgCurr,
+                        Vc = vcCurr,
+                        Pmax = pmaxCurr,
+                        PreviousBt = btPrev,
+                        PreviousCd = cdPrev,
+                        PreviousTd = tdPrev,
+                        PreviousSg = sgPrev,
+                        PreviousVc = vcPrev,
+                        PreviousPmax = pmaxPrev,
+                        Multiplier = mult,
+                        ConsumtionBt = consBt,
+                        ConsumtionCd = consCd,
+                        ConsumtionTd = consTd,
+                        ConsumtionSg = consSg,
+                        ConsumtionVc = consVc,
+                        CosPhi = cosPhi,
+                        BillingTimestamp = billingTimestamp,
+                        PmaxTime = pmaxTime,
+                        PreviousDay = group.FirstOrDefault()?.PreviousDay,
+                        PreviousMonth = group.FirstOrDefault()?.PreviousMonth,
+                        PreviousYear = group.FirstOrDefault()?.PreviousYear,
+                        PreviousPeriodNumber = group.FirstOrDefault()?.PreviousPeriodNumber,
+                        Day = group.FirstOrDefault()?.Day,
+                        Month = group.FirstOrDefault()?.Month,
+                        Year = group.FirstOrDefault()?.Year,
+                        PeriodNumber = group.FirstOrDefault()?.PeriodNumber
+                    };
                 }).ToList();
 
             var gcsCutOffEntity = await _gcsCutOffCycleReadWriteRepository.GetGcsCutOffCycleEntityAsync(request.Request.GcsId, request.Request.Month, request.Request.Year, request.Request.PeriodNumber, cancellationToken);
@@ -149,24 +203,41 @@ public class FinalMeterReadingCommandHandler : IFinalMeterReadingCommandHandler
                 PreviousPeriodNumber = gcsCutoffCycleOld?.PeriodNumber
             };
 
-            foreach (var item in gcsTemporary)
+            var orderedTemporary = gcsTemporary.OrderByDescending(x => x.Id).ToList();
+            var monthlyDetailsToInsert = new List<GcsMonthlyDetailEntity>();
+
+            // Duyệt ngược từ cuối danh sách lên đầu để sinh Snowflake ID tăng dần:
+            // Nhờ đó orderedTemporary[0] (dòng đầu tiên trên màn hình Ghi chỉ số) sẽ có Snowflake ID lớn nhất,
+            // khi truy vấn GcsMonthlyDetail bằng Id DESC sẽ hiển thị orderedTemporary[0] đầu tiên,
+            // bảo toàn 100% thứ tự từng điểm đo và từng bộ chỉ số như trước khi chốt!
+            for (int i = orderedTemporary.Count - 1; i >= 0; i--)
             {
+                var item = orderedTemporary[i];
                 gcsCutOffCycle.Day = item.Day;
-                await _gcsMonthlyDetailReadWriteRepository.AddAsync(new GcsMonthlyDetailEntity
+                monthlyDetailsToInsert.Add(new GcsMonthlyDetailEntity
                 {
                     Id = await _snowflakeIdService.GenerateId(cancellationToken),
                     GcsCutoffCycleId = gcsCutoffCycleId,
                     MeasurementPointId = item.MeasurementPointId,
                     MeterReadingSet = item.MeterReadingSet,
                     PreviousReading = item.NewPreviousReading ?? item.PreviousReading,
-                    CurrentReading = item.Quanlity != null && item.Quanlity != false && item.ModifiedBy == null ? item.CurrentReading : item.NewCurrentReading ?? item.CurrentReading,
+                    CurrentReading = item.NewCurrentReading ?? item.CurrentReading,
                     MultiplierFactor = item.MultiplierFactor,
                     Consumption = item.Consumption,
-                    IsChange = item.ModifiedBy != null,
+                    CosPhi = item.CosPhi,
+                    ReadingTime = item.ReadingTime,
+                    PmaxTime = item.PmaxTime,
+                    IsChange = item.IsChange,
                     CreatedTime = DateTimeOffset.Now,
                     CreatedBy = currentId,
                     CreatedName = userName
-                }, cancellationToken);
+                });
+            }
+
+            monthlyDetailsToInsert.Reverse();
+            foreach (var detail in monthlyDetailsToInsert)
+            {
+                await _gcsMonthlyDetailReadWriteRepository.AddAsync(detail, cancellationToken);
             }
 
             await _gcsCutOffCycleReadWriteRepository.AddAsync(gcsCutOffCycle, cancellationToken);
@@ -185,7 +256,7 @@ public class FinalMeterReadingCommandHandler : IFinalMeterReadingCommandHandler
                     Month = request.Request.Month,
                     Year = request.Request.Year,
                     PeriodNumber = request.Request.PeriodNumber,
-                    Bt = Math.Round((double)group.Bt , 2),
+                    Bt = Math.Round((double)group.Bt, 2),
                     Cd = Math.Round((double)group.Cd, 2),
                     Td = Math.Round((double)group.Td, 2),
                     Sg = Math.Round((double)group.Sg, 2),
@@ -203,6 +274,9 @@ public class FinalMeterReadingCommandHandler : IFinalMeterReadingCommandHandler
                     ConsumtionTd = Math.Round((double)group.ConsumtionTd, 2),
                     ConsumtionSg = Math.Round((double)group.ConsumtionSg, 2),
                     ConsumtionVc = Math.Round((double)group.ConsumtionVc, 2),
+                    CosPhi = group.CosPhi.HasValue ? Math.Round(group.CosPhi.Value, 2, MidpointRounding.AwayFromZero) : null,
+                    BillingTimestamp = group.BillingTimestamp,
+                    PmaxTime = group.PmaxTime,
                     Day = group.Day,
                     PreviousDay = group.PreviousDay,
                     PreviousMonth = group.PreviousMonth,

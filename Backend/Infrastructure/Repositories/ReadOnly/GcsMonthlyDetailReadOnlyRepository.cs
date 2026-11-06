@@ -46,6 +46,10 @@ public class GcsMonthlyDetailReadOnlyRepository : RestfulRepository<GcsMonthlyDe
                 MeterReadingSet = x.MeterReadingSet,
                 PreviousReading = x.PreviousReading,
                 CurrentReading = x.CurrentReading,
+                Consumption = x.Consumption,
+                CosPhi = x.CosPhi,
+                ReadingTime = x.ReadingTime ?? DateTimeOffset.MinValue,
+                PmaxTime = x.PmaxTime,
             })
             .ToListAsync(cancellationToken);
     }
@@ -158,17 +162,17 @@ public class GcsMonthlyDetailReadOnlyRepository : RestfulRepository<GcsMonthlyDe
                             table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.MeasurementPoint.Description).FontFamily(Fonts.Arial).Style(rowStyle);
                             table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.MeasurementPoint.Customer.FullName).FontFamily(Fonts.Arial).Style(rowStyle);
                             table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.MeterReadingSet).FontFamily(Fonts.Arial).Style(rowStyle);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.PreviousReading).FontFamily(Fonts.Arial).Style(rowStyle);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.PreviousReading.HasValue ? Math.Round(customer.PreviousReading.Value, 0).ToString() : "-").FontFamily(Fonts.Arial).Style(rowStyle);
                             table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Row(row =>
                             {
-                                row.AutoItem().Text(customer.CurrentReading).FontFamily(Fonts.Arial).Style(rowStyle);
+                                row.AutoItem().Text(customer.CurrentReading.HasValue ? Math.Round(customer.CurrentReading.Value, 0).ToString() : "-").FontFamily(Fonts.Arial).Style(rowStyle);
                                 if (customer.IsChange)
                                 {
                                     row.AutoItem().PaddingLeft(5).Text("M");
                                 }
                             });
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.MultiplierFactor).FontFamily(Fonts.Arial).Style(rowStyle);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.Consumption).FontFamily(Fonts.Arial).Style(rowStyle);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(Math.Round(customer.MultiplierFactor, 0).ToString()).FontFamily(Fonts.Arial).Style(rowStyle);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.Consumption.HasValue ? Math.Round(customer.Consumption.Value, 0).ToString() : (customer.MeterReadingSet == "Pmax" ? "N/A" : "-")).FontFamily(Fonts.Arial).Style(rowStyle);
                         }
                     });
                 });
@@ -227,10 +231,10 @@ public class GcsMonthlyDetailReadOnlyRepository : RestfulRepository<GcsMonthlyDe
             csvWriter.WriteField(customer.MeasurementPoint.Description);
             csvWriter.WriteField(customer.MeasurementPoint.Customer.FullName);
             csvWriter.WriteField(customer.MeterReadingSet);
-            csvWriter.WriteField(customer.PreviousReading);
-            csvWriter.WriteField(customer.IsChange ? customer.CurrentReading.ToString() + "M" : customer.CurrentReading.ToString());
-            csvWriter.WriteField(customer.MultiplierFactor);
-            csvWriter.WriteField(customer.Consumption);
+            csvWriter.WriteField(customer.PreviousReading.HasValue ? Math.Round(customer.PreviousReading.Value, 0).ToString(CultureInfo.InvariantCulture) : "");
+            csvWriter.WriteField(customer.CurrentReading.HasValue ? Math.Round(customer.CurrentReading.Value, 0).ToString(CultureInfo.InvariantCulture) : "");
+            csvWriter.WriteField(Math.Round(customer.MultiplierFactor, 0).ToString(CultureInfo.InvariantCulture));
+            csvWriter.WriteField(customer.Consumption.HasValue ? Math.Round(customer.Consumption.Value, 0).ToString(CultureInfo.InvariantCulture) : (customer.MeterReadingSet == "Pmax" ? "N/A" : ""));
             await csvWriter.NextRecordAsync();
         }
         await streamWriter.FlushAsync(cancellationToken);

@@ -21,6 +21,9 @@ public class StatementPdfTemplateEntityConfiguration : IEntityTypeConfiguration<
         builder.Property(r => r.ContactPhone).HasMaxLength(255);
         builder.Property(r => r.LogoBase64).HasColumnType("LONGTEXT");
         builder.Property(r => r.PaperSize).HasMaxLength(50);
+        builder.Property(r => r.EngineType).HasMaxLength(50);
+        builder.Property(r => r.ExcelTemplateBase64).HasColumnType("LONGTEXT");
+        builder.Property(r => r.ExcelTemplateFileName).HasMaxLength(255);
         builder.Property(r => r.DisplayColumnsJson).HasMaxLength(1000);
         builder.Property(r => r.FooterNotes).HasMaxLength(2000);
 

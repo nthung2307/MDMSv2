@@ -54,6 +54,19 @@ public class AddCustomerCommandHandler : ICreateCustomerCommandHandler
                 });
             }
 
+            // Giải phóng mã khách hàng từ các bản ghi đã xóa mềm trước đó nếu còn trùng
+            var legacyDeletedCustomers = await _customerReadWriteRepository.GetDeletedCustomersByCodeAsync(request.CustomerCode, cancellationToken);
+            if (legacyDeletedCustomers != null && legacyDeletedCustomers.Count > 0)
+            {
+                var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                foreach (var del in legacyDeletedCustomers)
+                {
+                    del.CustomerCode = $"{del.CustomerCode}_deleted_{timestamp}_{del.Id}";
+                    await _customerReadWriteRepository.UpdateAsync(del, cancellationToken);
+                }
+                await _customerReadWriteRepository.SaveChangesAsync(cancellationToken);
+            }
+
             var userId = await _snowflakeIdService.GenerateId(cancellationToken);
             var response = new CustomerEntity()
             {

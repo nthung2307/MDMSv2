@@ -1,5 +1,6 @@
 import { CancelToken } from 'axios';
 
+import Constants from '@/core/application/common/constants';
 import NetworkException from '@/core/application/common/exceptions/networkException.ts';
 import FailureResponse from '@/core/application/dto/common/responses/failureResponse.ts';
 import InvalidModelStateResponse from '@/core/application/dto/common/responses/invalidModelStateResponse.ts';
@@ -16,6 +17,8 @@ import { UpdateGCSRequest } from '@/core/application/dto/gcs/request/UpdateGCSRe
 import { UpdateGCSStatusRequest } from '@/core/application/dto/gcs/request/UpdateGCSStatusRequest.ts';
 import { UpdateGCSTemporaryRequest } from '@/core/application/dto/gcs/request/UpdateGCSTemporaryRequest';
 import { IGCSManagementService } from '@/core/application/interfaces/gcs.interface';
+import axiosInstance from '@/infrastructure/common/libs/axios/interceptors';
+import LocalStorageService from '@/infrastructure/services/localStorage.service';
 import LoggerService from '@/infrastructure/services/logger.service.ts';
 import RequestService from '@/infrastructure/services/request.service.ts';
 
@@ -331,6 +334,79 @@ export class GCSManagementService implements IGCSManagementService {
       }
 
       throw new NetworkException('No http status code handler');
+    } catch (e) {
+      this.loggerService.error(e);
+      throw e;
+    }
+  }
+
+  public async exportExcelTemporary(
+    endpoint: string,
+    params: {
+      gcsId: number;
+      month: number;
+      year: number;
+      periodNumber: number;
+      onlySuspicious?: boolean;
+    },
+    cancellationToken?: CancelToken
+  ): Promise<Blob> {
+    try {
+      const baseURL = `${import.meta.env.VITE_APP_API_URL}`;
+      const apiPath = endpoint.replace(/^\//, '');
+      const queryParams: Record<string, string> = {
+        gcsId: params.gcsId.toString(),
+        month: params.month.toString(),
+        year: params.year.toString(),
+        periodNumber: params.periodNumber.toString(),
+      };
+      if (params.onlySuspicious !== undefined) {
+        queryParams['onlySuspicious'] = params.onlySuspicious.toString();
+      }
+      const query = new URLSearchParams(queryParams).toString();
+
+      const url = `${baseURL}/${apiPath}?${query}`;
+      const token = new LocalStorageService().readStorage(Constants.API_TOKEN_STORAGE);
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await axiosInstance.get(url, {
+        headers,
+        responseType: 'blob',
+        cancelToken: cancellationToken,
+      });
+
+      return response.data;
+    } catch (e) {
+      this.loggerService.error(e);
+      throw e;
+    }
+  }
+
+  public async importExcelTemporary(
+    endpoint: string,
+    file: File,
+    params: {
+      gcsId: number;
+      month: number;
+      year: number;
+      periodNumber: number;
+    }
+  ): Promise<RequestResponse> {
+    try {
+      const query = new URLSearchParams({
+        gcsId: params.gcsId.toString(),
+        month: params.month.toString(),
+        year: params.year.toString(),
+        periodNumber: params.periodNumber.toString(),
+      }).toString();
+      const url = `${endpoint}?${query}`;
+      return await new RequestService().makeUploadRequestAsync(url, {
+        key: 'file',
+        file: file,
+      });
     } catch (e) {
       this.loggerService.error(e);
       throw e;

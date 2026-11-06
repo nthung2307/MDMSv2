@@ -202,6 +202,13 @@ public class EmailSenderService
         var fromDateStr = item.PreviousDay.HasValue ? $"{item.PreviousDay:00}/{item.PreviousMonth:00}/{item.PreviousYear}" : $"01/{month:00}/{year}";
         var toDateStr = $"{day:00}/{month:00}/{year}";
 
+        var cosPhiVal = item.CosPhi;
+        if (!cosPhiVal.HasValue && item.ConsumtionSg > 0 && item.ConsumtionVc >= 0)
+        {
+            var sApp = Math.Sqrt((item.ConsumtionSg * item.ConsumtionSg) + (item.ConsumtionVc * item.ConsumtionVc));
+            if (sApp > 0) cosPhiVal = Math.Round(item.ConsumtionSg / sApp, 2, MidpointRounding.AwayFromZero);
+        }
+
         var templateContext = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
             ["CustomerName"] = item.MeasurementPoint?.Customer?.FullName ?? string.Empty,
@@ -217,18 +224,22 @@ public class EmailSenderService
             ["PreviousCd"] = $"{item.PreviousCd:N2}",
             ["PreviousTd"] = $"{item.PreviousTd:N2}",
             ["PreviousSg"] = $"{item.PreviousSg:N2}",
+            ["PreviousVc"] = $"{item.PreviousVc:N2}",
             ["Bt"] = $"{item.Bt:N2}",
             ["Cd"] = $"{item.Cd:N2}",
             ["Td"] = $"{item.Td:N2}",
             ["Sg"] = $"{item.Sg:N2}",
+            ["Vc"] = $"{item.Vc:N2}",
             ["ConsumtionBt"] = $"{item.ConsumtionBt:N2}",
             ["ConsumtionCd"] = $"{item.ConsumtionCd:N2}",
             ["ConsumtionTd"] = $"{item.ConsumtionTd:N2}",
             ["ConsumtionSg"] = $"{item.ConsumtionSg:N2}",
             ["ConsumtionTotal"] = $"{item.ConsumtionSg:N2}",
             ["ConsumtionVc"] = $"{item.ConsumtionVc:N2}",
+            ["CosPhi"] = cosPhiVal.HasValue ? $"{cosPhiVal.Value:F2}" : "-",
             ["Pmax"] = $"{item.Pmax:N2} kW",
             ["PmaxTime"] = item.PmaxTime.HasValue ? item.PmaxTime.Value.ToString("dd/MM/yyyy HH:mm:ss") : "---",
+            ["BillingTimestamp"] = item.BillingTimestamp.HasValue ? item.BillingTimestamp.Value.ToString("dd/MM/yyyy HH:mm:ss") : toDateStr,
             ["CareFullname"] = careFullname,
             ["CareEmail"] = careEmail,
             ["CarePhone"] = carePhone

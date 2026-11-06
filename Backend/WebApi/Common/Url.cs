@@ -34,6 +34,7 @@ public static class Url
             public const string SetDefault = "Notification-Templates/Set-Default/{id}";
             public const string Preview = "Notification-Templates/Preview";
             public const string TestSend = "Notification-Templates/Test-Send";
+            public const string ResetDefaults = "Notification-Templates/Reset-Defaults";
         }
 
         public static class StatementPdfTemplates
@@ -45,6 +46,8 @@ public static class Url
             public const string Delete = "Statement-Pdf-Templates/Delete/{id}";
             public const string SetDefault = "Statement-Pdf-Templates/Set-Default/{id}";
             public const string PreviewPdf = "Statement-Pdf-Templates/Preview-Pdf";
+            public const string ResetDefaults = "Statement-Pdf-Templates/Reset-Defaults";
+            public const string DownloadDefaultExcel = "Statement-Pdf-Templates/Download-Default-Excel";
         }
 
         public static class Account
@@ -178,6 +181,8 @@ public static class Url
             public const string ExportCsv = "Gcs/Export-Csv-Gcs";
             public const string FinalExportPdf = "Gcs/Export-Pdf-Gcs-Final";
             public const string FinalExportCsv = "Gcs/Export-Csv-Gcs-Final";
+            public const string ExportExcelGcsTemporary = "Gcs/Export-Excel-Gcs-Temporary";
+            public const string ImportExcelGcsTemporary = "Gcs/Import-Excel-Gcs-Temporary";
         }
 
         public static class GcsCutOffCycle

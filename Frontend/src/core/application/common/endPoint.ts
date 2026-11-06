@@ -30,6 +30,8 @@ export class Endpoint {
     static GCSCutOffCycle: string = 'gcs-cutoff-cycle/get-list-gcs-cutoff-cycle';
     static GCSYearCutOffCycle: string = 'gcs-cutoff-cycle/get-list-year-gcs-cutoff-cycle';
     static GCSMonthlyDetail: string = 'gcs-monthly-detail/get-list-gcs-monthly-detail';
+    static ExportExcelTemporary: string = 'gcs/export-excel-gcs-temporary';
+    static ImportExcelTemporary: string = 'gcs/import-excel-gcs-temporary';
   };
   static Notice = class {
     static GetListNotice: string = 'periodic-energy-statement/get-list-periodic-energy-statement';
@@ -98,6 +100,7 @@ export class Endpoint {
     static SetDefaultNotificationTemplate: string = 'notification-templates/set-default';
     static PreviewNotificationTemplate: string = 'notification-templates/preview';
     static TestSendNotificationTemplate: string = 'notification-templates/test-send';
+    static ResetDefaultNotificationTemplates: string = 'notification-templates/reset-defaults';
 
     // Statement PDF Templates
     static GetStatementPdfTemplates: string = 'statement-pdf-templates/get-list';
@@ -107,6 +110,8 @@ export class Endpoint {
     static DeleteStatementPdfTemplate: string = 'statement-pdf-templates/delete';
     static SetDefaultStatementPdfTemplate: string = 'statement-pdf-templates/set-default';
     static PreviewStatementPdfTemplate: string = 'statement-pdf-templates/preview-pdf';
+    static ResetDefaultStatementPdfTemplates: string = 'statement-pdf-templates/reset-defaults';
+    static DownloadDefaultExcelTemplate: string = 'statement-pdf-templates/download-default-excel';
   };
 
   static Report = class {

@@ -139,7 +139,7 @@ const TotalOutputMeasurementPoints = () => {
 
   const fileNameBuilder = () => {
     const timeStr = dataForm?.datePicker ? dataForm.datePicker.replace(/[^0-9]/g, '') : '';
-    return `BaoCao_TongSanLuong_CacDiemDo${timeStr ? `_${timeStr}` : ''}`;
+    return `MDMS_BaoCao_TongSanLuong_CacDiemDo${timeStr ? `_${timeStr}` : ''}`;
   };
 
   useEffect(() => {

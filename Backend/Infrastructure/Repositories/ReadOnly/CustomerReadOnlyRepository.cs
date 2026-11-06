@@ -35,7 +35,7 @@ public class CustomerReadOnlyRepository : RestfulRepository<CustomerEntity, AppR
         var result = await customer
             .Include(x => x.UserCustomer)
             .ThenInclude(x => x.User)
-            .Where(x => !x.Deleted)
+            .Where(x => !x.Deleted && x.CustomerCode != "Mã KH" && x.CustomerCode != "QUẢN LÝ KHÁCH HÀNG" && (x.CustomerCode == null || !x.CustomerCode.StartsWith("Thời gian xuất")))
             .PaginateWithAndAsync<CustomerEntity, CustomerDto>(request, _mapper, cancellationToken);
         return new CursorPaginationResponse<CustomerDto>()
         {
@@ -59,7 +59,7 @@ public class CustomerReadOnlyRepository : RestfulRepository<CustomerEntity, AppR
         var result = await customer
             .Include(x => x.UserCustomer)
             .ThenInclude(x => x.User)
-            .Where(x => !x.Deleted)
+            .Where(x => !x.Deleted && x.CustomerCode != "Mã KH" && x.CustomerCode != "QUẢN LÝ KHÁCH HÀNG" && (x.CustomerCode == null || !x.CustomerCode.StartsWith("Thời gian xuất")))
             .PaginateWithAndAsync<CustomerEntity, CustomerDto>(request, _mapper, cancellationToken);
         return new CursorPaginationResponse<CustomerDto>()
         {
@@ -86,7 +86,7 @@ public class CustomerReadOnlyRepository : RestfulRepository<CustomerEntity, AppR
     public async Task<bool> IsExistedCustomerCode(string code, long id, CancellationToken cancellationToken)
     {
         if (id > 0)
-            return await _customerEntities.AsNoTracking().Where(x => x.CustomerCode == code && x.Id != id).AnyAsync(cancellationToken);
-        return await _customerEntities.AsNoTracking().Where(x => x.CustomerCode == code).AnyAsync(cancellationToken);
+            return await _customerEntities.AsNoTracking().Where(x => x.CustomerCode == code && x.Id != id && !x.Deleted).AnyAsync(cancellationToken);
+        return await _customerEntities.AsNoTracking().Where(x => x.CustomerCode == code && !x.Deleted).AnyAsync(cancellationToken);
     }
 }

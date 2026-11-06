@@ -115,6 +115,17 @@ export class TemplateManagementService {
     }
   }
 
+  public async resetDefaultNotificationTemplates(cancellationToken?: CancelToken) {
+    try {
+      const endpoint = Endpoint.Config.ResetDefaultNotificationTemplates;
+      const res = await this.requestService.makePostRequestAsync(endpoint, {}, cancellationToken);
+      return res;
+    } catch (e) {
+      this.loggerService.error(e);
+      throw e;
+    }
+  }
+
   // ==================== STATEMENT PDF TEMPLATES ====================
 
   public async getStatementPdfTemplates(cancellationToken?: CancelToken) {
@@ -196,6 +207,40 @@ export class TemplateManagementService {
       }
 
       const response = await axiosInstance.post(url, data, {
+        headers,
+        responseType: 'blob',
+        cancelToken: cancellationToken,
+      });
+
+      return response.data;
+    } catch (e) {
+      this.loggerService.error(e);
+      throw e;
+    }
+  }
+
+  public async resetDefaultStatementPdfTemplates(cancellationToken?: CancelToken) {
+    try {
+      const endpoint = Endpoint.Config.ResetDefaultStatementPdfTemplates;
+      const res = await this.requestService.makePostRequestAsync(endpoint, {}, cancellationToken);
+      return res;
+    } catch (e) {
+      this.loggerService.error(e);
+      throw e;
+    }
+  }
+
+  public async downloadDefaultExcelTemplate(paperSize: string = 'A5_LANDSCAPE', cancellationToken?: CancelToken): Promise<Blob> {
+    try {
+      const apiPath = Endpoint.Config.DownloadDefaultExcelTemplate.replace(/^\//, '');
+      const url = this.baseURL ? `${this.baseURL}/${apiPath}?paperSize=${paperSize}` : `/${apiPath}?paperSize=${paperSize}`;
+      const token = this.localStorageService.readStorage(Constants.API_TOKEN_STORAGE);
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await axiosInstance.get(url, {
         headers,
         responseType: 'blob',
         cancelToken: cancellationToken,

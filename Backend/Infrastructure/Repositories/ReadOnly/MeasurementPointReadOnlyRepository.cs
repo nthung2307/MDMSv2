@@ -20,6 +20,7 @@ namespace Infrastructure.Repositories.ReadOnly;
 public class MeasurementPointReadOnlyRepository : RestfulRepository<MeasurementPointsEntity, AppReadOnlyDbContext>, IMeasurementPointsReadOnlyRepository
 {
     private readonly DbSet<MeasurementPointsEntity> _measurementPointsEntities;
+    private readonly DbSet<TagNameEntity> _tagNameEntities;
     private readonly DbSet<UserEntity> _userEntities;
     private readonly DbSet<UserCustomerEntity> _userCustomerEntities;
     private readonly IMapper _mapper;
@@ -33,6 +34,7 @@ public class MeasurementPointReadOnlyRepository : RestfulRepository<MeasurementP
     {
         _mapper = mapper;
         _measurementPointsEntities = applicationDbContext.Set<MeasurementPointsEntity>();
+        _tagNameEntities = applicationDbContext.Set<TagNameEntity>();
         _userEntities = applicationDbContext.Set<UserEntity>();
         _userCustomerEntities = applicationDbContext.Set<UserCustomerEntity>();
         _currentUserService = currentUserService;
@@ -67,6 +69,48 @@ public class MeasurementPointReadOnlyRepository : RestfulRepository<MeasurementP
         return (false, new List<long>());
     }
 
+    private async Task PopulateVoltageUnitsAsync(ICollection<ListMeasurementPointDto>? points, CancellationToken cancellationToken)
+    {
+        if (points == null || !points.Any()) return;
+        try
+        {
+            var pointIds = points.Select(p => p.Id).Distinct().ToList();
+            var voltageTags = await _tagNameEntities.AsNoTracking()
+                .Where(t => pointIds.Contains(t.MeasurementPointId) &&
+                            !t.Deleted &&
+                            !string.IsNullOrEmpty(t.Unit) &&
+                            (t.Description == ListDataMeasurementPoint.DienApPhaA ||
+                             t.Description == ListDataMeasurementPoint.DienApPhaB ||
+                             t.Description == ListDataMeasurementPoint.DienApPhaC ||
+                             t.Description.Contains("DIEN_AP") ||
+                             t.Description.Contains("Điện áp") ||
+                             t.Description.Contains("dien ap")))
+                .Select(t => new { t.MeasurementPointId, t.Description, t.Unit })
+                .ToListAsync(cancellationToken);
+
+            var unitByPoint = voltageTags
+                .GroupBy(t => t.MeasurementPointId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.FirstOrDefault(t => t.Description == ListDataMeasurementPoint.DienApPhaA)?.Unit
+                         ?? g.FirstOrDefault(t => t.Description == ListDataMeasurementPoint.DienApPhaB)?.Unit
+                         ?? g.FirstOrDefault(t => t.Description == ListDataMeasurementPoint.DienApPhaC)?.Unit
+                         ?? g.First().Unit);
+
+            foreach (var p in points)
+            {
+                if (unitByPoint.TryGetValue(p.Id, out var unit) && !string.IsNullOrWhiteSpace(unit))
+                {
+                    p.VoltageUnit = unit;
+                }
+            }
+        }
+        catch
+        {
+            // Ignore if TagName table not available
+        }
+    }
+
     public async Task<CursorPaginationResponse<ListMeasurementPointDto>> GetListMeasurementPointsAsync(GetListMeasurementPointsRequest request, CancellationToken cancellationToken)
     {
         var measurementPoint = _measurementPointsEntities.AsNoTracking();
@@ -86,8 +130,11 @@ public class MeasurementPointReadOnlyRepository : RestfulRepository<MeasurementP
         var result = await measurementPoint
             .Include(x => x.Customer)
             .Include(x => x.Gcs)
-            .Where(x => !x.Deleted)
+            .Where(x => !x.Deleted && x.Code != "Mã điểm đo" && x.Code != "QUẢN LÝ ĐIỂM ĐO" && (x.Code == null || !x.Code.StartsWith("Thời gian xuất")))
             .PaginateWithAndAsync<MeasurementPointsEntity, ListMeasurementPointDto>(request, _mapper, cancellationToken);
+
+        await PopulateVoltageUnitsAsync(result.Data, cancellationToken);
+
         return new CursorPaginationResponse<ListMeasurementPointDto>()
         {
             Data = result.Data,
@@ -114,11 +161,13 @@ public class MeasurementPointReadOnlyRepository : RestfulRepository<MeasurementP
             measurementPoint = measurementPoint.Where(x => x.CustomerId == request.CustomerId);
         }
         var result = await measurementPoint
-            .Where(x => !x.Deleted && x.Status == EntityStatus.Active)
+            .Where(x => !x.Deleted && x.Status == EntityStatus.Active && x.Code != "Mã điểm đo" && x.Code != "QUẢN LÝ ĐIỂM ĐO" && (x.Code == null || !x.Code.StartsWith("Thời gian xuất")))
             .Include(x => x.Customer)
             .Include(x => x.Gcs)
-            .Where(x => !x.Deleted)
             .PaginateWithAndAsync<MeasurementPointsEntity, ListMeasurementPointDto>(request, _mapper, cancellationToken);
+
+        await PopulateVoltageUnitsAsync(result.Data, cancellationToken);
+
         return new CursorPaginationResponse<ListMeasurementPointDto>()
         {
             Data = result.Data,
@@ -176,13 +225,13 @@ public class MeasurementPointReadOnlyRepository : RestfulRepository<MeasurementP
 
     public async Task<bool> IsExistMeasurementPointAsync(long id, CancellationToken cancellationToken)
     {
-        return await _measurementPointsEntities.AsNoTracking().Where(x => x.Id == id).AnyAsync(cancellationToken);
+        return await _measurementPointsEntities.AsNoTracking().Where(x => x.Id == id && !x.Deleted).AnyAsync(cancellationToken);
     }
 
     public async Task<bool> IsExistMeasurementPointNameAsync(string code, long id, CancellationToken cancellationToken)
     {
         if(id != 0)
-            return await _measurementPointsEntities.AsNoTracking().Where(x => x.Code == code && x.Id != id).AnyAsync(cancellationToken);
-        return await _measurementPointsEntities.AsNoTracking().Where(x => x.Code == code).AnyAsync(cancellationToken);
+            return await _measurementPointsEntities.AsNoTracking().Where(x => x.Code == code && x.Id != id && !x.Deleted).AnyAsync(cancellationToken);
+        return await _measurementPointsEntities.AsNoTracking().Where(x => x.Code == code && !x.Deleted).AnyAsync(cancellationToken);
     }
 }

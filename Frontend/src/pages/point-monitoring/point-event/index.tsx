@@ -350,7 +350,7 @@ const PointMonitoringEvent = () => {
             title='Quản lý sự kiện'
             dataSource={dataExport}
             listHeader={Constants.listHeaderExport.eventParams}
-            fileNameCsv={'DanhSachSukien'}
+            fileNameCsv={'MDMS_DanhSachSuKien'}
             typeExportAll={'measurement-point-monitoring'}
             subTypeExportAll={'measurement-point-event'}
           />

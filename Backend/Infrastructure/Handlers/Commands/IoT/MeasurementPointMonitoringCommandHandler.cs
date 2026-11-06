@@ -22,6 +22,22 @@ namespace Infrastructure.Handlers.Commands.IoT;
 
 public class MeasurementPointMonitoringCommandHandler : IMeasurementPointMonitoringCommandHandlers
 {
+    private static readonly HashSet<string> FrozenMonitoringTags = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ListDataMeasurementPoint.ChiSoChotDienNangAPGioBT,
+        ListDataMeasurementPoint.ChiSoChotDienNangAPGioCD,
+        ListDataMeasurementPoint.ChiSoChotDienNangAPGioTD,
+        ListDataMeasurementPoint.ChiSoChotDienNangAPTong,
+        ListDataMeasurementPoint.ChiSoChotDienNangAQTong,
+        ListDataMeasurementPoint.ChiSoChotDienNangAPGioBTChieuNhan,
+        ListDataMeasurementPoint.ChiSoChotDienNangAPGioCDChieuNhan,
+        ListDataMeasurementPoint.ChiSoChotDienNangAPGioTDChieuNhan,
+        ListDataMeasurementPoint.ChiSoChotDienNangAPTongChieuNhan,
+        ListDataMeasurementPoint.ChiSoChotDienNangAQTongChieuNhan,
+        ListDataMeasurementPoint.PmaxKyTruoc,
+        ListDataMeasurementPoint.PmaxKyHienTai
+    };
+
     private readonly ILoggerService _loggerService;
     private readonly IMeasurementPointMonitoringReadWriteRepository _measurementPointMonitoringReadWriteRepository;
     private readonly ISnowflakeIdService _snowflakeIdService;
@@ -93,13 +109,24 @@ public class MeasurementPointMonitoringCommandHandler : IMeasurementPointMonitor
             var cancellationToken = CancellationToken.None;
             var viewDetailNotifications = new List<MeasurementPointMonitoringFromIoTDto>();
             var listEntity = new List<MeasurementPointMonitoringEntity>();
-            var cultureInfo = CultureInfo.InvariantCulture;
 
             var measurementPoints = await _measurementPointsReadOnlyRepository.GetListMeasurementPointAsync(cancellationToken);
+            var measurementPointIds = measurementPoints.Select(x => x.Id).ToList();
             var groupId = await _snowflakeIdService.GenerateId(cancellationToken);
+
+            // Smart Upsert: Lấy bản ghi mới nhất của nhóm thông số chốt đóng băng (Frozen Tags)
+            var latestFrozenMap = await _measurementPointMonitoringReadWriteRepository.GetLatestFrozenMonitoringRecordsAsync(
+                measurementPointIds,
+                FrozenMonitoringTags,
+                cancellationToken);
 
             foreach (var measurementPoint in measurementPoints)
             {
+                if (measurementPoint.TagNames == null || measurementPoint.TagNames.Count == 0)
+                {
+                    continue;
+                }
+
                 var entityId = await _snowflakeIdService.GenerateId(cancellationToken);
                 var dto = new MeasurementPointMonitoringFromIoTDto
                 {
@@ -113,68 +140,83 @@ public class MeasurementPointMonitoringCommandHandler : IMeasurementPointMonitor
                 };
 
                 var count = 0;
+                var touchedFrozenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                var createdTime = _dateTimeService.Now();
-                if (measurementPoint.TagNames != null && measurementPoint.TagNames.Count > 0)
+                foreach (var tagName in measurementPoint.TagNames)
                 {
-                    foreach (var tagName in measurementPoint.TagNames)
-                    {
-                        var iotDataValues = request.Request.Values.Where(v => v != null && v.Id == tagName.TagName);
+                    var iotDataValues = request.Request.Values.Where(v => v != null && v.Id == tagName.TagName);
 
-                        foreach (var iotDataValue in iotDataValues)
+                    foreach (var iotDataValue in iotDataValues)
+                    {
+                        var convertedValue = ConvertToString(iotDataValue.V);
+                        if (string.IsNullOrEmpty(convertedValue) || convertedValue == "null")
                         {
-                            var convertedValue = ConvertToString(iotDataValue.V);
-                            if (string.IsNullOrEmpty(convertedValue) || convertedValue == "null")
+                            continue;
+                        }
+
+                        count += 1;
+                        var parsedQuality = ParseQuality(iotDataValue.Q);
+                        var recordTime = DateTimeOffset.FromUnixTimeMilliseconds(iotDataValue.T);
+                        var isFrozenTag = !string.IsNullOrEmpty(tagName.Description) && FrozenMonitoringTags.Contains(tagName.Description);
+
+                        if (isFrozenTag)
+                        {
+                            touchedFrozenKeys.Add(tagName.Description!);
+                            if (latestFrozenMap.TryGetValue((measurementPoint.Id, tagName.Description!), out var existingFrozen)
+                                && existingFrozen != null
+                                && AreValuesEqual(existingFrozen.Value, convertedValue))
                             {
+                                // Smart Upsert: Giá trị đóng băng không thay đổi -> Chỉ cập nhật GroupId & Quality tại chỗ, KHÔNG tạo dòng mới
+                                existingFrozen.GroupId = groupId;
+                                existingFrozen.Quanlity = parsedQuality;
+                                existingFrozen.TagNameId = tagName.Id;
                                 continue;
                             }
+                        }
 
-                            count += 1;
-                            var measurementDataId = await _snowflakeIdService.GenerateId(cancellationToken);
-                            var measurementPointData = new MeasurementPointMonitoringEntity()
-                            {
-                                Id = measurementDataId,
-                                MeasurementPointsId = measurementPoint.Id,
-                                TagNameId = tagName.Id,
-                                TagNameDescription = tagName.Description,
-                                Value = convertedValue,
-                                Quanlity = ParseQuality(iotDataValue.Q),
-                                GroupId = groupId,
-                                CreatedTime = DateTimeOffset.FromUnixTimeMilliseconds(iotDataValue.T)
-                            };
+                        var measurementDataId = await _snowflakeIdService.GenerateId(cancellationToken);
+                        var measurementPointData = new MeasurementPointMonitoringEntity()
+                        {
+                            Id = measurementDataId,
+                            MeasurementPointsId = measurementPoint.Id,
+                            TagNameId = tagName.Id,
+                            TagNameDescription = tagName.Description,
+                            Value = convertedValue,
+                            Quanlity = parsedQuality,
+                            GroupId = groupId,
+                            CreatedTime = recordTime
+                        };
 
-                            listEntity.Add(measurementPointData);
+                        listEntity.Add(measurementPointData);
+
+                        if (isFrozenTag)
+                        {
+                            latestFrozenMap[(measurementPoint.Id, tagName.Description!)] = measurementPointData;
+                        }
+                    }
+                }
+
+                if (count > 0)
+                {
+                    // Giữ đồng bộ GroupId cho các Frozen Tags khác của cùng điểm đo (nếu gói tin gửi từng phần)
+                    foreach (var frozenTagDesc in FrozenMonitoringTags)
+                    {
+                        if (!touchedFrozenKeys.Contains(frozenTagDesc)
+                            && latestFrozenMap.TryGetValue((measurementPoint.Id, frozenTagDesc), out var untouchedFrozen)
+                            && untouchedFrozen != null)
+                        {
+                            untouchedFrozen.GroupId = groupId;
                         }
                     }
 
-                    if (count == 0)
-                    {
-                        var measurementPointData = new MeasurementPointMonitoringEntity()
-                        {
-                            MeasurementPointsId = measurementPoint.Id,
-                            GroupId = groupId,
-                            CreatedTime = createdTime
-                        };
-
-                        await _measurementPointMonitoringReadWriteRepository.AddAsync(measurementPointData, cancellationToken);
-                    }
+                    viewDetailNotifications.Add(dto);
                 }
-                else
-                {
-                    var measurementPointData = new MeasurementPointMonitoringEntity()
-                    {
-                        MeasurementPointsId = measurementPoint.Id,
-                        GroupId = groupId,
-                        CreatedTime = createdTime
-                    };
-
-                    await _measurementPointMonitoringReadWriteRepository.AddAsync(measurementPointData, cancellationToken);
-                }
-
-                viewDetailNotifications.Add(dto);
             }
 
-            await _measurementPointMonitoringReadWriteRepository.AddRangeAsync(listEntity, cancellationToken);
+            if (listEntity.Count > 0)
+            {
+                await _measurementPointMonitoringReadWriteRepository.AddRangeAsync(listEntity, cancellationToken);
+            }
             await _measurementPointMonitoringReadWriteRepository.SaveChangesAsync(cancellationToken);
             
             // Send notifications synchronously within this job
@@ -202,13 +244,27 @@ public class MeasurementPointMonitoringCommandHandler : IMeasurementPointMonitor
                 }
             }
 
-            _loggerService.LogInformation($"Successfully processed measurement point monitoring for group: {groupId}");
+            _loggerService.LogInformation($"Successfully processed measurement point monitoring for group: {groupId} (Inserted: {listEntity.Count})");
         }
         catch (Exception e)
         {
             _loggerService.LogError(e, "Error in ProcessMeasurementPointMonitoring");
             throw;
         }
+    }
+
+    private static bool AreValuesEqual(string? oldVal, string? newVal)
+    {
+        if (string.Equals(oldVal?.Trim(), newVal?.Trim(), StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (double.TryParse(oldVal, NumberStyles.Float, CultureInfo.InvariantCulture, out var d1) &&
+            double.TryParse(newVal, NumberStyles.Float, CultureInfo.InvariantCulture, out var d2))
+        {
+            return Math.Abs(d1 - d2) < 1e-6;
+        }
+
+        return false;
     }
 
     public static string ConvertToString(object value)

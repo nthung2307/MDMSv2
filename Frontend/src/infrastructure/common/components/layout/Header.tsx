@@ -82,11 +82,11 @@ const Header = (props: Props) => {
         <div className='overflow-auto scrollbar max-h-[40vh] w-96'>
           {dataAlert.length > 0 ? (
             dataAlert.map((item: any, index: number) => (
-              <Tooltip title={`${item.measurementPointCode} - ${item.customerName}`}>
-                <div
-                  key={index}
-                  className='bg-[#FBEDED] flex justify-between px-4 py-2 rounded-md mb-2 overflow-hidden'
-                >
+              <Tooltip
+                key={item.id ?? index}
+                title={`${item.measurementPointCode} - ${item.customerName}`}
+              >
+                <div className='bg-[#FBEDED] flex justify-between px-4 py-2 rounded-md mb-2 overflow-hidden'>
                   <div className='mr-4'>
                     <h2 className='text-[15px] text-[#00000080] w-60 truncate'>{`${item.measurementPointCode}-${item.customerName}`}</h2>
                     <p className='text-14-18 mt-2'>{item.eventName}</p>
@@ -132,7 +132,9 @@ const Header = (props: Props) => {
     await getCountAlert(
       (res: DataResponse) => {
         const { data } = res;
-        setCountAlert(data);
+        if (typeof data === 'number') {
+          setCountAlert(data);
+        }
         setRecoilStateAsync(AlertState, null);
       },
       () => {},
@@ -157,9 +159,13 @@ const Header = (props: Props) => {
 
   useEffect(() => {
     if (role !== Constants.Role.Customer.value) {
-      if (dataSocket) {
-        setCountAlert(Number(dataSocket));
-        setRecoilStateAsync(CountState, dataSocket);
+      if (dataSocket !== null && dataSocket !== undefined) {
+        const nextCount = Number(dataSocket);
+        if (!Number.isNaN(nextCount)) {
+          setCountAlert(nextCount);
+          setRecoilStateAsync(CountState, nextCount);
+        }
+        setDataSocket(null);
       }
       getCountAlertAsync();
       getListMeasurementPointAlertAsync();
@@ -169,8 +175,19 @@ const Header = (props: Props) => {
   useEffect(() => {
     if (typeof countState === 'number') {
       setCountAlert(countState);
+      if (role !== Constants.Role.Customer.value) {
+        getListMeasurementPointAlertAsync();
+      }
     }
   }, [countState]);
+
+  useEffect(() => {
+    if (role === Constants.Role.Customer.value) return;
+    const interval = setInterval(() => {
+      getListMeasurementPointAlertAsync();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [role]);
 
   return (
     <SocketCommon
@@ -187,7 +204,15 @@ const Header = (props: Props) => {
         <div className='flex gap-6 items-center'>
           <div className={'flex gap-3 items-center'}>
             {role !== Constants.Role.Customer.value && (
-              <Dropdown dropdownRender={menuAlert} placement='bottomRight'>
+              <Dropdown
+                dropdownRender={menuAlert}
+                placement='bottomRight'
+                onOpenChange={(open) => {
+                  if (open) {
+                    getListMeasurementPointAlertAsync();
+                  }
+                }}
+              >
                 <Button
                   type={'text'}
                   icon={
