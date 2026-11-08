@@ -69,6 +69,14 @@ function App() {
             },
           },
         }}
+        form={{
+          requiredMark: (labelNode, { required }) => (
+            <span>
+              {labelNode}
+              {required && <span style={{ color: '#ff4d4f', marginLeft: 4 }}>*</span>}
+            </span>
+          ),
+        }}
       >
         <ToastContainer style={{ width: '500px' }} />
         <RecoilOutsideComponent />

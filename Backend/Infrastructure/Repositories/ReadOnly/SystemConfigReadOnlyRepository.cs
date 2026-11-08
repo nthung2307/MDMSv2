@@ -39,7 +39,21 @@ public class SystemConfigReadOnlyRepository : RestfulRepository<SystemConfigEnti
             (Application.Common.Constants.SystemConfig.SystemAdministrationEmail, "admin@mdms.vn"),
             (Application.Common.Constants.SystemConfig.CustomerCareFullname, "CSKH"),
             (Application.Common.Constants.SystemConfig.CustomerCarePhone, "19001006"),
-            (Application.Common.Constants.SystemConfig.CustomerCareEmail, "cskh@mdms.vn")
+            (Application.Common.Constants.SystemConfig.CustomerCareEmail, "cskh@mdms.vn"),
+
+            // Thông tin công ty / đơn vị cung cấp điện mặc định
+            (Application.Common.Constants.SystemConfig.CompanyName, "CÔNG TY TNHH VSIP HẢI PHÒNG"),
+            (Application.Common.Constants.SystemConfig.CompanyTaxCode, "0200856991"),
+            (Application.Common.Constants.SystemConfig.CompanyPhone, "84-225-3959868"),
+            (Application.Common.Constants.SystemConfig.CompanyFax, "84-225-3959886"),
+            (Application.Common.Constants.SystemConfig.CompanyEmail, "CustomerCare@vsip.com.vn"),
+            (Application.Common.Constants.SystemConfig.CompanyWebsite, "https://vsip.com.vn"),
+            (Application.Common.Constants.SystemConfig.CompanyProvince, "TP. Hải Phòng"),
+            (Application.Common.Constants.SystemConfig.CompanyDistrict, "Huyện Thủy Nguyên"),
+            (Application.Common.Constants.SystemConfig.CompanyWard, "Xã An Lư"),
+            (Application.Common.Constants.SystemConfig.CompanyAddressDetail, "Văn phòng Điều hành VSIP Hải Phòng, KCN VSIP Hải Phòng"),
+            (Application.Common.Constants.SystemConfig.CompanyCountry, "Vietnam"),
+            (Application.Common.Constants.SystemConfig.CompanyAddress, "VSIP Hai Phong Administration Office, VSIP Hai Phong Township, Industrial & Service Park\nHoa Binh Ward, Hai Phong City, Vietnam")
         };
 
         var result = new List<SystemConfigDto>();

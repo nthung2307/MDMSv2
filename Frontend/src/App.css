@@ -23,3 +23,8 @@
   line-height: 22px;
   letter-spacing: 0.25px;
 }
+
+/* Đảm bảo toàn bộ dấu sao (*) bắt buộc của Ant Design Form luôn đứng SAU nhãn, đồng nhất với toàn bộ hệ thống */
+.ant-form-item-required::before {
+  display: none !important;
+}

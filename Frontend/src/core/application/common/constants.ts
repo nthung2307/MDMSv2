@@ -480,8 +480,8 @@ export default class Constants {
             [],
             MenuKeys.NotificationTemplates,
             null,
-            'Mẫu Email thông báo',
-            'Mẫu Email thông báo',
+            'Mẫu Email',
+            'Mẫu Email',
             [Constants.Role.SuperAdmin.value],
             ROUTE_PATH.NOTIFICATION_TEMPLATES,
             MenuKeys.MonitoringPoints
@@ -490,8 +490,8 @@ export default class Constants {
             [],
             MenuKeys.StatementPdfTemplates,
             null,
-            'Mẫu phiếu báo chỉ số điện',
-            'Mẫu phiếu báo chỉ số điện',
+            'Mẫu Phiếu chỉ số điện',
+            'Mẫu Phiếu chỉ số điện',
             [Constants.Role.SuperAdmin.value],
             ROUTE_PATH.STATEMENT_PDF_TEMPLATES,
             MenuKeys.MonitoringPoints
@@ -579,6 +579,20 @@ export default class Constants {
     static CUSTOMERCAREFULLNAME = 'CUSTOMERCAREFULLNAME';
     static CUSTOMERCAREEMAIL = 'CUSTOMERCAREEMAIL';
     static CUSTOMERCAREPHONE = 'CUSTOMERCAREPHONE';
+
+    // Thông tin công ty / đơn vị cung cấp điện
+    static COMPANY_NAME = 'COMPANY_NAME';
+    static COMPANY_TAX_CODE = 'COMPANY_TAX_CODE';
+    static COMPANY_PHONE = 'COMPANY_PHONE';
+    static COMPANY_FAX = 'COMPANY_FAX';
+    static COMPANY_EMAIL = 'COMPANY_EMAIL';
+    static COMPANY_WEBSITE = 'COMPANY_WEBSITE';
+    static COMPANY_PROVINCE = 'COMPANY_PROVINCE';
+    static COMPANY_DISTRICT = 'COMPANY_DISTRICT';
+    static COMPANY_WARD = 'COMPANY_WARD';
+    static COMPANY_ADDRESS_DETAIL = 'COMPANY_ADDRESS_DETAIL';
+    static COMPANY_COUNTRY = 'COMPANY_COUNTRY';
+    static COMPANY_ADDRESS = 'COMPANY_ADDRESS';
   };
 
   // Tag Name list
@@ -1910,7 +1924,8 @@ export default class Constants {
 
     static CMax_32 = /^.{1,32}$/;
 
-    static PhoneNumber = /^(\+84|0)(3[2-9]|5[689]|7[06-9]|8[1-9]|9[0-4]|9[6-9])[0-9]{7}$/;
+    static PhoneNumber =
+      /^(?:(?:\(?\+?84\)?|0)(?:[\s.-]?\(?\d{1,4}\)?[\s.-]?)?\d{3,4}[\s.-]?\d{3,4}|(?:1900|1800)[\s.-]?\d{4}(?:[\s.-]?\d{2})?|\+?\d{7,15})$/;
 
     static Link = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(:\d+)?(\/[^\s]*)?$/;
 

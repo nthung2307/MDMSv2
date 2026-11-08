@@ -1,3 +1,4 @@
+import Constants from '@/core/application/common/constants';
 import { RulesReg } from '@/infrastructure/utils/helpers';
 
 export function validateEmail(email: string) {
@@ -51,16 +52,13 @@ export const validateLengthForInput = (maxLength: number, rules?: Array<RulesReg
 };
 
 export function validatePhoneNumber(val: string) {
-  // let reg = /^(84|0[3|5|7|8|9])+([0-9]{7,8})\b/;
-  const reg =
-    /^(1900|1800)[0-9]{4}$|(05|03|04|07|08|09|024|028)[0-9]{8}$|(\+84)[0-9]{9}$|(84)[0-9]{9}$|(\+84)[0-9]{8}$|(\+84)[0-9]{10}$|(021[012345689]|023[23456789]|020[3456789]|022[0123456789]|029[01234679]|025[123456789]|026[01239]|027[01234567]|037[01234567])[0-9]{7}$/;
-  return val && reg.test(val);
+  if (!val || typeof val !== 'string') return false;
+  return Constants.PATTERN_REGEX.PhoneNumber.test(val.trim());
 }
 
 export function validateLandingPhoneNumber(val: string) {
-  const reg =
-    /^(1900|1800)[0-9]{4}$|(05|03|04|07|08|09|024|028)[0-9]{8}$|(\+84)[0-9]{9}$|(84)[0-9]{9}$|(\+84)[0-9]{8}$|(\+84)[0-9]{10}$|(021[012345689]|023[23456789]|020[3456789]|022[0123456789]|029[01234679]|025[123456789]|026[01239]|027[01234567]|037[01234567])[0-9]{7}$/;
-  return val && reg.test(val);
+  if (!val || typeof val !== 'string') return false;
+  return Constants.PATTERN_REGEX.PhoneNumber.test(val.trim());
 }
 
 export function validateImg(img: string) {

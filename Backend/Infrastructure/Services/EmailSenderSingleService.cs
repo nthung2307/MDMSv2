@@ -83,7 +83,7 @@ public class EmailSenderSingleService
                                 titleRow.RelativeColumn(0.5f).Column(header =>
                                 {
                                     header.Item().Text("MONTHLY POWER METER READING").FontSize(12).Bold().AlignCenter();
-                                    header.Item().Text("(PHIẾU GHI SỐ ĐIỆN HÀNG THÁNG)").FontSize(12).Bold().AlignCenter();
+                                    header.Item().Text("(PHIẾU CHỈ SỐ ĐIỆN HÀNG THÁNG)").FontSize(12).Bold().AlignCenter();
                                     header.Item().Text("(M&E Copy – Liên cho Phòng Cơ Điện)").FontSize(10).AlignCenter();
                                 });
                                 titleRow.RelativeColumn(0.25f).AlignLeft().Column(right =>
@@ -114,32 +114,39 @@ public class EmailSenderSingleService
                                     left.Item().Text("(Tên khách hàng)").FontSize(9);
                                 });
                             });
+                            var billingLocal = request.BillingTimestamp.HasValue
+                                ? request.BillingTimestamp.Value.ToOffset(TimeSpan.FromHours(7))
+                                : (DateTimeOffset?)null;
+                            var readingTimeStr = billingLocal.HasValue ? billingLocal.Value.ToString("HH:mm") : "00:00";
+                            var readingDateStr = billingLocal.HasValue ? billingLocal.Value.ToString("dd/MM/yyyy") : $"{request.Day:00}/{request.Month:00}/{request.Year}";
+                            var forMonthStr = $"{request.Month:00}/{request.Year}";
+
                             titleContent.Item().PaddingHorizontal(15).PaddingBottom(5).Row(row =>
                             {
-                                row.RelativeColumn(0.3f).Row(r =>
+                                row.RelativeColumn(0.33f).Row(r =>
                                 {
                                     r.AutoItem().PaddingRight(2).Text("Reading Time (Giờ ghi):").FontSize(9);
                                     r.RelativeColumn().PaddingRight(4).Column(x =>
                                     {
-                                        x.Item().Text("00").FontSize(9);
+                                        x.Item().Text(readingTimeStr).FontSize(9);
                                         x.Item().LineHorizontal(0.5f).LineColor(Colors.Black);
                                     });
                                 });
-                                row.RelativeColumn(0.4f).Row(r =>
+                                row.RelativeColumn(0.33f).Row(r =>
                                 {
                                     r.AutoItem().PaddingRight(2).Text("Reading Date (Ngày ghi):").FontSize(9);
                                     r.RelativeColumn().PaddingRight(4).Column(x =>
                                     {
-                                        x.Item().Text(request.Day).FontSize(9);
+                                        x.Item().Text(readingDateStr).FontSize(9);
                                         x.Item().LineHorizontal(0.5f).LineColor(Colors.Black);
                                     });
                                 });
-                                row.RelativeColumn(0.3f).Row(r =>
+                                row.RelativeColumn(0.34f).Row(r =>
                                 {
                                     r.AutoItem().PaddingRight(2).Text("For month (Tháng):").FontSize(9);
                                     r.RelativeColumn().PaddingRight(4).Column(x =>
                                     {
-                                        x.Item().Text(request.Month).FontSize(9);
+                                        x.Item().Text(forMonthStr).FontSize(9);
                                         x.Item().LineHorizontal(0.5f).LineColor(Colors.Black);
                                     });
                                 });
@@ -215,6 +222,12 @@ public class EmailSenderSingleService
 
                         content.Item().PaddingTop(5).PaddingHorizontal(15).Column(footerContent =>
                         {
+                            var pmaxTimeLocalStr = request.PmaxTime.HasValue
+                                ? request.PmaxTime.Value.ToOffset(TimeSpan.FromHours(7)).ToString("dd/MM/yyyy HH:mm:ss")
+                                : "---";
+                            var pmaxValStr = request.Pmax > 0 ? request.Pmax.ToString("N2", CultureInfo.InvariantCulture) : "0.00";
+                            footerContent.Item().PaddingBottom(3).Text($"* Công suất cực đại Pmax: {pmaxValStr} kW, ghi nhận hồi: {pmaxTimeLocalStr}").Bold().FontSize(8);
+
                             footerContent.Item().PaddingBottom(5).PaddingHorizontal(5).Text("The above meter reading has been jointly read by the following Parties:\n(Các chỉ số trên đã được các Bên dưới đây xác nhận)");
 
                             footerContent.Item().Row(row =>
@@ -315,18 +328,9 @@ public class EmailSenderSingleService
                 var primaryEmail = recipients[0];
                 var ccEmails = recipients.Skip(1).Select(e => new MailAddress(e)).ToList();
 
-                var day = item.Day == 1
-                    ? DateTime.DaysInMonth(
-                        item.Year,
-                        item.Month == 1 ? 12 : item.Month - 1
-                    )
-                    : item.Day - 1;
-                var month = item.Day == 1
-                    ? (item.Month == 1 ? 12 : item.Month - 1)
-                    : item.Month;
-                var year = item.Day == 1 && item.Month == 1
-                    ? item.Year - 1
-                    : item.Year;
+                var day = item.Day ?? (item.Month > 0 && item.Year > 0 ? DateTime.DaysInMonth(item.Year, item.Month) : 31);
+                var month = item.Month;
+                var year = item.Year;
 
                 try
                 {

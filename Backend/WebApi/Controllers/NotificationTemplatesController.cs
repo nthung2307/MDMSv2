@@ -65,6 +65,12 @@ public class NotificationTemplatesController : ControllerBase
                 await SeedDefaultTemplatesAsync(cancellationToken);
                 list = await _readOnlyRepository.GetAllTemplatesAsync(code, cancellationToken);
             }
+
+            foreach (var t in list)
+            {
+                t.BodyHtmlTemplate = Infrastructure.Services.Templates.NotificationTemplateService.CleanLegacyFields(t.BodyHtmlTemplate);
+            }
+
             return RequestResult<List<NotificationTemplateDto>>.Succeed(list);
         }
         catch (Exception ex)
@@ -102,8 +108,26 @@ public class NotificationTemplatesController : ControllerBase
         try
         {
             var prebuilts = Infrastructure.Services.Templates.NotificationTemplateService.GetPrebuiltDefaultTemplates();
+            var existingTemplates = await _readOnlyRepository.GetAllTemplatesAsync(null, cancellationToken);
             foreach (var template in prebuilts)
             {
+                var existing = existingTemplates.Find(x => x.Code == template.Code && x.IsDefault)
+                               ?? existingTemplates.Find(x => x.Code == template.Code);
+                if (existing != null)
+                {
+                    var entity = await _readOnlyRepository.GetByIdAsync(existing.Id, cancellationToken);
+                    if (entity != null)
+                    {
+                        entity.Name = template.Name;
+                        entity.SubjectTemplate = template.SubjectTemplate;
+                        entity.BodyHtmlTemplate = template.BodyHtmlTemplate;
+                        entity.Description = template.Description;
+                        entity.ModifiedTime = DateTimeOffset.UtcNow;
+                        await _readWriteRepository.UpdateAsync(entity, cancellationToken);
+                        continue;
+                    }
+                }
+
                 template.Id = await _snowflakeIdService.GenerateId(cancellationToken);
                 template.CreatedTime = DateTimeOffset.UtcNow;
                 if (template.IsDefault)
@@ -113,7 +137,7 @@ public class NotificationTemplatesController : ControllerBase
                 await _readWriteRepository.AddAsync(template, cancellationToken);
             }
             await _readWriteRepository.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Khởi tạo thành công {Count} mẫu email chuẩn", prebuilts.Count);
+            _logger.LogInformation("Khởi tạo và đồng bộ thành công {Count} mẫu email chuẩn", prebuilts.Count);
         }
         catch (Exception ex)
         {
@@ -346,9 +370,14 @@ public class NotificationTemplatesController : ControllerBase
                 });
             }
 
-            var sampleContext = Infrastructure.Services.Templates.NotificationTemplateService.GetSampleVariablesForCode(request.Code);
-            var subject = _templateService.Render(request.SubjectTemplate ?? string.Empty, sampleContext);
-            var bodyHtml = _templateService.Render(request.BodyHtmlTemplate ?? string.Empty, sampleContext);
+            var previewResult = await _templateService.PreviewAsync(new PreviewNotificationTemplateRequest
+            {
+                Code = request.Code,
+                SubjectTemplate = request.SubjectTemplate ?? string.Empty,
+                BodyHtmlTemplate = request.BodyHtmlTemplate ?? string.Empty
+            }, cancellationToken);
+            var subject = previewResult.Subject;
+            var bodyHtml = previewResult.BodyHtml;
 
             var provider = await _emailProviderFactory.GetActiveProviderAsync();
             await provider.SendEmailAsync(new Application.DataTransferObjects.Email.EmailMessageDto

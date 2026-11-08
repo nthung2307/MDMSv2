@@ -31,6 +31,7 @@ public class EmailSenderService
     private readonly IDateTimeService _dateTimeService;
     private readonly ILogger<EmailSenderService> _loggerService;
     private readonly IGcsCutOffCycleReadWriteRepository _gcsCutOffCycleReadWriteRepository;
+    private readonly IStatementPdfTemplateReadOnlyRepository? _statementPdfTemplateReadOnlyRepository;
     private readonly IMailingService? _mailingService;
 
     public EmailSenderService(
@@ -43,6 +44,7 @@ public class EmailSenderService
         ISystemConfigReadWriteRepository systemConfigReadWriteRepository,
         ISystemConfigReadOnlyRepository systemConfigReadOnlyRepository,
         IGcsCutOffCycleReadWriteRepository gcsCutOffCycleReadWriteRepository,
+        IStatementPdfTemplateReadOnlyRepository? statementPdfTemplateReadOnlyRepository = null,
         IMailingService? mailingService = null)
     {
         _emailProviderFactory = emailProviderFactory;
@@ -53,6 +55,7 @@ public class EmailSenderService
         _periodicEnergyStatementReadWriteRepository = periodicEnergyStatementReadWriteRepository;
         _systemConfigReadOnlyRepository = systemConfigReadOnlyRepository;
         _gcsCutOffCycleReadWriteRepository = gcsCutOffCycleReadWriteRepository;
+        _statementPdfTemplateReadOnlyRepository = statementPdfTemplateReadOnlyRepository;
         _mailingService = mailingService;
     }
 
@@ -181,26 +184,37 @@ public class EmailSenderService
         var systemConfig = await _systemConfigReadOnlyRepository
             .GetListSystemConfigAsync(cancellationToken);
 
-        var day = item.Day == 1
-            ? DateTime.DaysInMonth(
-                item.Year,
-                item.Month == 1 ? 12 : item.Month - 1
-            )
-            : item.Day - 1;
-        var month = item.Day == 1
-            ? (item.Month == 1 ? 12 : item.Month - 1)
-            : item.Month;
-        var year = item.Day == 1 && item.Month == 1
-            ? item.Year - 1
-            : item.Year;
+        // Ngày cuối kỳ: Lấy đúng ngày chốt của kỳ (item.Day), không tự trừ 1
+        var day = item.Day ?? (item.Month > 0 && item.Year > 0 ? DateTime.DaysInMonth(item.Year, item.Month) : 31);
+        var month = item.Month;
+        var year = item.Year;
 
-        var careFullname = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCareFullname)?.Value ?? "Phòng Cơ Điện VSIP Hải Phòng";
-        var careEmail = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCareEmail)?.Value ?? "noreply.hoadondientu.hp@vsip.com.vn";
-        var carePhone = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCarePhone)?.Value ?? "0225 3959868";
+        var careFullname = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCareFullname)?.Value;
+        if (string.IsNullOrWhiteSpace(careFullname))
+            careFullname = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.SystemAdministrationFullname)?.Value ?? "Bộ phận Chăm sóc khách hàng";
+
+        var careEmail = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCareEmail)?.Value;
+        if (string.IsNullOrWhiteSpace(careEmail))
+            careEmail = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.SystemAdministrationEmail)?.Value ?? "cskh@mdms.vn";
+
+        var carePhone = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.CustomerCarePhone)?.Value;
+        if (string.IsNullOrWhiteSpace(carePhone))
+            carePhone = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.SystemAdministrationPhone)?.Value ?? "19001006";
 
         // Chuẩn bị biến Template động (Merge Tags)
         var fromDateStr = item.PreviousDay.HasValue ? $"{item.PreviousDay:00}/{item.PreviousMonth:00}/{item.PreviousYear}" : $"01/{month:00}/{year}";
         var toDateStr = $"{day:00}/{month:00}/{year}";
+
+        var billingLocal = item.BillingTimestamp.HasValue
+            ? item.BillingTimestamp.Value.ToOffset(TimeSpan.FromHours(7))
+            : (DateTimeOffset?)null;
+        var readingTimeStr = billingLocal.HasValue ? billingLocal.Value.ToString("HH:mm") : "00:00";
+        var readingDateStr = billingLocal.HasValue ? billingLocal.Value.ToString("dd/MM/yyyy") : toDateStr;
+        var forMonthStr = $"{month:00}/{year}";
+
+        var pmaxTimeLocalStr = item.PmaxTime.HasValue
+            ? item.PmaxTime.Value.ToOffset(TimeSpan.FromHours(7)).ToString("dd/MM/yyyy HH:mm:ss")
+            : "---";
 
         var cosPhiVal = item.CosPhi;
         if (!cosPhiVal.HasValue && item.ConsumtionSg > 0 && item.ConsumtionVc >= 0)
@@ -209,16 +223,48 @@ public class EmailSenderService
             if (sApp > 0) cosPhiVal = Math.Round(item.ConsumtionSg / sApp, 2, MidpointRounding.AwayFromZero);
         }
 
+        var multVal = item.Multiplier > 0 ? item.Multiplier : (item.MeasurementPoint?.MultiplierFactor ?? 1);
+
+        var activePdfTemplate = _statementPdfTemplateReadOnlyRepository != null
+            ? await _statementPdfTemplateReadOnlyRepository.GetDefaultAsync(cancellationToken)
+            : null;
+        var layoutCfg = Infrastructure.Services.Templates.StatementPdfGenerator.ParseLayoutConfig(activePdfTemplate);
+
+        var compName = !string.IsNullOrWhiteSpace(activePdfTemplate?.CompanyName)
+            ? activePdfTemplate.CompanyName
+            : "VSIP HAI PHONG CO.,LTD";
+        var compAddr = !string.IsNullOrWhiteSpace(activePdfTemplate?.CompanyAddress)
+            ? activePdfTemplate.CompanyAddress
+            : "VSIP Hai Phong Administration Office, VSIP Hai Phong Township, Industrial & Service Park, Hoa Binh Ward, Hai Phong City, Vietnam";
+        var compPhone = !string.IsNullOrWhiteSpace(activePdfTemplate?.ContactPhone)
+            ? activePdfTemplate.ContactPhone
+            : "Tel: 84-225-3959868 Fax: 84-225-3959886";
+        var taxCode = !string.IsNullOrWhiteSpace(layoutCfg.TaxCode) ? layoutCfg.TaxCode : string.Empty;
+
         var templateContext = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
+            ["CompanyName"] = compName,
+            ["CompanyAddress"] = compAddr,
+            ["ContactPhone"] = compPhone,
+            ["TaxCode"] = taxCode,
             ["CustomerName"] = item.MeasurementPoint?.Customer?.FullName ?? string.Empty,
+            ["CustomerCode"] = item.MeasurementPoint?.Customer?.CustomerCode ?? string.Empty,
             ["PointCode"] = item.MeasurementPoint?.Code ?? string.Empty,
+            ["PointName"] = !string.IsNullOrWhiteSpace(item.MeasurementPoint?.Code)
+                ? item.MeasurementPoint.Code
+                : (item.MeasurementPoint?.Description ?? string.Empty),
             ["SerialNumber"] = item.SerialNumber,
+            ["MeterSerial"] = item.SerialNumber,
             ["Address"] = item.MeasurementPoint?.Address ?? item.MeasurementPoint?.Customer?.Address ?? string.Empty,
+            ["Multiplier"] = multVal.ToString(),
             ["FromDate"] = fromDateStr,
             ["ToDate"] = toDateStr,
+            ["ReadingTime"] = readingTimeStr,
+            ["ReadingDate"] = readingDateStr,
+            ["ForMonth"] = forMonthStr,
             ["Month"] = month.ToString(),
             ["Year"] = year.ToString(),
+            ["CycleName"] = $"Kỳ {item.PeriodNumber} Tháng {month}/{year}",
             ["Period"] = $"Kỳ {item.PeriodNumber} Tháng {month}/{year}",
             ["PreviousBt"] = $"{item.PreviousBt:N2}",
             ["PreviousCd"] = $"{item.PreviousCd:N2}",
@@ -236,10 +282,12 @@ public class EmailSenderService
             ["ConsumtionSg"] = $"{item.ConsumtionSg:N2}",
             ["ConsumtionTotal"] = $"{item.ConsumtionSg:N2}",
             ["ConsumtionVc"] = $"{item.ConsumtionVc:N2}",
+            ["OutputSg"] = $"{item.ConsumtionSg:N2}",
+            ["OutputVc"] = $"{item.ConsumtionVc:N2}",
             ["CosPhi"] = cosPhiVal.HasValue ? $"{cosPhiVal.Value:F2}" : "-",
             ["Pmax"] = $"{item.Pmax:N2} kW",
-            ["PmaxTime"] = item.PmaxTime.HasValue ? item.PmaxTime.Value.ToString("dd/MM/yyyy HH:mm:ss") : "---",
-            ["BillingTimestamp"] = item.BillingTimestamp.HasValue ? item.BillingTimestamp.Value.ToString("dd/MM/yyyy HH:mm:ss") : toDateStr,
+            ["PmaxTime"] = pmaxTimeLocalStr,
+            ["BillingTimestamp"] = billingLocal.HasValue ? billingLocal.Value.ToString("dd/MM/yyyy HH:mm:ss") : toDateStr,
             ["CareFullname"] = careFullname,
             ["CareEmail"] = careEmail,
             ["CarePhone"] = carePhone
@@ -255,7 +303,7 @@ public class EmailSenderService
         byte[] pdfBytes;
         try
         {
-            pdfBytes = await _statementPdfGenerator.GeneratePdfAsync(item, null, cancellationToken);
+            pdfBytes = await _statementPdfGenerator.GeneratePdfAsync(item, activePdfTemplate, cancellationToken);
         }
         catch (Exception pdfEx)
         {

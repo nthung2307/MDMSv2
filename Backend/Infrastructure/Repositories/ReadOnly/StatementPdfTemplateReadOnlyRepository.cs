@@ -44,8 +44,30 @@ public class StatementPdfTemplateReadOnlyRepository : RestfulRepository<Statemen
 
     public async Task<StatementPdfTemplateEntity?> GetDefaultAsync(CancellationToken cancellationToken = default)
     {
-        return await _entities.AsNoTracking()
+        // 1. Ưu tiên mẫu vừa Active vừa Default
+        var defaultActive = await _entities.AsNoTracking()
             .Where(x => x.IsActive && x.IsDefault)
+            .OrderByDescending(x => x.ModifiedTime ?? x.CreatedTime)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (defaultActive != null) return defaultActive;
+
+        // 2. Nếu chưa đánh dấu Default, lấy mẫu đang Active mới cập nhật nhất
+        var anyActive = await _entities.AsNoTracking()
+            .Where(x => x.IsActive)
+            .OrderByDescending(x => x.ModifiedTime ?? x.CreatedTime)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (anyActive != null) return anyActive;
+
+        // 3. Nếu người dùng vô tình tắt Active của mẫu Default, vẫn lấy mẫu Default
+        var defaultOnly = await _entities.AsNoTracking()
+            .Where(x => x.IsDefault)
+            .OrderByDescending(x => x.ModifiedTime ?? x.CreatedTime)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (defaultOnly != null) return defaultOnly;
+
+        // 4. Cuối cùng lấy mẫu bất kỳ mới nhất trong bảng
+        return await _entities.AsNoTracking()
+            .OrderByDescending(x => x.ModifiedTime ?? x.CreatedTime)
             .FirstOrDefaultAsync(cancellationToken);
     }
 

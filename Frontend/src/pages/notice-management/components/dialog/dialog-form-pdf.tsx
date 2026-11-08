@@ -14,43 +14,81 @@ type Props = {
 const DialogFormPDF = (props: Props) => {
   const { handleCancel, open } = props;
   const printTemplate = (action: string) => {
-    const tempDiv = document.createElement('div');
-    const root = createRoot(tempDiv);
-    root.render(<TemplateNotice record={open.record} />);
-    const filename = `${open.record.measurementPoint.code}_${open.record.measurementPoint.customer.fullName}.pdf`;
-    let opt = {
+    if (!open?.record) return;
+
+    let targetElement = document.getElementById('template-notice-print-area');
+    let clone: HTMLElement | null = null;
+    let tempRoot: any = null;
+
+    if (targetElement) {
+      clone = targetElement.cloneNode(true) as HTMLElement;
+    } else {
+      const tempDiv = document.createElement('div');
+      tempDiv.style.width = '794px';
+      tempDiv.style.backgroundColor = '#ffffff';
+      tempRoot = createRoot(tempDiv);
+      tempRoot.render(<TemplateNotice record={open.record} />);
+      clone = tempDiv;
+    }
+
+    clone.style.width = '794px';
+    clone.style.maxWidth = '794px';
+    clone.style.minWidth = '794px';
+    clone.style.boxSizing = 'border-box';
+    clone.style.backgroundColor = '#ffffff';
+
+    const filename = `${open.record?.measurementPoint?.code || 'PHIEU_CHI_SO'}_${open.record?.measurementPoint?.customer?.fullName || ''}.pdf`;
+    const opt = {
       margin: 0,
       filename: filename,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      },
       jsPDF: { unit: 'in', format: 'a5', orientation: 'landscape' },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
     };
 
-    if (action === 'export') {
-      html2pdf().set(opt).from(tempDiv).save();
+    const runPdf = () => {
+      if (action === 'export') {
+        html2pdf()
+          .set(opt)
+          .from(clone)
+          .save()
+          .finally(() => {
+            if (tempRoot) tempRoot.unmount();
+          });
+      } else {
+        html2pdf()
+          .set(opt)
+          .from(clone)
+          .toPdf()
+          .get('pdf')
+          .then((pdf: any) => {
+            const pdfBlobUrl = pdf.output('bloburl');
+
+            const printWindow = window.open(pdfBlobUrl, '_blank');
+            if (printWindow) {
+              printWindow.onload = () => {
+                setTimeout(() => {
+                  printWindow.print();
+                }, 500);
+              };
+            }
+          })
+          .finally(() => {
+            if (tempRoot) tempRoot.unmount();
+          });
+      }
+    };
+
+    if (tempRoot) {
+      setTimeout(runPdf, 150);
     } else {
-      html2pdf()
-        .set(opt)
-        .from(tempDiv)
-        .toPdf()
-        .get('pdf')
-        .then((pdf: any) => {
-          const pdfBlobUrl = pdf.output('bloburl');
-
-          const printWindow = window.open(pdfBlobUrl, '_blank');
-          if (printWindow) {
-            printWindow.onload = () => {
-              setTimeout(() => {
-                printWindow.print();
-              }, 500);
-            };
-          }
-        });
+      runPdf();
     }
-
-    setTimeout(() => {
-      root.unmount();
-    }, 0);
   };
 
   return (
@@ -90,7 +128,7 @@ const DialogFormPDF = (props: Props) => {
             </button>
           </div>
         </div>
-        <div className='h-[560px] w-[794px]'>
+        <div id='template-notice-print-area' className='w-[794px] bg-white'>
           <TemplateNotice record={open.record} />
         </div>
       </div>

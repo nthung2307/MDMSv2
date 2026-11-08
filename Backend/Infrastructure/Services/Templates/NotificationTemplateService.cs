@@ -17,14 +17,20 @@ public class NotificationTemplateService : INotificationTemplateService
 {
     private static readonly Regex VariableRegex = new(@"\{\{\s*([\w\.\-]+)(?::([^}]+))?\s*\}\}", RegexOptions.Compiled);
     private readonly INotificationTemplateReadOnlyRepository _repository;
+    private readonly IStatementPdfTemplateReadOnlyRepository? _statementPdfTemplateRepository;
+    private readonly ISystemConfigReadOnlyRepository? _systemConfigRepository;
     private readonly ILogger<NotificationTemplateService> _logger;
 
     public NotificationTemplateService(
         INotificationTemplateReadOnlyRepository repository,
-        ILogger<NotificationTemplateService> logger)
+        ILogger<NotificationTemplateService> logger,
+        IStatementPdfTemplateReadOnlyRepository? statementPdfTemplateRepository = null,
+        ISystemConfigReadOnlyRepository? systemConfigRepository = null)
     {
         _repository = repository;
         _logger = logger;
+        _statementPdfTemplateRepository = statementPdfTemplateRepository;
+        _systemConfigRepository = systemConfigRepository;
     }
 
     public string Render(string template, IDictionary<string, object?> context)
@@ -60,11 +66,96 @@ public class NotificationTemplateService : INotificationTemplateService
 
     public async Task<(string Subject, string BodyHtml)> RenderNotificationAsync(string code, IDictionary<string, object?> context, CancellationToken cancellationToken = default)
     {
+        if (_statementPdfTemplateRepository != null)
+        {
+            var activeStmtTpl = await _statementPdfTemplateRepository.GetDefaultAsync(cancellationToken);
+            if (activeStmtTpl != null)
+            {
+                var layout = StatementPdfGenerator.ParseLayoutConfig(activeStmtTpl);
+                if (!context.ContainsKey("CompanyName") || string.IsNullOrWhiteSpace(context["CompanyName"]?.ToString()))
+                {
+                    context["CompanyName"] = !string.IsNullOrWhiteSpace(activeStmtTpl.CompanyName) ? activeStmtTpl.CompanyName : "VSIP HAI PHONG CO.,LTD";
+                }
+                if (!context.ContainsKey("CompanyAddress") || string.IsNullOrWhiteSpace(context["CompanyAddress"]?.ToString()))
+                {
+                    context["CompanyAddress"] = activeStmtTpl.CompanyAddress ?? string.Empty;
+                }
+                if (!context.ContainsKey("ContactPhone") || string.IsNullOrWhiteSpace(context["ContactPhone"]?.ToString()))
+                {
+                    context["ContactPhone"] = activeStmtTpl.ContactPhone ?? string.Empty;
+                }
+                if (!context.ContainsKey("TaxCode") || string.IsNullOrWhiteSpace(context["TaxCode"]?.ToString()))
+                {
+                    context["TaxCode"] = layout.TaxCode ?? string.Empty;
+                }
+            }
+        }
+
+        if (_systemConfigRepository != null)
+        {
+            try
+            {
+                var sysConfigs = await _systemConfigRepository.GetListSystemConfigAsync(cancellationToken);
+                var careFullname = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CustomerCareFullname)?.Value;
+                if (string.IsNullOrWhiteSpace(careFullname))
+                    careFullname = sysConfigs.Find(x => x.Key == Constants.SystemConfig.SystemAdministrationFullname)?.Value;
+
+                var careEmail = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CustomerCareEmail)?.Value;
+                if (string.IsNullOrWhiteSpace(careEmail))
+                    careEmail = sysConfigs.Find(x => x.Key == Constants.SystemConfig.SystemAdministrationEmail)?.Value;
+
+                var carePhone = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CustomerCarePhone)?.Value;
+                if (string.IsNullOrWhiteSpace(carePhone))
+                    carePhone = sysConfigs.Find(x => x.Key == Constants.SystemConfig.SystemAdministrationPhone)?.Value;
+
+                if (!string.IsNullOrWhiteSpace(careFullname) && (!context.ContainsKey("CareFullname") || string.IsNullOrWhiteSpace(context["CareFullname"]?.ToString())))
+                    context["CareFullname"] = careFullname;
+
+                if (!string.IsNullOrWhiteSpace(careEmail))
+                {
+                    if (!context.ContainsKey("CareEmail") || string.IsNullOrWhiteSpace(context["CareEmail"]?.ToString()))
+                        context["CareEmail"] = careEmail;
+                    if (!context.ContainsKey("SystemEmail") || string.IsNullOrWhiteSpace(context["SystemEmail"]?.ToString()))
+                        context["SystemEmail"] = careEmail;
+                }
+
+                if (!string.IsNullOrWhiteSpace(carePhone))
+                {
+                    if (!context.ContainsKey("CarePhone") || string.IsNullOrWhiteSpace(context["CarePhone"]?.ToString()))
+                        context["CarePhone"] = carePhone;
+                    if (!context.ContainsKey("SupportPhone") || string.IsNullOrWhiteSpace(context["SupportPhone"]?.ToString()))
+                        context["SupportPhone"] = carePhone;
+                }
+
+                // Nạp thông tin công ty / đơn vị cung cấp điện tập trung từ SystemConfig
+                var companyName = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CompanyName)?.Value;
+                if (!string.IsNullOrWhiteSpace(companyName))
+                    context["CompanyName"] = companyName;
+
+                var companyAddress = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CompanyAddress)?.Value;
+                if (!string.IsNullOrWhiteSpace(companyAddress))
+                    context["CompanyAddress"] = companyAddress.Replace("\r\n", ", ").Replace("\n", ", ");
+
+                var companyPhone = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CompanyPhone)?.Value;
+                if (!string.IsNullOrWhiteSpace(companyPhone))
+                    context["ContactPhone"] = companyPhone;
+
+                var companyTaxCode = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CompanyTaxCode)?.Value;
+                if (!string.IsNullOrWhiteSpace(companyTaxCode))
+                    context["TaxCode"] = companyTaxCode;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("Không thể nạp thông tin liên hệ trong RenderNotificationAsync: {Message}", ex.Message);
+            }
+        }
+
         var template = await _repository.GetDefaultByCodeAsync(code, cancellationToken);
         if (template != null)
         {
+            var cleanedHtml = CleanLegacyFields(template.BodyHtmlTemplate);
             var subject = Render(template.SubjectTemplate, context);
-            var body = Render(template.BodyHtmlTemplate, context);
+            var body = Render(cleanedHtml, context);
             return (subject, body);
         }
 
@@ -72,9 +163,70 @@ public class NotificationTemplateService : INotificationTemplateService
         return GetFallbackDefaultTemplate(code, context);
     }
 
-    public Task<PreviewNotificationTemplateResponse> PreviewAsync(PreviewNotificationTemplateRequest request, CancellationToken cancellationToken = default)
+    public async Task<PreviewNotificationTemplateResponse> PreviewAsync(PreviewNotificationTemplateRequest request, CancellationToken cancellationToken = default)
     {
         var sampleContext = GetSampleVariablesForCode(request.Code);
+        if (_statementPdfTemplateRepository != null)
+        {
+            var activeStmtTpl = await _statementPdfTemplateRepository.GetDefaultAsync(cancellationToken);
+            if (activeStmtTpl != null)
+            {
+                var layout = StatementPdfGenerator.ParseLayoutConfig(activeStmtTpl);
+                if (!string.IsNullOrWhiteSpace(activeStmtTpl.CompanyName))
+                    sampleContext["CompanyName"] = activeStmtTpl.CompanyName;
+                if (!string.IsNullOrWhiteSpace(activeStmtTpl.CompanyAddress))
+                    sampleContext["CompanyAddress"] = activeStmtTpl.CompanyAddress;
+                if (!string.IsNullOrWhiteSpace(activeStmtTpl.ContactPhone))
+                    sampleContext["ContactPhone"] = activeStmtTpl.ContactPhone;
+                if (!string.IsNullOrWhiteSpace(layout.TaxCode))
+                    sampleContext["TaxCode"] = layout.TaxCode;
+            }
+        }
+
+        if (_systemConfigRepository != null)
+        {
+            try
+            {
+                var sysConfigs = await _systemConfigRepository.GetListSystemConfigAsync(cancellationToken);
+                var careFullname = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CustomerCareFullname)?.Value;
+                if (string.IsNullOrWhiteSpace(careFullname))
+                    careFullname = sysConfigs.Find(x => x.Key == Constants.SystemConfig.SystemAdministrationFullname)?.Value;
+
+                var careEmail = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CustomerCareEmail)?.Value;
+                if (string.IsNullOrWhiteSpace(careEmail))
+                    careEmail = sysConfigs.Find(x => x.Key == Constants.SystemConfig.SystemAdministrationEmail)?.Value;
+
+                var carePhone = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CustomerCarePhone)?.Value;
+                if (string.IsNullOrWhiteSpace(carePhone))
+                    carePhone = sysConfigs.Find(x => x.Key == Constants.SystemConfig.SystemAdministrationPhone)?.Value;
+
+                if (!string.IsNullOrWhiteSpace(careFullname)) sampleContext["CareFullname"] = careFullname;
+                if (!string.IsNullOrWhiteSpace(careEmail)) { sampleContext["CareEmail"] = careEmail; sampleContext["SystemEmail"] = careEmail; }
+                if (!string.IsNullOrWhiteSpace(carePhone)) { sampleContext["CarePhone"] = carePhone; sampleContext["SupportPhone"] = carePhone; }
+
+                // Nạp thông tin công ty / đơn vị cung cấp điện tập trung từ SystemConfig
+                var companyName = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CompanyName)?.Value;
+                if (!string.IsNullOrWhiteSpace(companyName))
+                    sampleContext["CompanyName"] = companyName;
+
+                var companyAddress = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CompanyAddress)?.Value;
+                if (!string.IsNullOrWhiteSpace(companyAddress))
+                    sampleContext["CompanyAddress"] = companyAddress.Replace("\r\n", ", ").Replace("\n", ", ");
+
+                var companyPhone = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CompanyPhone)?.Value;
+                if (!string.IsNullOrWhiteSpace(companyPhone))
+                    sampleContext["ContactPhone"] = companyPhone;
+
+                var companyTaxCode = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CompanyTaxCode)?.Value;
+                if (!string.IsNullOrWhiteSpace(companyTaxCode))
+                    sampleContext["TaxCode"] = companyTaxCode;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("Không thể nạp thông tin liên hệ trong PreviewAsync: {Message}", ex.Message);
+            }
+        }
+
         if (request.CustomVariables != null)
         {
             foreach (var kv in request.CustomVariables)
@@ -83,14 +235,78 @@ public class NotificationTemplateService : INotificationTemplateService
             }
         }
 
+        var cleanedBodyHtml = CleanLegacyFields(request.BodyHtmlTemplate);
         var renderedSubject = Render(request.SubjectTemplate, sampleContext);
-        var renderedBody = Render(request.BodyHtmlTemplate, sampleContext);
+        var renderedBody = Render(cleanedBodyHtml, sampleContext);
 
-        return Task.FromResult(new PreviewNotificationTemplateResponse
+        return new PreviewNotificationTemplateResponse
         {
             Subject = renderedSubject,
             BodyHtml = renderedBody
-        });
+        };
+    }
+
+    public static string CleanLegacyFields(string html)
+    {
+        if (string.IsNullOrWhiteSpace(html)) return string.Empty;
+
+        var cleaned = html;
+
+        // 1. Loại bỏ các trường cũ (Mã khách hàng, Mã điểm đo, HSN) -> Chỉ hiển thị Tên điểm đo
+        if (cleaned.Contains("Mã khách hàng", StringComparison.OrdinalIgnoreCase) ||
+            cleaned.Contains("CustomerCode", StringComparison.OrdinalIgnoreCase) ||
+            cleaned.Contains("Mã điểm đo", StringComparison.OrdinalIgnoreCase) ||
+            cleaned.Contains("Hệ số nhân", StringComparison.OrdinalIgnoreCase) ||
+            cleaned.Contains("HSN", StringComparison.OrdinalIgnoreCase) ||
+            cleaned.Contains("Số công tơ", StringComparison.OrdinalIgnoreCase))
+        {
+            const string cleanInfoTable = @"<table width='100%' cellpadding='10' cellspacing='0' border='0' style='background-color:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:18px;font-size:13.5px;'>
+                                <tr>
+                                    <td width='22%' style='color:#64748b;font-weight:500;'>Tên điểm đo:</td>
+                                    <td style='font-weight:700;color:#0f172a;'>{{PointName}}</td>
+                                </tr>
+                            </table>";
+
+            cleaned = Regex.Replace(
+                cleaned,
+                @"<table[^>]*>[\s\S]*?(?:Mã khách hàng|CustomerCode|Mã điểm đo)[\s\S]*?</table>",
+                cleanInfoTable,
+                RegexOptions.IgnoreCase);
+        }
+
+        // 2. Hiệu chỉnh tệp đính kèm theo đúng yêu cầu
+        cleaned = Regex.Replace(
+            cleaned,
+            @"(?:📎\s*(?:<strong>)?Tệp đính kèm:?(?:</strong>)?\s*)?Chi tiết phiếu báo chỉ số điện năng định dạng PDF[^<]*<strong>[^<]*</strong>[^<]*",
+            "📎 Chi tiết Phiếu chỉ số điện hàng tháng được đính kèm <strong>PhieuBaoSo_{{SerialNumber}}.pdf</strong>",
+            RegexOptions.IgnoreCase);
+
+        // 3. Hiệu chỉnh Hotline & Email trên 2 hàng riêng biệt
+        cleaned = Regex.Replace(
+            cleaned,
+            @"(📞\s*Hotline CSKH:[^<]*)\s*\|\s*(✉️\s*Email tiếp nhận:[^<]*)",
+            "$1<br>$2",
+            RegexOptions.IgnoreCase);
+
+        // 4. Căn lề trên (vertical-align: top) cho cột Pmax và CosPhi
+        cleaned = Regex.Replace(cleaned, @"style=['""]vertical-align:\s*middle;?['""]", "style='vertical-align:top;'", RegexOptions.IgnoreCase);
+
+        // 5. Loại bỏ dòng "Đơn vị liên kết" trong mẫu email cấp tài khoản
+        cleaned = Regex.Replace(cleaned, @"<tr>\s*<td[^>]*>[^<]*Đơn vị liên kết:?</td>[\s\S]*?</tr>", "", RegexOptions.IgnoreCase);
+
+        // 6. Đổi nút "Đăng Nhập Vào Hệ Thống" thành "Đăng Nhập"
+        cleaned = Regex.Replace(cleaned, @"Đăng\s+Nhập\s+Vào\s+Hệ\s+Thống", "Đăng Nhập", RegexOptions.IgnoreCase);
+
+        // 7. Đồng bộ tiêu đề hệ thống dạng (MDMS)
+        cleaned = Regex.Replace(cleaned, @"HỆ THỐNG THU THẬP DỮ LIỆU ĐO ĐẾM - MDMS", "HỆ THỐNG THU THẬP DỮ LIỆU ĐO ĐẾM (MDMS)", RegexOptions.IgnoreCase);
+
+        // 8. Chuẩn hóa tiêu đề Header cho mẫu tài khoản & mật khẩu
+        cleaned = Regex.Replace(cleaned, @"THÔNG TIN CẤP TÀI KHOẢN NGƯỜI DÙNG", "THÔNG TIN TÀI KHOẢN", RegexOptions.IgnoreCase);
+
+        // 9. Bỏ đoạn "(từ ngày {{FromDate}} đến ngày {{ToDate}})" trong lời mở đầu để khớp 100% hình ảnh
+        cleaned = Regex.Replace(cleaned, @"\s*\(từ ngày \{\{FromDate\}\} đến ngày \{\{ToDate\}\}\)", "", RegexOptions.IgnoreCase);
+
+        return cleaned;
     }
 
     public static Dictionary<string, object?> GetSampleVariablesForCode(string? code)
@@ -155,6 +371,7 @@ public class NotificationTemplateService : INotificationTemplateService
             ["CarePhone"] = "0225 3959868",
             ["SystemEmail"] = "noreply.mdms@vsip.com.vn",
             ["SupportPhone"] = "0225 3959868",
+            ["SystemName"] = "Hệ thống thu thập dữ liệu đo đếm - MDMS",
             ["CurrentDate"] = DateTime.Now.ToString("dd/MM/yyyy")
         };
 
@@ -166,7 +383,7 @@ public class NotificationTemplateService : INotificationTemplateService
         code = code.ToUpperInvariant();
         if (code == Constants.NotificationTemplateCode.StatementNotification)
         {
-            var subjectTpl = "Phiếu Báo Chỉ Số Điện Số {{SerialNumber}} - {{CustomerName}} (Kỳ {{Period}})";
+            var subjectTpl = "THÔNG BÁO CHỈ SỐ ĐIỆN HÀNG THÁNG";
             var bodyTpl = @"<!DOCTYPE html>
 <html>
 <head>
@@ -174,10 +391,10 @@ public class NotificationTemplateService : INotificationTemplateService
     <title>Thông Báo Chỉ Số & Sản Lượng Điện Năng</title>
 </head>
 <body style='margin:0;padding:0;background-color:#f5f7fc;font-family:-apple-system,BlinkMacSystemFont,""Segoe UI"",Roboto,Helvetica,Arial,sans-serif;color:#334155;'>
-    <table width='100%' cellpadding='0' cellspacing='0' border='0' style='background-color:#f5f7fc;padding:30px 15px;'>
+    <table width='100%' cellpadding='0' cellspacing='0' border='0' style='background-color:#f5f7fc;padding:24px 10px;width:100%;max-width:100%;'>
         <tr>
             <td align='center'>
-                <table width='100%' cellpadding='0' cellspacing='0' border='0' style='max-width:640px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.06);border:1px solid #e2e8f0;'>
+                <table width='100%' cellpadding='0' cellspacing='0' border='0' style='max-width:640px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.06);border:1px solid #e2e8f0;'>
                     
                     <!-- ======================================================== -->
                     <!-- [KHỐI 1] HEADER: TÊN CÔNG TY & HỆ THỐNG ĐO ĐẾM (MDMS)   -->
@@ -186,7 +403,7 @@ public class NotificationTemplateService : INotificationTemplateService
                     <tr>
                         <td style='background:linear-gradient(135deg,#b22222 0%,#8b1a1a 100%);padding:24px 30px;text-align:center;'>
                             <h2 style='margin:0;color:#ffffff;font-size:20px;font-weight:700;'>{{CompanyName}}</h2>
-                            <p style='margin:6px 0 0 0;color:#fecaca;font-size:13px;letter-spacing:0.5px;'>HỆ THỐNG QUẢN LÝ DỮ LIỆU ĐO ĐẾM ĐIỆN TỬ (MDMS)</p>
+                            <p style='margin:6px 0 0 0;color:#fecaca;font-size:13px;letter-spacing:0.5px;'>HỆ THỐNG THU THẬP DỮ LIỆU ĐO ĐẾM (MDMS)</p>
                             <p style='margin:4px 0 0 0;color:#ffffff;font-size:14px;font-weight:600;'>THÔNG BÁO CHỈ SỐ & SẢN LƯỢNG ĐIỆN NĂNG</p>
                         </td>
                     </tr>
@@ -198,26 +415,12 @@ public class NotificationTemplateService : INotificationTemplateService
                         <td style='padding:24px 30px 10px 30px;'>
                             <p style='margin:0 0 14px 0;font-size:15px;color:#0f172a;'>Kính gửi Quý khách hàng: <strong>{{CustomerName}}</strong>,</p>
                             <p style='margin:0 0 16px 0;font-size:13.5px;line-height:1.6;color:#475569;'>
-                                Chúng tôi xin trân trọng gửi tới Quý khách hàng bảng kê chỉ số công tơ và sản lượng điện năng tiêu thụ trong kỳ ghi chỉ số: <strong>{{Period}}</strong> (từ ngày {{FromDate}} đến ngày {{ToDate}}).
+                                Chúng tôi xin trân trọng gửi tới Quý khách hàng bảng kê chỉ số công tơ và sản lượng điện năng tiêu thụ trong kỳ ghi chỉ số: {{Period}}.
                             </p>
-                            <table width='100%' cellpadding='8' cellspacing='0' border='0' style='background-color:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:18px;font-size:13px;'>
+                            <table width='100%' cellpadding='10' cellspacing='0' border='0' style='background-color:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:18px;font-size:13.5px;'>
                                 <tr>
-                                    <td width='25%' style='color:#64748b;'>Mã khách hàng:</td>
-                                    <td width='25%' style='font-weight:600;color:#0f172a;'>{{CustomerCode}}</td>
-                                    <td width='25%' style='color:#64748b;'>Tên điểm đo:</td>
-                                    <td width='25%' style='font-weight:600;color:#0f172a;'>{{PointName}}</td>
-                                </tr>
-                                <tr>
-                                    <td style='color:#64748b;'>Mã điểm đo:</td>
-                                    <td style='font-weight:600;color:#0f172a;'>{{PointCode}}</td>
-                                    <td style='color:#64748b;'>Số công tơ:</td>
-                                    <td style='font-weight:600;color:#0f172a;'>{{MeterSerial}}</td>
-                                </tr>
-                                <tr>
-                                    <td style='color:#64748b;'>Hệ số nhân (HSN):</td>
-                                    <td style='font-weight:700;color:#b22222;'>{{Multiplier}}</td>
-                                    <td style='color:#64748b;'>Địa chỉ:</td>
-                                    <td style='color:#334155;'>{{Address}}</td>
+                                    <td width='22%' style='color:#64748b;font-weight:500;'>Tên điểm đo:</td>
+                                    <td style='font-weight:700;color:#0f172a;'>{{PointName}}</td>
                                 </tr>
                             </table>
                         </td>
@@ -254,13 +457,13 @@ public class NotificationTemplateService : INotificationTemplateService
                                     <td align='right' style='font-weight:700;color:#0f172a;'>{{ConsumtionTd}}</td>
                                 </tr>
                                 <tr style='background-color:#fef2f2;font-weight:700;'>
-                                    <td style='padding-left:12px;color:#991b1b;'>Tổng điện hữu công (SG)</td>
+                                    <td style='padding-left:12px;color:#991b1b;'>Tổng điện năng hữu công (SG)</td>
                                     <td align='right' style='color:#991b1b;'>{{PreviousSg}}</td>
                                     <td align='right' style='color:#991b1b;'>{{Sg}}</td>
                                     <td align='right' style='color:#b22222;font-size:14px;'>{{ConsumtionTotal}}</td>
                                 </tr>
                                 <tr>
-                                    <td style='padding-left:12px;color:#64748b;'>Điện phản kháng (VC - kVARh)</td>
+                                    <td style='padding-left:12px;color:#64748b;'>Tổng điện năng phản kháng (VC)</td>
                                     <td align='right' style='color:#64748b;'>{{PreviousVc}}</td>
                                     <td align='right' style='color:#64748b;'>{{Vc}}</td>
                                     <td align='right' style='font-weight:600;color:#64748b;'>{{ConsumtionVc}}</td>
@@ -276,13 +479,12 @@ public class NotificationTemplateService : INotificationTemplateService
                         <td style='padding:0 30px 15px 30px;'>
                             <table width='100%' cellpadding='8' cellspacing='0' border='0' style='background-color:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;font-size:13px;color:#1e40af;'>
                                 <tr>
-                                    <td width='50%'>
+                                    <td width='55%' style='vertical-align:top;'>
                                         • Công suất cực đại <strong>Pmax</strong>: <strong>{{Pmax}}</strong><br>
-                                        • Thời điểm xuất hiện Pmax: <strong>{{PmaxTime}}</strong>
+                                        • Thời điểm ghi nhận hồi: <strong>{{PmaxTime}}</strong>
                                     </td>
-                                    <td width='50%' style='vertical-align:top;'>
-                                        • Hệ số công suất <strong>Cos &phi;</strong>: <strong>{{CosPhi}}</strong><br>
-                                        • Tình trạng chốt: <span style='color:#16a34a;font-weight:600;'>Đã xác nhận dữ liệu</span>
+                                    <td width='45%' style='vertical-align:top;'>
+                                        • Hệ số công suất <strong>Cos &phi;</strong>: <strong>{{CosPhi}}</strong>
                                     </td>
                                 </tr>
                             </table>
@@ -295,7 +497,7 @@ public class NotificationTemplateService : INotificationTemplateService
                     <tr>
                         <td style='padding:0 30px 15px 30px;'>
                             <div style='background-color:#f8fafc;border-left:4px solid #b22222;padding:12px 16px;border-radius:4px;font-size:13px;color:#334155;line-height:1.6;'>
-                                📎 <strong>Tệp đính kèm:</strong> Chi tiết phiếu báo chỉ số điện năng định dạng PDF đã được đính kèm theo thư này: <strong>PhieuBaoSo_{{SerialNumber}}.pdf</strong>. Quý khách có thể tải về và lưu trữ để phục vụ đối soát và thanh toán.
+                                📎 Chi tiết Phiếu chỉ số điện hàng tháng được đính kèm <strong>PhieuBaoSo_{{SerialNumber}}.pdf</strong>
                             </div>
                         </td>
                     </tr>
@@ -307,8 +509,9 @@ public class NotificationTemplateService : INotificationTemplateService
                     <tr>
                         <td style='padding:0 30px 24px 30px;'>
                             <div style='background-color:#fafaf9;border:1px dashed #d6d3d1;padding:12px 16px;border-radius:6px;font-size:12.5px;color:#57534e;line-height:1.6;'>
-                                Mọi thắc mắc hoặc yêu cầu đối soát số liệu đo đếm, Quý khách vui lòng liên hệ: <strong>{{CareFullname}}</strong><br>
-                                📞 Hotline CSKH: <strong>{{CarePhone}}</strong> | ✉️ Email tiếp nhận: <strong>{{CareEmail}}</strong>
+                                Mọi thắc mắc hoặc yêu cầu đối soát số liệu, Quý khách vui lòng liên hệ: {{CareFullname}}<br>
+                                📞 Điện thoại: {{ContactPhone}}<br>
+                                ✉️ Email: {{CareEmail}}
                             </div>
                             <p style='margin:16px 0 0 0;font-size:13.5px;color:#334155;'>Trân trọng cảm ơn sự hợp tác của Quý khách hàng!</p>
                         </td>
@@ -319,7 +522,7 @@ public class NotificationTemplateService : INotificationTemplateService
                     <!-- ======================================================== -->
                     <tr>
                         <td style='background-color:#f8fafc;border-top:1px solid #e2e8f0;padding:16px;text-align:center;font-size:12px;color:#94a3b8;'>
-                            Email tự động phát hành từ Hệ thống Quản trị Đo đếm Điện tử MDMS. Vui lòng không phản hồi trực tiếp vào địa chỉ thư này.
+                            Email tự động phát hành từ HỆ THỐNG THU THẬP DỮ LIỆU ĐO ĐẾM (MDMS) - {{CompanyName}}. Vui lòng không phản hồi trực tiếp vào địa chỉ thư này.
                         </td>
                     </tr>
                 </table>
@@ -333,7 +536,7 @@ public class NotificationTemplateService : INotificationTemplateService
 
         if (code == Constants.NotificationTemplateCode.UserCredential)
         {
-            var subjectTpl = "[MDMS] Thông tin cấp tài khoản người dùng hệ thống - {{FullName}}";
+            var subjectTpl = "[MDMS] Thông tin tài khoản - {{FullName}}";
             var bodyTpl = @"<!DOCTYPE html>
 <html>
 <head>
@@ -354,7 +557,7 @@ public class NotificationTemplateService : INotificationTemplateService
                         <td style='background:linear-gradient(135deg,#b22222 0%,#8b1a1a 100%);padding:28px 32px;text-align:center;'>
                             <h2 style='margin:0;color:#ffffff;font-size:20px;font-weight:700;'>{{CompanyName}}</h2>
                             <p style='margin:6px 0 0 0;color:#fecaca;font-size:13px;letter-spacing:0.5px;'>HỆ THỐNG QUẢN LÝ DỮ LIỆU ĐO ĐẾM ĐIỆN TỬ (MDMS)</p>
-                            <p style='margin:4px 0 0 0;color:#ffffff;font-size:14px;font-weight:600;'>THÔNG TIN CẤP TÀI KHOẢN NGƯỜI DÙNG</p>
+                            <p style='margin:4px 0 0 0;color:#ffffff;font-size:14px;font-weight:600;'>THÔNG TIN TÀI KHOẢN</p>
                         </td>
                     </tr>
 
@@ -376,10 +579,6 @@ public class NotificationTemplateService : INotificationTemplateService
                                     <td style='color:#64748b;font-weight:500;'>Mật khẩu khởi tạo:</td>
                                     <td style='color:#b22222;font-weight:700;font-family:monospace;font-size:15px;'>{{Password}}</td>
                                 </tr>
-                                <tr>
-                                    <td style='color:#64748b;font-weight:500;'>Đơn vị liên kết:</td>
-                                    <td style='color:#0f172a;font-weight:600;'>{{CustomerName}}</td>
-                                </tr>
                             </table>
 
                             <!-- ==================================================== -->
@@ -389,7 +588,7 @@ public class NotificationTemplateService : INotificationTemplateService
                                 <tr>
                                     <td align='center'>
                                         <a href='{{LoginUrl}}' target='_blank' style='display:inline-block;background-color:#b22222;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;padding:13px 36px;border-radius:6px;box-shadow:0 2px 8px rgba(178,34,34,0.3);'>
-                                            Đăng Nhập Vào Hệ Thống
+                                            Đăng Nhập
                                         </a>
                                     </td>
                                 </tr>
@@ -409,8 +608,9 @@ public class NotificationTemplateService : INotificationTemplateService
                             <!-- Quản trị viên sửa hotline, email hỗ trợ tại đây      -->
                             <!-- ==================================================== -->
                             <div style='background-color:#fafaf9;border:1px dashed #d6d3d1;padding:12px 16px;border-radius:6px;font-size:12.5px;color:#57534e;line-height:1.6;'>
-                                Nếu Quý vị cần hỗ trợ kỹ thuật hoặc cấp lại quyền truy cập, vui lòng liên hệ: <strong>{{CareFullname}}</strong><br>
-                                📞 Hotline hỗ trợ: <strong>{{SupportPhone}}</strong> | ✉️ Email kỹ thuật: <strong>{{SystemEmail}}</strong>
+                                Nếu Quý vị cần hỗ trợ kỹ thuật, vui lòng liên hệ: {{CareFullname}}<br>
+                                📞 Hotline: {{SupportPhone}}<br>
+                                ✉️ Email: {{SystemEmail}}
                             </div>
                         </td>
                     </tr>
@@ -434,7 +634,7 @@ public class NotificationTemplateService : INotificationTemplateService
 
         if (code == Constants.NotificationTemplateCode.ForgotPassword)
         {
-            var subjectTpl = "Yêu cầu đặt lại mật khẩu - Hệ thống MDMS";
+            var subjectTpl = "[MDMS] Yêu cầu đặt lại mật khẩu";
             var bodyTpl = @"<!DOCTYPE html>
 <html>
 <head>
@@ -496,7 +696,9 @@ public class NotificationTemplateService : INotificationTemplateService
                             <!-- Quản trị viên sửa hotline, email hỗ trợ tại đây      -->
                             <!-- ==================================================== -->
                             <div style='background-color:#fafaf9;border:1px dashed #d6d3d1;padding:12px 16px;border-radius:6px;font-size:12.5px;color:#57534e;line-height:1.6;'>
-                                Hotline hỗ trợ: <strong>{{SupportPhone}}</strong> | Email tiếp nhận: <strong>{{SystemEmail}}</strong>
+                                Nếu Quý vị cần hỗ trợ kỹ thuật, vui lòng liên hệ: {{CareFullname}}<br>
+                                📞 Hotline: {{SupportPhone}}<br>
+                                ✉️ Email: {{SystemEmail}}
                             </div>
                         </td>
                     </tr>
@@ -529,102 +731,41 @@ public class NotificationTemplateService : INotificationTemplateService
 
         var list = new List<NotificationTemplateEntity>();
 
-        // 1. STATEMENT_NOTIFICATION (Tiêu chuẩn doanh nghiệp) - Default
+        // 1. STATEMENT_NOTIFICATION (Phiếu chỉ số) - Default
         var (stmtSubj, stmtBody) = dummyService.GetFallbackDefaultTemplate(Constants.NotificationTemplateCode.StatementNotification, dummyContext);
         list.Add(new NotificationTemplateEntity
         {
             Code = Constants.NotificationTemplateCode.StatementNotification,
-            Name = "Mẫu Phiếu Báo Điện Năng - Tiêu Chuẩn Doanh Nghiệp (Phân Khối Khoa Học)",
+            Name = "Phiếu chỉ số",
             SubjectTemplate = stmtSubj,
             BodyHtmlTemplate = stmtBody,
-            Description = "Mẫu chuẩn doanh nghiệp gửi phiếu báo chỉ số và sản lượng điện năng hàng tháng, cấu trúc phân khối comment rõ ràng, đầy đủ bảng 3 giá, Pmax, Cos phi và tệp đính kèm PDF.",
+            Description = "Mẫu email thông báo sản lượng điện hàng tháng gửi khách hàng đính kèm file PDF",
             IsDefault = true,
             IsActive = true
         });
 
-        // 2. STATEMENT_NOTIFICATION (Hiện đại tinh gọn)
-        list.Add(new NotificationTemplateEntity
-        {
-            Code = Constants.NotificationTemplateCode.StatementNotification,
-            Name = "Mẫu Phiếu Báo Điện Năng - Hiện Đại Tinh Gọn",
-            SubjectTemplate = "Thông báo sản lượng điện năng tiêu thụ {{Period}} - {{CustomerName}}",
-            BodyHtmlTemplate = @"<html>
-<head><meta charset='utf-8'></head>
-<body style='margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,""Segoe UI"",Roboto,sans-serif;color:#1e293b;'>
-    <table width='100%' cellpadding='0' cellspacing='0' border='0' style='padding:32px 16px;'>
-        <tr>
-            <td align='center'>
-                <table width='100%' cellpadding='0' cellspacing='0' border='0' style='max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.05);border:1px solid #e2e8f0;'>
-                    <tr>
-                        <td style='background:#0f172a;padding:28px 32px;'>
-                            <span style='background:#b22222;color:#ffffff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;text-transform:uppercase;'>BÁO CÁO ĐIỆN NĂNG</span>
-                            <h2 style='margin:12px 0 4px 0;color:#ffffff;font-size:20px;'>{{CustomerName}}</h2>
-                            <p style='margin:0;color:#94a3b8;font-size:13px;'>Kỳ ghi chỉ số: {{Period}} (Điểm đo: {{PointCode}})</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style='padding:32px;'>
-                            <div style='background:#f8fafc;border-radius:12px;padding:20px;text-align:center;margin-bottom:24px;border:1px solid #e2e8f0;'>
-                                <div style='color:#64748b;font-size:13px;font-weight:600;text-transform:uppercase;'>Tổng Điện Năng Hữu Công Tiêu Thụ</div>
-                                <div style='color:#b22222;font-size:36px;font-weight:800;margin:8px 0;'>{{ConsumtionTotal}} <span style='font-size:18px;font-weight:500;color:#64748b;'>kWh</span></div>
-                                <div style='font-size:12.5px;color:#64748b;'>Từ ngày {{FromDate}} đến {{ToDate}}</div>
-                            </div>
-                            <table width='100%' cellpadding='10' cellspacing='0' border='0' style='margin-bottom:24px;font-size:13px;'>
-                                <tr style='border-bottom:1px solid #e2e8f0;'>
-                                    <td style='color:#475569;'>• Bình thường (BT):</td>
-                                    <td align='right' style='font-weight:700;color:#0f172a;'>{{ConsumtionBt}} kWh</td>
-                                </tr>
-                                <tr style='border-bottom:1px solid #e2e8f0;'>
-                                    <td style='color:#475569;'>• Cao điểm (CD):</td>
-                                    <td align='right' style='font-weight:700;color:#0f172a;'>{{ConsumtionCd}} kWh</td>
-                                </tr>
-                                <tr style='border-bottom:1px solid #e2e8f0;'>
-                                    <td style='color:#475569;'>• Thấp điểm (TD):</td>
-                                    <td align='right' style='font-weight:700;color:#0f172a;'>{{ConsumtionTd}} kWh</td>
-                                </tr>
-                                <tr>
-                                    <td style='color:#475569;'>• Công suất cực đại Pmax:</td>
-                                    <td align='right' style='font-weight:700;color:#0f172a;'>{{Pmax}}</td>
-                                </tr>
-                            </table>
-                            <div style='background:#f1f5f9;border-radius:8px;padding:14px;font-size:12.5px;color:#475569;line-height:1.6;'>
-                                Chi tiết bảng kê chỉ số công tơ được đính kèm trong tệp <strong>PhieuBaoSo_{{SerialNumber}}.pdf</strong>. Hotline giải đáp: <strong>{{SupportPhone}}</strong>.
-                            </div>
-                        </td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-    </table>
-</body>
-</html>",
-            Description = "Mẫu phong cách thẻ Card hiện đại, làm nổi bật chỉ số tổng và biểu giá 3 pha.",
-            IsDefault = false,
-            IsActive = true
-        });
-
-        // 3. USER_CREDENTIAL (Cấp tài khoản mới) - Default
+        // 2. USER_CREDENTIAL (Cấp mới tài khoản & mật khẩu) - Default
         var (userSubj, userBody) = dummyService.GetFallbackDefaultTemplate(Constants.NotificationTemplateCode.UserCredential, dummyContext);
         list.Add(new NotificationTemplateEntity
         {
             Code = Constants.NotificationTemplateCode.UserCredential,
-            Name = "Mẫu Cấp Tài Khoản & Mật Khẩu Người Dùng Mới (Phân Khối Khoa Học)",
+            Name = "Cấp mới tài khoản & mật khẩu",
             SubjectTemplate = userSubj,
             BodyHtmlTemplate = userBody,
-            Description = "Mẫu chuẩn doanh nghiệp gửi thông tin cấp tài khoản người dùng mới, cấu trúc phân khối rõ ràng, nút đăng nhập nhanh và lưu ý bảo mật an toàn.",
+            Description = "Mẫu email gửi thông tin tên đăng nhập và mật khẩu khi tài khoản được cấp mới",
             IsDefault = true,
             IsActive = true
         });
 
-        // 4. FORGOT_PASSWORD (Đặt lại mật khẩu) - Default
+        // 3. FORGOT_PASSWORD (Đặt lại mật khẩu) - Default
         var (forgotSubj, forgotBody) = dummyService.GetFallbackDefaultTemplate(Constants.NotificationTemplateCode.ForgotPassword, dummyContext);
         list.Add(new NotificationTemplateEntity
         {
             Code = Constants.NotificationTemplateCode.ForgotPassword,
-            Name = "Mẫu Yêu Cầu Thiết Lập Lại Mật Khẩu (Phân Khối Khoa Học)",
+            Name = "Đặt lại mật khẩu",
             SubjectTemplate = forgotSubj,
             BodyHtmlTemplate = forgotBody,
-            Description = "Mẫu chuẩn doanh nghiệp gửi link xác thực đặt lại mật khẩu người dùng với nút thao tác nhanh, cảnh báo thời hạn 10 phút và lưu ý an toàn.",
+            Description = "Mẫu email gửi link yêu cầu thiết lập lại mật khẩu người dùng",
             IsDefault = true,
             IsActive = true
         });

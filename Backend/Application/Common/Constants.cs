@@ -108,6 +108,20 @@ namespace Application.Common
             public const string CustomerCareFullname = "CUSTOMERCAREFULLNAME";
             public const string CustomerCareEmail = "CUSTOMERCAREEMAIL";
             public const string CustomerCarePhone = "CUSTOMERCAREPHONE";
+
+            // Thông tin công ty / đơn vị cung cấp điện
+            public const string CompanyName = "COMPANY_NAME";
+            public const string CompanyTaxCode = "COMPANY_TAX_CODE";
+            public const string CompanyPhone = "COMPANY_PHONE";
+            public const string CompanyFax = "COMPANY_FAX";
+            public const string CompanyEmail = "COMPANY_EMAIL";
+            public const string CompanyWebsite = "COMPANY_WEBSITE";
+            public const string CompanyProvince = "COMPANY_PROVINCE";
+            public const string CompanyDistrict = "COMPANY_DISTRICT";
+            public const string CompanyWard = "COMPANY_WARD";
+            public const string CompanyAddressDetail = "COMPANY_ADDRESS_DETAIL";
+            public const string CompanyCountry = "COMPANY_COUNTRY";
+            public const string CompanyAddress = "COMPANY_ADDRESS";
         }
     }
 }

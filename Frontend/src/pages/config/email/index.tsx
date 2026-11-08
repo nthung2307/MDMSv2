@@ -60,7 +60,6 @@ const EmailConfigPage = () => {
           form.setFieldsValue({
             providerType: type,
             senderEmail: data.senderEmail,
-            senderDisplayName: data.senderDisplayName,
             tenantId: data.tenantId,
             clientId: data.clientId,
             clientSecret: '',
@@ -70,7 +69,7 @@ const EmailConfigPage = () => {
             requireAuth: data.requireAuth !== false,
             smtpUsername: data.smtpUsername,
             smtpPassword: '',
-            isActive: data.isActive !== false,
+            isActive: true,
           });
         }
       },
@@ -107,7 +106,7 @@ const EmailConfigPage = () => {
         {
           providerType: values.providerType,
           senderEmail: values.senderEmail,
-          senderDisplayName: values.senderDisplayName,
+          senderDisplayName: null,
           tenantId: values.tenantId,
           clientId: values.clientId,
           clientSecret: values.clientSecret || null,
@@ -117,7 +116,7 @@ const EmailConfigPage = () => {
           requireAuth: values.requireAuth,
           smtpUsername: values.smtpUsername,
           smtpPassword: values.smtpPassword || null,
-          isActive: values.isActive ?? true,
+          isActive: true,
         },
         () => {
           notifySuccess('', 'Lưu cấu hình email thành công');
@@ -201,14 +200,7 @@ const EmailConfigPage = () => {
         <Card className={'shadow-custom'}>
           <div>
             <div className={'flex justify-between items-center mb-6'}>
-              <h1 className='font-bold text-20-20'>{'Cấu hình dịch vụ Email gửi thông báo'}</h1>
-              <Form.Item name='isActive' noStyle valuePropName='checked'>
-                <Switch
-                  checkedChildren='Kích hoạt dịch vụ'
-                  unCheckedChildren='Tạm ngưng dịch vụ'
-                  defaultChecked
-                />
-              </Form.Item>
+              <h1 className='font-bold text-20-20'>{'Cấu hình dịch vụ Email'}</h1>
             </div>
 
             <Form
@@ -232,28 +224,29 @@ const EmailConfigPage = () => {
                     <Radio.Button
                       value='MICROSOFT_GRAPH'
                       className='h-auto p-4 text-center rounded-lg border flex flex-col items-center justify-center hover:border-red-500 transition-colors'
+                      style={{ minHeight: 96 }}
                     >
                       <MicrosoftIcon className='w-8 h-8 mb-2 mx-auto' />
                       <div className='font-semibold text-gray-800'>Microsoft 365</div>
-                      <div className='text-xs text-gray-500 mt-1'>Graph API OAuth 2.0 (VSIP Hải Phòng)</div>
+                      <div className='text-xs text-gray-500 mt-1'>Graph API OAuth 2.0</div>
                     </Radio.Button>
 
                     <Radio.Button
                       value='CUSTOM_SMTP'
                       className='h-auto p-4 text-center rounded-lg border flex flex-col items-center justify-center hover:border-red-500 transition-colors'
+                      style={{ minHeight: 96 }}
                     >
                       <IoServerOutline className='text-3xl text-indigo-600 mb-2 mx-auto' />
                       <div className='font-semibold text-gray-800'>Custom SMTP</div>
-                      <div className='text-xs text-gray-500 mt-1'>Máy chủ Exchange / SMTP nội bộ</div>
                     </Radio.Button>
 
                     <Radio.Button
                       value='GMAIL'
                       className='h-auto p-4 text-center rounded-lg border flex flex-col items-center justify-center hover:border-red-500 transition-colors'
+                      style={{ minHeight: 96 }}
                     >
                       <GoogleIcon className='w-8 h-8 mb-2 mx-auto' />
-                      <div className='font-semibold text-gray-800'>Google Gmail</div>
-                      <div className='text-xs text-gray-500 mt-1'>Tài khoản Google App Password</div>
+                      <div className='font-semibold text-gray-800'>Gmail</div>
                     </Radio.Button>
                   </Radio.Group>
                 </Form.Item>
@@ -267,7 +260,7 @@ const EmailConfigPage = () => {
                 <Row gutter={24}>
                   <Col xs={24} md={12}>
                     <Form.Item
-                      label='Email người gửi (From Address)'
+                      label='Email'
                       name='senderEmail'
                       rules={[
                         { required: true, message: 'Vui lòng nhập địa chỉ email người gửi' },
@@ -279,18 +272,6 @@ const EmailConfigPage = () => {
                         size='large'
                         prefix={<IoMailOutline className='text-gray-400 mr-1' />}
                         placeholder='Ví dụ: noreply.hoadondientu.hp@vsip.com.vn'
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item
-                      label='Tên hiển thị người gửi (Display Name)'
-                      name='senderDisplayName'
-                      rules={[{ required: true, message: 'Vui lòng nhập tên hiển thị người gửi' }]}
-                    >
-                      <Input
-                        size='large'
-                        placeholder='Ví dụ: VSIP Hải Phòng - Phòng Cơ Điện'
                       />
                     </Form.Item>
                   </Col>
@@ -328,11 +309,25 @@ const EmailConfigPage = () => {
                       <Form.Item
                         label='Client Secret Value'
                         name='clientSecret'
-                        tooltip={hasClientSecret ? 'Mật khẩu ứng dụng đã được lưu trên hệ thống. Để trống nếu không muốn thay đổi.' : 'Khóa bảo mật ứng dụng Client Secret'}
+                        required={!hasClientSecret}
+                        rules={
+                          !hasClientSecret
+                            ? [{ required: true, message: 'Vui lòng nhập Client Secret Value' }]
+                            : []
+                        }
+                        tooltip={
+                          hasClientSecret
+                            ? 'Mật khẩu ứng dụng đã được lưu trên hệ thống. Để trống nếu giữ nguyên.'
+                            : 'Khóa bảo mật ứng dụng Client Secret từ Azure Portal'
+                        }
                       >
                         <Input.Password
                           size='large'
-                          placeholder={hasClientSecret ? '•••••••••••••••••••• (Đã có secret được lưu an toàn)' : 'Nhập Client Secret Value từ Azure Portal'}
+                          placeholder={
+                            hasClientSecret
+                              ? '•••••••••••••••••••• (Đã có secret được lưu an toàn - Để trống nếu giữ nguyên)'
+                              : 'Nhập Client Secret Value từ Azure Portal'
+                          }
                         />
                       </Form.Item>
                     </Col>
@@ -397,11 +392,25 @@ const EmailConfigPage = () => {
                           <Form.Item
                             label={providerType === 'GMAIL' ? 'Mật khẩu ứng dụng Google (16 ký tự)' : 'Mật khẩu SMTP (Password)'}
                             name='smtpPassword'
-                            tooltip={hasSmtpPassword ? 'Mật khẩu đã được mã hóa bảo vệ. Để trống nếu giữ nguyên.' : 'Mật khẩu ứng dụng gửi thư'}
+                            required={!hasSmtpPassword}
+                            rules={
+                              !hasSmtpPassword
+                                ? [{ required: true, message: 'Vui lòng nhập mật khẩu' }]
+                                : []
+                            }
+                            tooltip={
+                              hasSmtpPassword
+                                ? 'Mật khẩu đã được mã hóa bảo vệ. Để trống nếu giữ nguyên.'
+                                : 'Mật khẩu ứng dụng gửi thư'
+                            }
                           >
                             <Input.Password
                               size='large'
-                              placeholder={hasSmtpPassword ? '•••••••••••••••••••• (Đã có mật khẩu được lưu)' : 'Nhập mật khẩu SMTP'}
+                              placeholder={
+                                hasSmtpPassword
+                                  ? '•••••••••••••••••••• (Đã có mật khẩu được lưu - Để trống nếu giữ nguyên)'
+                                  : 'Nhập mật khẩu SMTP'
+                              }
                             />
                           </Form.Item>
                         </Col>
@@ -416,7 +425,7 @@ const EmailConfigPage = () => {
                 <div className='flex items-center gap-2 mb-3'>
                   <IoCheckmarkCircleOutline className='text-blue-600 text-xl' />
                   <Text strong className='text-16-20 text-blue-900'>
-                    Kiểm tra kết nối và gửi thử nghiệm (Test Connection)
+                    Kiểm tra kết nối (Test Connection)
                   </Text>
                 </div>
                 <p className='text-gray-600 text-sm mb-4'>

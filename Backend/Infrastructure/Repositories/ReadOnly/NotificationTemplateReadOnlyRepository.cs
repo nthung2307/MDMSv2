@@ -49,8 +49,34 @@ public class NotificationTemplateReadOnlyRepository : RestfulRepository<Notifica
     public async Task<NotificationTemplateEntity?> GetDefaultByCodeAsync(string code, CancellationToken cancellationToken = default)
     {
         var codeUpper = code.Trim().ToUpperInvariant();
-        return await _entities.AsNoTracking()
+
+        // 1. Ưu tiên 1: Đang kích hoạt (IsActive) và là mặc định (IsDefault)
+        var template = await _entities.AsNoTracking()
             .Where(x => x.Code.ToUpper() == codeUpper && x.IsActive && x.IsDefault)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (template != null) return template;
+
+        // 2. Ưu tiên 2: Đang kích hoạt (IsActive) gần nhất
+        template = await _entities.AsNoTracking()
+            .Where(x => x.Code.ToUpper() == codeUpper && x.IsActive)
+            .OrderByDescending(x => x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (template != null) return template;
+
+        // 3. Ưu tiên 3: Là mặc định (IsDefault)
+        template = await _entities.AsNoTracking()
+            .Where(x => x.Code.ToUpper() == codeUpper && x.IsDefault)
+            .OrderByDescending(x => x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (template != null) return template;
+
+        // 4. Ưu tiên 4: Bất kỳ mẫu nào theo mã
+        return await _entities.AsNoTracking()
+            .Where(x => x.Code.ToUpper() == codeUpper)
+            .OrderByDescending(x => x.Id)
             .FirstOrDefaultAsync(cancellationToken);
     }
 

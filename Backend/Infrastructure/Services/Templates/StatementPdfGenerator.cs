@@ -5,6 +5,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Application.DataTransferObjects.Templates;
@@ -27,8 +28,8 @@ public class StatementPdfGenerator : IStatementPdfGenerator
 
     public static byte[] GetTopRightDecorBytes()
     {
-        int width = 331;
-        int height = 232;
+        int width = 662;
+        int height = 464;
         using var bmp = new System.Drawing.Bitmap(width, height);
         using (var g = System.Drawing.Graphics.FromImage(bmp))
         {
@@ -39,10 +40,10 @@ public class StatementPdfGenerator : IStatementPdfGenerator
             using (var path1 = new System.Drawing.Drawing2D.GraphicsPath())
             {
                 path1.StartFigure();
-                path1.AddLine(95f, 0f, 330.5f, 0f);
-                path1.AddLine(330.5f, 0f, 330.5f, 232f);
-                path1.AddBezier(330.5f, 232f, 280f, 164.333f, 176.6f, 26.1f, 167f, 14.5f);
-                path1.AddBezier(167f, 14.5f, 157.4f, 2.9f, 115f, 0f, 95f, 0f);
+                path1.AddLine(190f, 0f, 661f, 0f);
+                path1.AddLine(661f, 0f, 661f, 464f);
+                path1.AddBezier(661f, 464f, 560f, 328.666f, 353.2f, 52.2f, 334f, 29f);
+                path1.AddBezier(334f, 29f, 314.8f, 5.8f, 230f, 0f, 190f, 0f);
                 path1.CloseFigure();
 
                 using var brush1 = new System.Drawing.SolidBrush(System.Drawing.ColorTranslator.FromHtml("#9FC153"));
@@ -53,24 +54,12 @@ public class StatementPdfGenerator : IStatementPdfGenerator
             using (var path2 = new System.Drawing.Drawing2D.GraphicsPath())
             {
                 path2.StartFigure();
-                path2.AddLine(236f, 0f, 330f, 0f);
-                path2.AddLine(330f, 0f, 330f, 128f);
+                path2.AddLine(472f, 0f, 660f, 0f);
+                path2.AddLine(660f, 0f, 660f, 256f);
                 path2.CloseFigure();
 
                 using var brush2 = new System.Drawing.SolidBrush(System.Drawing.ColorTranslator.FromHtml("#0093ED"));
                 g.FillPath(brush2, path2);
-            }
-
-            // Path 3: Deep blue corner accent (#004C87)
-            using (var path3 = new System.Drawing.Drawing2D.GraphicsPath())
-            {
-                path3.StartFigure();
-                path3.AddLine(288f, 0f, 330f, 0f);
-                path3.AddLine(330f, 0f, 330f, 58f);
-                path3.CloseFigure();
-
-                using var brush3 = new System.Drawing.SolidBrush(System.Drawing.ColorTranslator.FromHtml("#004C87"));
-                g.FillPath(brush3, path3);
             }
         }
 
@@ -109,27 +98,13 @@ public class StatementPdfGenerator : IStatementPdfGenerator
 
         template ??= GetFallbackDefaultTemplate();
 
-        var engine = !string.IsNullOrWhiteSpace(template.EngineType) ? template.EngineType.Trim().ToUpperInvariant() : "EXCEL_LIBREOFFICE";
-        if (engine == "EXCEL_LIBREOFFICE")
-        {
-            try
-            {
-                var excelBytes = await GenerateExcelStatementAsync(statement, template, cancellationToken);
-                return await ConvertExcelToPdfViaLibreOfficeAsync(excelBytes, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Chuyển đổi Excel sang PDF qua LibreOffice không khả dụng ({Message}). Tự động fallback sang QuestPDF engine.", ex.Message);
-            }
-        }
-
-        // QuestPDF rendering fallback
+        // Sử dụng thống nhất 100% QuestPDF Engine với bố cục co giãn cột động (đồng nhất tuyệt đối với TemplateNotice trên Web)
         var stream = new MemoryStream();
         BuildQuestPdfDocument(statement, template).GeneratePdf(stream);
         return stream.ToArray();
     }
 
-    public async Task<byte[]> GeneratePreviewPdfAsync(PreviewStatementPdfTemplateRequest templateRequest, CancellationToken cancellationToken = default)
+    public Task<byte[]> GeneratePreviewPdfAsync(PreviewStatementPdfTemplateRequest templateRequest, CancellationToken cancellationToken = default)
     {
         var template = new StatementPdfTemplateEntity
         {
@@ -140,7 +115,7 @@ public class StatementPdfGenerator : IStatementPdfGenerator
             ContactPhone = templateRequest.ContactPhone,
             LogoBase64 = templateRequest.LogoBase64,
             PaperSize = templateRequest.PaperSize,
-            EngineType = templateRequest.EngineType,
+            EngineType = "QUEST_PDF",
             ExcelTemplateBase64 = templateRequest.ExcelTemplateBase64,
             ExcelTemplateFileName = templateRequest.ExcelTemplateFileName,
             DisplayColumnsJson = templateRequest.DisplayColumnsJson,
@@ -150,23 +125,9 @@ public class StatementPdfGenerator : IStatementPdfGenerator
 
         var mockStatement = CreateMockStatement();
 
-        var engine = !string.IsNullOrWhiteSpace(template.EngineType) ? template.EngineType.Trim().ToUpperInvariant() : "EXCEL_LIBREOFFICE";
-        if (engine == "EXCEL_LIBREOFFICE")
-        {
-            try
-            {
-                var excelBytes = await GenerateExcelStatementAsync(mockStatement, template, cancellationToken);
-                return await ConvertExcelToPdfViaLibreOfficeAsync(excelBytes, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Xem trước PDF qua LibreOffice không khả dụng ({Message}). Tự động fallback sang QuestPDF engine.", ex.Message);
-            }
-        }
-
         var stream = new MemoryStream();
         BuildQuestPdfDocument(mockStatement, template).GeneratePdf(stream);
-        return stream.ToArray();
+        return Task.FromResult(stream.ToArray());
     }
 
     public byte[] GetStandardExcelTemplate(string paperSize = "A5_LANDSCAPE")
@@ -247,40 +208,33 @@ public class StatementPdfGenerator : IStatementPdfGenerator
         ws.Cells["A7"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
 
         // 3. Customer & Meter Metadata
-        ws.Cells["A9:D9"].Merge = true;
-        ws.Cells["A9"].Value = "Khách hàng (Customer): {{CustomerName}}";
+        ws.Cells["A9:H9"].Merge = true;
+        ws.Cells["A9"].Value = "Tenant Name (Tên khách hàng): {{CustomerName}}";
         ws.Cells["A9"].Style.Font.Bold = true;
 
-        ws.Cells["E9:H9"].Merge = true;
-        ws.Cells["E9"].Value = "Kỳ chốt (Period): {{Period}}";
-        ws.Cells["E9"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+        ws.Cells["A10:H10"].Merge = true;
+        ws.Cells["A10"].Value = "Meter ID (Mã điểm đo): {{PointCode}}";
+        ws.Cells["A10"].Style.Font.Bold = true;
 
-        ws.Cells["A10:D10"].Merge = true;
-        ws.Cells["A10"].Value = "Địa chỉ (Address): {{Address}}";
+        ws.Cells["A11:B11"].Merge = true;
+        ws.Cells["A11"].Value = "Reading Time (Giờ ghi): {{ReadingTime}}";
 
-        ws.Cells["E10:H10"].Merge = true;
-        ws.Cells["E10"].Value = "Hệ số nhân (Multiplier): {{Multiplier}}";
-        ws.Cells["E10"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+        ws.Cells["C11:E11"].Merge = true;
+        ws.Cells["C11"].Value = "Reading Date (Ngày ghi): {{ReadingDate}}";
 
-        ws.Cells["A11:D11"].Merge = true;
-        ws.Cells["A11"].Value = "Mã điểm đo (Point Code): {{PointCode}}";
-        ws.Cells["A11"].Style.Font.Bold = true;
+        ws.Cells["F11:H11"].Merge = true;
+        ws.Cells["F11"].Value = "For month (Tháng): {{ForMonth}}";
 
-        ws.Cells["E11:H11"].Merge = true;
-        ws.Cells["E11"].Value = "Số chế tạo (Meter Serial): {{MeterSerial}}";
-        ws.Cells["E11"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
-        ws.Cells["E11"].Style.Font.Bold = true;
-
-        // 4. Data Table Header
+        // 4. Data Table Header (Horizontal Grid 8 Columns - Matches TemplateNotice exactly)
         int tableStartRow = 13;
-        ws.Cells[tableStartRow, 1].Value = "Biểu giá điện\n(Tariff)";
-        ws.Cells[tableStartRow, 2].Value = "Chỉ số cũ\n(Previous)";
-        ws.Cells[tableStartRow, 3].Value = "Chỉ số mới\n(Current)";
-        ws.Cells[tableStartRow, 4].Value = "Độ lệch\n(Difference)";
-        ws.Cells[tableStartRow, 5].Value = "HSN\n(Factor)";
-        ws.Cells[tableStartRow, 6].Value = "Sản lượng (kWh)\n(Consumption)";
-        ws.Cells[tableStartRow, 7].Value = "Pmax\n(kW)";
-        ws.Cells[tableStartRow, 8].Value = "Cos φ";
+        ws.Cells[tableStartRow, 1].Value = "Description\n(Mô tả)";
+        ws.Cells[tableStartRow, 2].Value = "Normal hours\nkWh meter 1\n(Giờ bình thường)";
+        ws.Cells[tableStartRow, 3].Value = "Peak hours\nkWh meter 2\n(Giờ cao điểm)";
+        ws.Cells[tableStartRow, 4].Value = "Off-peak hours\nkWh meter 3\n(Giờ thấp điểm)";
+        ws.Cells[tableStartRow, 5].Value = "Total active power\n(Tổng công suất tác dụng)\nAP";
+        ws.Cells[tableStartRow, 6].Value = "Total reactive power\n(Tổng công suất phản kháng)\nAQ";
+        ws.Cells[tableStartRow, 7].Value = "Cos φ TB\n(≥0.9)";
+        ws.Cells[tableStartRow, 8].Value = "Remarks\n(Ghi chú)";
 
         using (var headerRange = ws.Cells[tableStartRow, 1, tableStartRow, 8])
         {
@@ -295,30 +249,30 @@ public class StatementPdfGenerator : IStatementPdfGenerator
             headerRange.Style.Border.Left.Style = ExcelBorderStyle.Thin;
             headerRange.Style.Border.Right.Style = ExcelBorderStyle.Thin;
         }
-        ws.Row(tableStartRow).Height = 28;
+        ws.Row(tableStartRow).Height = 32;
 
-        // Data Rows
-        var rowsData = new (string Label, string Prev, string Curr, string Diff, string Hsn, string Cons, string Pmax, string CosPhi, bool IsBold)[]
+        // Data Rows (4 rows matrix)
+        var rowsData = new (string Label, string Col2, string Col3, string Col4, string Col5, string Col6, string Col7, string Col8, bool IsBold)[]
         {
-            ("1. Bình thường (Normal - BT)", "{{PreviousBt}}", "{{Bt}}", "{{DiffBt}}", "{{Multiplier}}", "{{ConsumtionBt}}", "-", "-", false),
-            ("2. Cao điểm (Peak - CD)", "{{PreviousCd}}", "{{Cd}}", "{{DiffCd}}", "{{Multiplier}}", "{{ConsumtionCd}}", "-", "-", false),
-            ("3. Thấp điểm (Off-Peak - TD)", "{{PreviousTd}}", "{{Td}}", "{{DiffTd}}", "{{Multiplier}}", "{{ConsumtionTd}}", "-", "-", false),
-            ("Tổng điện năng hữu công (Total kWh)", "{{PreviousSg}}", "{{Sg}}", "{{DiffSg}}", "{{Multiplier}}", "{{ConsumtionSg}}", "{{Pmax}}", "{{CosPhi}}", true),
-            ("Vô công (Reactive - kVARh)", "{{PreviousVc}}", "{{Vc}}", "{{DiffVc}}", "{{Multiplier}}", "{{ConsumtionVc}}", "-", "-", false)
+            ("Previous meter reading\n(Chỉ số cũ)\nReading date: {{FromDate}}\n(Ngày ghi)", "{{PreviousBt}}", "{{PreviousCd}}", "{{PreviousTd}}", "{{PreviousSg}}", "{{PreviousVc}}", "", "", false),
+            ("Current meter reading\n(Chỉ số mới)", "{{Bt}}", "{{Cd}}", "{{Td}}", "{{Sg}}", "{{Vc}}", "", "", false),
+            ("Multiplier\n(hệ số)", "{{Multiplier}}", "{{Multiplier}}", "{{Multiplier}}", "{{Multiplier}}", "{{Multiplier}}", "", "", false),
+            ("Actual consumption\n(Số tiêu thụ thực tế)", "{{ConsumtionBt}}", "{{ConsumtionCd}}", "{{ConsumtionTd}}", "{{ConsumtionSg}}", "{{ConsumtionVc}}", "{{CosPhi}}", "", true)
         };
 
         int currentRow = tableStartRow + 1;
         foreach (var r in rowsData)
         {
             ws.Cells[currentRow, 1].Value = r.Label;
-            ws.Cells[currentRow, 2].Value = r.Prev;
-            ws.Cells[currentRow, 3].Value = r.Curr;
-            ws.Cells[currentRow, 4].Value = r.Diff;
-            ws.Cells[currentRow, 5].Value = r.Hsn;
-            ws.Cells[currentRow, 6].Value = r.Cons;
-            ws.Cells[currentRow, 7].Value = r.Pmax;
-            ws.Cells[currentRow, 8].Value = r.CosPhi;
+            ws.Cells[currentRow, 2].Value = r.Col2;
+            ws.Cells[currentRow, 3].Value = r.Col3;
+            ws.Cells[currentRow, 4].Value = r.Col4;
+            ws.Cells[currentRow, 5].Value = r.Col5;
+            ws.Cells[currentRow, 6].Value = r.Col6;
+            ws.Cells[currentRow, 7].Value = r.Col7;
+            ws.Cells[currentRow, 8].Value = r.Col8;
 
+            ws.Cells[currentRow, 1].Style.WrapText = true;
             if (r.IsBold)
             {
                 ws.Cells[currentRow, 1, currentRow, 8].Style.Font.Bold = true;
@@ -326,10 +280,8 @@ public class StatementPdfGenerator : IStatementPdfGenerator
                 ws.Cells[currentRow, 1, currentRow, 8].Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(248, 249, 250));
             }
 
-            ws.Cells[currentRow, 2, currentRow, 4].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
-            ws.Cells[currentRow, 5].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
-            ws.Cells[currentRow, 6, currentRow, 7].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
-            ws.Cells[currentRow, 8].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+            ws.Cells[currentRow, 2, currentRow, 8].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+            ws.Cells[currentRow, 2, currentRow, 8].Style.VerticalAlignment = ExcelVerticalAlignment.Center;
 
             for (int c = 1; c <= 8; c++)
             {
@@ -338,54 +290,58 @@ public class StatementPdfGenerator : IStatementPdfGenerator
                 ws.Cells[currentRow, c].Style.Border.Left.Style = ExcelBorderStyle.Thin;
                 ws.Cells[currentRow, c].Style.Border.Right.Style = ExcelBorderStyle.Thin;
             }
-            ws.Row(currentRow).Height = 20;
+            ws.Row(currentRow).Height = 28;
             currentRow++;
         }
 
-        // 5. Pmax note and footer
+        // 5. Pmax note and confirmation
         currentRow++;
         ws.Cells[currentRow, 1, currentRow, 8].Merge = true;
-        ws.Cells[currentRow, 1].Value = "* Công suất cực đại Pmax: {{Pmax}} kW (Ghi nhận lúc: {{PmaxTime}})";
+        ws.Cells[currentRow, 1].Value = "* Công suất cực đại Pmax: {{Pmax}} kW, ghi nhận hồi: {{PmaxTime}}";
         ws.Cells[currentRow, 1].Style.Font.Bold = true;
         currentRow++;
 
         ws.Cells[currentRow, 1, currentRow, 8].Merge = true;
-        ws.Cells[currentRow, 1].Value = "Ghi chú: {{FooterNotes}}";
-        ws.Cells[currentRow, 1].Style.Font.Italic = true;
+        ws.Cells[currentRow, 1].Value = "The above meter reading has been jointly read by the following Parties:\n(Các chỉ số trên đã được các Bên dưới đây xác nhận)";
         ws.Cells[currentRow, 1].Style.Font.Size = 8;
+        ws.Cells[currentRow, 1].Style.WrapText = true;
         currentRow += 2;
 
         // 6. Dual Signatures
         ws.Cells[currentRow, 1, currentRow, 4].Merge = true;
-        ws.Cells[currentRow, 1].Value = "Party A (Supplier) / Bên A (Đơn vị bán điện - VSIP Hải Phòng)";
+        ws.Cells[currentRow, 1].Value = "Party A (VSIP Hai Phong Co., Ltd.)\nBên A (Công ty TNHH VSIP Hải Phòng)";
         ws.Cells[currentRow, 1].Style.Font.Bold = true;
         ws.Cells[currentRow, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+        ws.Cells[currentRow, 1].Style.WrapText = true;
 
         ws.Cells[currentRow, 5, currentRow, 8].Merge = true;
-        ws.Cells[currentRow, 5].Value = "Party B (Tenant) / Bên B (Khách hàng mua điện)";
+        ws.Cells[currentRow, 5].Value = "Party B (Tenant)\nBên B (Khách hàng)";
         ws.Cells[currentRow, 5].Style.Font.Bold = true;
         ws.Cells[currentRow, 5].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+        ws.Cells[currentRow, 5].Style.WrapText = true;
 
         currentRow++;
         ws.Cells[currentRow, 1, currentRow, 4].Merge = true;
-        ws.Cells[currentRow, 1].Value = "Name and Signature / (Ký và ghi rõ họ tên)";
+        ws.Cells[currentRow, 1].Value = "\n\nName and Signature:\n(Ký và ghi rõ họ tên)";
         ws.Cells[currentRow, 1].Style.Font.Size = 8;
         ws.Cells[currentRow, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+        ws.Cells[currentRow, 1].Style.WrapText = true;
 
         ws.Cells[currentRow, 5, currentRow, 8].Merge = true;
-        ws.Cells[currentRow, 5].Value = "Name and Signature / (Ký và ghi rõ họ tên)";
+        ws.Cells[currentRow, 5].Value = "\n\nName and Signature:\n(Ký và ghi rõ họ tên)";
         ws.Cells[currentRow, 5].Style.Font.Size = 8;
         ws.Cells[currentRow, 5].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+        ws.Cells[currentRow, 5].Style.WrapText = true;
 
         // Column widths
-        ws.Column(1).Width = 32;
+        ws.Column(1).Width = 28;
         ws.Column(2).Width = 14;
         ws.Column(3).Width = 14;
         ws.Column(4).Width = 14;
-        ws.Column(5).Width = 10;
-        ws.Column(6).Width = 18;
-        ws.Column(7).Width = 14;
-        ws.Column(8).Width = 10;
+        ws.Column(5).Width = 16;
+        ws.Column(6).Width = 16;
+        ws.Column(7).Width = 12;
+        ws.Column(8).Width = 12;
 
         return package.GetAsByteArray();
     }
@@ -456,7 +412,9 @@ public class StatementPdfGenerator : IStatementPdfGenerator
             var serialNumber = !string.IsNullOrWhiteSpace(statement.SerialNumber) ? statement.SerialNumber : "---";
             var mult = statement.Multiplier > 0 ? statement.Multiplier : (statement.MeasurementPoint?.MultiplierFactor ?? 1);
 
-            var fromDateStr = statement.PreviousDay.HasValue ? $"{statement.PreviousDay:00}/{statement.PreviousMonth:00}/{statement.PreviousYear}" : "01/10/2026";
+            var fromDateStr = statement.PreviousDay.HasValue && statement.PreviousMonth.HasValue && statement.PreviousYear.HasValue && statement.PreviousDay.Value > 0
+                ? $"{statement.PreviousDay.Value:00}/{statement.PreviousMonth.Value:00}/{statement.PreviousYear.Value}"
+                : ".........";
             var toDateStr = $"{statement.Day:00}/{statement.Month:00}/{statement.Year}";
             var periodStr = $"{fromDateStr} - {toDateStr}";
 
@@ -467,8 +425,16 @@ public class StatementPdfGenerator : IStatementPdfGenerator
             var diffVc = statement.Vc - statement.PreviousVc;
 
             var pmaxStr = statement.Pmax > 0 ? statement.Pmax.ToString("N2") : "-";
-            var pmaxTimeStr = statement.PmaxTime.HasValue ? statement.PmaxTime.Value.ToString("dd/MM/yyyy HH:mm:ss") : "---";
-            var billingTimeStr = statement.BillingTimestamp.HasValue ? statement.BillingTimestamp.Value.ToString("dd/MM/yyyy HH:mm:ss") : toDateStr;
+            var billingLocal = statement.BillingTimestamp.HasValue
+                ? statement.BillingTimestamp.Value.ToOffset(TimeSpan.FromHours(7))
+                : (DateTimeOffset?)null;
+            var readingTimeStr = billingLocal.HasValue ? billingLocal.Value.ToString("HH:mm:ss") : "00:00:00";
+            var readingDateStr = billingLocal.HasValue ? billingLocal.Value.ToString("dd/MM/yyyy") : toDateStr;
+            var forMonthStr = $"{statement.Month:00}/{statement.Year}";
+            var pmaxTimeStr = statement.PmaxTime.HasValue
+                ? statement.PmaxTime.Value.ToOffset(TimeSpan.FromHours(7)).ToString("dd/MM/yyyy HH:mm:ss")
+                : "---";
+            var billingTimeStr = billingLocal.HasValue ? billingLocal.Value.ToString("dd/MM/yyyy HH:mm:ss") : toDateStr;
 
             // Cos phi calculation (ưu tiên giá trị đã lưu, hoặc tự động tính từ AP và AQ)
             var cosPhiStr = "-";
@@ -493,7 +459,7 @@ public class StatementPdfGenerator : IStatementPdfGenerator
                 { "{{CompanyAddress}}", template.CompanyAddress ?? "" },
                 { "{{ContactPhone}}", template.ContactPhone ?? "" },
                 { "{{HeaderTitle}}", template.HeaderTitle ?? "MONTHLY POWER METER READING" },
-                { "{{SubHeaderTitle}}", template.SubHeaderTitle ?? "(PHIẾU GHI SỐ ĐIỆN HÀNG THÁNG)" },
+                { "{{SubHeaderTitle}}", template.SubHeaderTitle ?? "(PHIẾU CHỈ SỐ ĐIỆN HÀNG THÁNG)" },
                 { "{{CustomerName}}", customerName },
                 { "{{CustomerCode}}", customerCode },
                 { "{{Address}}", address },
@@ -501,6 +467,11 @@ public class StatementPdfGenerator : IStatementPdfGenerator
                 { "{{PointCode}}", pointCode },
                 { "{{MeterSerial}}", serialNumber },
                 { "{{Period}}", periodStr },
+                { "{{FromDate}}", fromDateStr },
+                { "{{ToDate}}", toDateStr },
+                { "{{ReadingTime}}", readingTimeStr },
+                { "{{ReadingDate}}", readingDateStr },
+                { "{{ForMonth}}", forMonthStr },
                 { "{{BillingTimestamp}}", billingTimeStr },
                 { "{{Multiplier}}", mult },
                 { "{{PreviousBt}}", statement.PreviousBt },
@@ -671,210 +642,546 @@ public class StatementPdfGenerator : IStatementPdfGenerator
         return null;
     }
 
-    private static IDocument BuildQuestPdfDocument(PeriodicEnergyStatementEntity statement, StatementPdfTemplateEntity template)
+    public class StatementLayoutConfig
     {
-        var isLandscape = string.Equals(template.PaperSize, "A5_LANDSCAPE", StringComparison.OrdinalIgnoreCase);
-        var pageSize = isLandscape ? new PageSize(595f, 420f) : PageSizes.A4;
+        public List<string> Columns { get; set; } = new() { "BT", "CD", "TD", "SG", "VC", "COSPHI", "REMARKS", "PMAX", "MULTIPLIER" };
+        public string TaxCode { get; set; } = string.Empty;
+        public bool ShowTaxCode { get; set; } = false;
+        public string DocumentCode { get; set; } = "M&E-1/01 PR04";
+        public string CopyLabel { get; set; } = "(M&E Copy – Liên cho Phòng Cơ Điện)";
+        public string PartyAName { get; set; } = "Party A (VSIP Hai Phong Co., Ltd.)\nBên A (Công ty TNHH VSIP Hải Phòng)";
+        public string PartyBName { get; set; } = "Party B (Tenant)\nBên B (Khách hàng)";
+        public string HeaderLeftMode { get; set; } = "LOGO"; // LOGO | NONE
+        public string HeaderCenterMode { get; set; } = "LOGO"; // LOGO | NONE
+        public string HeaderRightMode { get; set; } = "DECOR"; // DECOR | LOGO | NONE
+        public string HeaderLeftText { get; set; } = string.Empty;
+        public string HeaderCenterText { get; set; } = string.Empty;
+        public string HeaderRightText { get; set; } = string.Empty;
+        public string FooterLeftMode { get; set; } = "LOGO"; // LOGO | NONE
+        public string FooterCenterMode { get; set; } = "LOGO"; // LOGO | NONE
+        public string FooterRightMode { get; set; } = "LOGO"; // LOGO | NONE
+        public string FooterLeftText { get; set; } = string.Empty;
+        public string FooterCenterText { get; set; } = string.Empty;
+        public string FooterRightText { get; set; } = string.Empty;
+    }
 
-        byte[] logoData;
+    public class StatementLogosConfig
+    {
+        public string? HeaderLeftLogo { get; set; }
+        public string? HeaderCenterLogo { get; set; }
+        public string? HeaderRightLogo { get; set; }
+        public string? FooterLeftLogo { get; set; }
+        public string? FooterCenterLogo { get; set; }
+        public string? FooterRightLogo { get; set; }
+    }
+
+    public static StatementLayoutConfig ParseLayoutConfig(StatementPdfTemplateEntity? template)
+    {
+        var config = new StatementLayoutConfig();
+        if (template == null || string.IsNullOrWhiteSpace(template.DisplayColumnsJson))
+        {
+            return config;
+        }
+
+        var raw = template.DisplayColumnsJson.Trim();
         try
         {
-            var logoStr = !string.IsNullOrWhiteSpace(template.LogoBase64) ? template.LogoBase64 : DefaultLogoBase64;
-            if (logoStr.Contains(","))
+            if (raw.StartsWith("["))
             {
-                logoStr = logoStr.Substring(logoStr.IndexOf(",") + 1);
+                var cols = JsonSerializer.Deserialize<List<string>>(raw);
+                if (cols != null && cols.Count > 0)
+                {
+                    var set = new HashSet<string>(cols, StringComparer.OrdinalIgnoreCase);
+                    // Mặc định bổ sung REMARKS và MULTIPLIER cho mảng cũ để đồng nhất 100% với mẫu chuẩn
+                    if (!set.Contains("REMARKS")) cols.Add("REMARKS");
+                    if (!set.Contains("MULTIPLIER")) cols.Add("MULTIPLIER");
+                    config.Columns = cols;
+                }
             }
-            logoData = Convert.FromBase64String(logoStr.Trim());
+            else if (raw.StartsWith("{"))
+            {
+                var parsed = JsonSerializer.Deserialize<StatementLayoutConfig>(raw, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+                if (parsed != null)
+                {
+                    if (parsed.Columns == null || parsed.Columns.Count == 0)
+                    {
+                        parsed.Columns = new List<string> { "BT", "CD", "TD", "SG", "VC", "COSPHI", "REMARKS", "PMAX", "MULTIPLIER" };
+                    }
+                    return parsed;
+                }
+            }
         }
         catch
         {
-            try { logoData = Convert.FromBase64String(DefaultLogoBase64); } catch { logoData = Array.Empty<byte>(); }
+            // Giữ cấu hình mặc định nếu JSON không hợp lệ
         }
 
-        byte[] decorData;
-        try { decorData = GetTopRightDecorBytes(); } catch { decorData = Array.Empty<byte>(); }
+        return config;
+    }
 
-        var columns = ParseColumns(template.DisplayColumnsJson);
+    public static StatementLogosConfig ParseLogosConfig(StatementPdfTemplateEntity? template)
+    {
+        var logos = new StatementLogosConfig
+        {
+            HeaderLeftLogo = template?.LogoBase64
+        };
+
+        if (template != null && !string.IsNullOrWhiteSpace(template.ExcelTemplateBase64))
+        {
+            var raw = template.ExcelTemplateBase64.Trim();
+            if (raw.StartsWith("{"))
+            {
+                try
+                {
+                    var parsed = JsonSerializer.Deserialize<StatementLogosConfig>(raw, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                    if (parsed != null)
+                    {
+                        if (string.IsNullOrWhiteSpace(parsed.HeaderLeftLogo))
+                        {
+                            parsed.HeaderLeftLogo = template.LogoBase64;
+                        }
+                        return parsed;
+                    }
+                }
+                catch
+                {
+                    // Bỏ qua nếu không phải JSON
+                }
+            }
+        }
+
+        return logos;
+    }
+
+    private static byte[] DecodeBase64Image(string? base64Str, string? fallbackBase64 = null)
+    {
+        var target = !string.IsNullOrWhiteSpace(base64Str) ? base64Str : fallbackBase64;
+        if (string.IsNullOrWhiteSpace(target)) return Array.Empty<byte>();
+        try
+        {
+            if (target.Contains(","))
+            {
+                target = target.Substring(target.IndexOf(",") + 1);
+            }
+            return Convert.FromBase64String(target.Trim());
+        }
+        catch
+        {
+            if (!string.IsNullOrWhiteSpace(fallbackBase64) && target != fallbackBase64)
+            {
+                try { return Convert.FromBase64String(fallbackBase64); } catch { }
+            }
+            return Array.Empty<byte>();
+        }
+    }
+
+    private static IDocument BuildQuestPdfDocument(PeriodicEnergyStatementEntity statement, StatementPdfTemplateEntity template)
+    {
+        var isLandscape = string.Equals(template.PaperSize, "A5_LANDSCAPE", StringComparison.OrdinalIgnoreCase);
+        var pageSize = isLandscape ? PageSizes.A5.Landscape() : PageSizes.A4;
+
+        var layout = ParseLayoutConfig(template);
+        var logos = ParseLogosConfig(template);
+        var enabledCols = new HashSet<string>(layout.Columns ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+
+        byte[] headerLeftLogoBytes = string.Equals(layout.HeaderLeftMode, "NONE", StringComparison.OrdinalIgnoreCase)
+            ? Array.Empty<byte>()
+            : DecodeBase64Image(logos.HeaderLeftLogo, DefaultLogoBase64);
+
+        byte[] headerCenterLogoBytes = string.Equals(layout.HeaderCenterMode, "NONE", StringComparison.OrdinalIgnoreCase)
+            ? Array.Empty<byte>()
+            : DecodeBase64Image(logos.HeaderCenterLogo);
+
+        byte[] headerRightBytes = Array.Empty<byte>();
+        bool isRightLogo = string.Equals(layout.HeaderRightMode, "LOGO", StringComparison.OrdinalIgnoreCase);
+        bool showRightDecor = !isRightLogo && !string.Equals(layout.HeaderRightMode, "NONE", StringComparison.OrdinalIgnoreCase);
+
+        if (isRightLogo)
+        {
+            headerRightBytes = DecodeBase64Image(logos.HeaderRightLogo);
+        }
+        else if (showRightDecor)
+        {
+            try { headerRightBytes = GetTopRightDecorBytes(); } catch { headerRightBytes = Array.Empty<byte>(); }
+        }
+
+        byte[] footerLeftLogoBytes = string.Equals(layout.FooterLeftMode, "NONE", StringComparison.OrdinalIgnoreCase)
+            ? Array.Empty<byte>()
+            : DecodeBase64Image(logos.FooterLeftLogo);
+        byte[] footerCenterLogoBytes = string.Equals(layout.FooterCenterMode, "NONE", StringComparison.OrdinalIgnoreCase)
+            ? Array.Empty<byte>()
+            : DecodeBase64Image(logos.FooterCenterLogo);
+        byte[] footerRightLogoBytes = string.Equals(layout.FooterRightMode, "NONE", StringComparison.OrdinalIgnoreCase)
+            ? Array.Empty<byte>()
+            : DecodeBase64Image(logos.FooterRightLogo);
+
+        var customerName = statement.MeasurementPoint?.Customer?.FullName ?? "---";
+        var pointCode = statement.MeasurementPoint?.Code ?? "---";
+        var serialNumber = !string.IsNullOrWhiteSpace(statement.SerialNumber) ? statement.SerialNumber : "---";
+        var mult = statement.Multiplier > 0 ? statement.Multiplier : (statement.MeasurementPoint?.MultiplierFactor ?? 1);
+
+        var fromDateStr = statement.PreviousDay.HasValue && statement.PreviousMonth.HasValue && statement.PreviousYear.HasValue && statement.PreviousDay.Value > 0
+            ? $"{statement.PreviousDay.Value:00}/{statement.PreviousMonth.Value:00}/{statement.PreviousYear.Value}"
+            : ".........";
+        var toDateStr = $"{statement.Day:00}/{statement.Month:00}/{statement.Year}";
+
+        var billingLocal = statement.BillingTimestamp.HasValue
+            ? statement.BillingTimestamp.Value.ToOffset(TimeSpan.FromHours(7))
+            : (DateTimeOffset?)null;
+        var readingTimeStr = billingLocal.HasValue ? billingLocal.Value.ToString("HH:mm:ss") : "00:00:00";
+        var readingDateStr = billingLocal.HasValue ? billingLocal.Value.ToString("dd/MM/yyyy") : toDateStr;
+        var forMonthStr = $"{statement.Month:00}/{statement.Year}";
+
+        var pmaxTimeLocalStr = statement.PmaxTime.HasValue
+            ? statement.PmaxTime.Value.ToOffset(TimeSpan.FromHours(7)).ToString("dd/MM/yyyy HH:mm:ss")
+            : "---";
+
+        double? effectiveCosPhi = statement.CosPhi;
+        if (!effectiveCosPhi.HasValue && statement.ConsumtionSg > 0 && statement.ConsumtionVc >= 0)
+        {
+            var sApparent = Math.Sqrt((statement.ConsumtionSg * statement.ConsumtionSg) + (statement.ConsumtionVc * statement.ConsumtionVc));
+            if (sApparent > 0)
+            {
+                effectiveCosPhi = Math.Round(statement.ConsumtionSg / sApparent, 2, MidpointRounding.AwayFromZero);
+            }
+        }
+        var cosPhiStr = effectiveCosPhi.HasValue && effectiveCosPhi.Value > 0 ? effectiveCosPhi.Value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : "0.00";
+
+        static string FormatVal(double v)
+        {
+            if (Math.Abs(v % 1) < 0.0001)
+                return v.ToString("#,##0", System.Globalization.CultureInfo.InvariantCulture);
+            return v.ToString("#,##0.##", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        // Xây dựng danh sách cột động theo cấu hình Bật/Tắt của người dùng (tỉ lệ chuẩn khớp 100% với TemplateNotice trên Web)
+        var allMetricCols = new List<(string Code, string Header, float Weight, string PrevVal, string CurrVal, string MultVal, string ConsVal)>
+        {
+            ("BT", "Normal hours\nkWh meter 1\n(Giờ bình thường)", 1.30f, FormatVal(statement.PreviousBt), FormatVal(statement.Bt), mult.ToString(), FormatVal(statement.ConsumtionBt)),
+            ("CD", "Peak hours\nkWh meter 2\n(Giờ cao điểm)", 1.30f, FormatVal(statement.PreviousCd), FormatVal(statement.Cd), mult.ToString(), FormatVal(statement.ConsumtionCd)),
+            ("TD", "Off-peak hours\nkWh meter 3\n(Giờ thấp điểm)", 1.30f, FormatVal(statement.PreviousTd), FormatVal(statement.Td), mult.ToString(), FormatVal(statement.ConsumtionTd)),
+            ("SG", "Total active power\n(Tổng công suất tác dụng)\nAP", 1.50f, FormatVal(statement.PreviousSg), FormatVal(statement.Sg), mult.ToString(), FormatVal(statement.ConsumtionSg)),
+            ("VC", "Total reactive power\n(Tổng công suất phản kháng)\nAQ", 1.50f, FormatVal(statement.PreviousVc), FormatVal(statement.Vc), mult.ToString(), FormatVal(statement.ConsumtionVc)),
+            ("COSPHI", "Cos φ TB\n(≥0.9)", 0.70f, "", "", "", cosPhiStr == "0.00" || cosPhiStr == "0" || cosPhiStr == "-" ? "" : cosPhiStr),
+            ("REMARKS", "Remarks\n(Ghi chú)", 0.70f, "", "", "", "")
+        };
+
+        var activeMetricCols = allMetricCols.Where(c => enabledCols.Contains(c.Code)).ToList();
+        if (activeMetricCols.Count == 0)
+        {
+            activeMetricCols = allMetricCols.Where(c => c.Code == "BT" || c.Code == "SG").ToList();
+        }
 
         return Document.Create(container =>
         {
             container.Page(page =>
             {
                 page.Size(pageSize);
-                page.DefaultTextStyle(x => x.FontFamily("Times New Roman").FontSize(isLandscape ? 8 : 9));
+                page.MarginHorizontal(18);
+                page.MarginTop(12);
+                page.MarginBottom(10);
+                page.DefaultTextStyle(x => x.FontFamily("Times New Roman").FontSize(7.5f));
+
+                if (showRightDecor && headerRightBytes.Length > 0)
+                {
+                    page.Background().AlignTop().AlignRight().Width(140).Image(headerRightBytes).FitArea();
+                }
 
                 page.Content().Column(col =>
                 {
-                    // 1. Header with VSIP Logo (Left) and 3-Stripe Decorative Emblem (Right)
-                    col.Item().PaddingTop(isLandscape ? 8 : 14).PaddingBottom(5).Row(headerRow =>
+                    // 1. Header: Left Logo | Center (CompanyName, Address, Phone, TaxCode) | Right (Custom Logo if any)
+                    col.Item().Row(headerRow =>
                     {
-                        if (logoData != null && logoData.Length > 0)
+                        if (headerLeftLogoBytes.Length > 0)
                         {
-                            headerRow.ConstantColumn(100).AlignLeft().Image(logoData).FitArea();
+                            headerRow.ConstantColumn(95).AlignLeft().AlignMiddle().MaxHeight(38).Image(headerLeftLogoBytes).FitArea();
                         }
                         else
                         {
-                            headerRow.ConstantColumn(100).AlignLeft();
+                            headerRow.ConstantColumn(95);
                         }
 
-                        headerRow.RelativeColumn().PaddingHorizontal(8).Column(center =>
+                        headerRow.RelativeColumn().PaddingHorizontal(6).Column(center =>
                         {
-                            center.Item().Text(template.CompanyName).FontSize(isLandscape ? 12 : 14).AlignCenter().Bold();
-                            center.Item().Text(template.CompanyAddress).FontSize(isLandscape ? 7f : 8f).AlignCenter();
-                            center.Item().Text(template.ContactPhone).FontSize(isLandscape ? 7f : 8f).AlignCenter();
+                            if (headerCenterLogoBytes.Length > 0)
+                            {
+                                center.Item().PaddingBottom(2).AlignCenter().MaxHeight(24).Image(headerCenterLogoBytes).FitArea();
+                            }
+
+                            var compName = !string.IsNullOrWhiteSpace(template.CompanyName) ? template.CompanyName : "VSIP HAI PHONG CO.,LTD";
+                            var compAddr = !string.IsNullOrWhiteSpace(template.CompanyAddress) ? template.CompanyAddress : "VSIP Hai Phong Administration Office, VSIP Hai Phong Township, Industrial & Service Park, Hoa Binh Ward, Hai Phong City, Vietnam";
+                            var compPhone = !string.IsNullOrWhiteSpace(template.ContactPhone) ? template.ContactPhone : "Tel: 84-225-3959868   Fax: 84-225-3959886";
+
+                            center.Item().Text(compName).FontSize(11.5f).AlignCenter().Bold();
+                            if (!string.IsNullOrWhiteSpace(compAddr))
+                            {
+                                var addrNormalized = compAddr;
+                                if (!addrNormalized.Contains('\n') && (addrNormalized.Contains("Hoa Binh Ward") || addrNormalized.Contains("Xã An Lư")))
+                                {
+                                    addrNormalized = Regex.Replace(addrNormalized, @"(,\s*)(Hoa Binh Ward|Xã An Lư)", "\n$2", RegexOptions.IgnoreCase);
+                                }
+                                var addrLines = addrNormalized.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+                                foreach (var line in addrLines)
+                                {
+                                    center.Item().Text(line.Trim()).FontSize(8f).AlignCenter();
+                                }
+                            }
+                            if (!string.IsNullOrWhiteSpace(compPhone))
+                            {
+                                center.Item().Text(compPhone).FontSize(8f).AlignCenter();
+                            }
+                            if (layout.ShowTaxCode && !string.IsNullOrWhiteSpace(layout.TaxCode))
+                            {
+                                center.Item().Text($"Tax Code (MST): {layout.TaxCode}").FontSize(8f).Bold().AlignCenter();
+                            }
                         });
 
-                        if (decorData != null && decorData.Length > 0)
+                        if (isRightLogo && headerRightBytes.Length > 0)
                         {
-                            headerRow.ConstantColumn(95).AlignRight().Image(decorData).FitArea();
+                            headerRow.ConstantColumn(95).AlignRight().AlignTop().MaxHeight(38).Image(headerRightBytes).FitArea();
                         }
                         else
                         {
-                            headerRow.ConstantColumn(95).AlignRight();
+                            headerRow.ConstantColumn(95);
                         }
                     });
 
-                    // 2. Title Section
-                    col.Item().PaddingHorizontal(10).PaddingVertical(isLandscape ? 4 : 8).Column(titleCol =>
+                    // 2. Title Section & Document Code / Serial Number (Đồng bộ tuyệt đối 100% với TemplateNotice trên Web)
+                    col.Item().PaddingTop(2).PaddingBottom(2).Row(titleRow =>
                     {
-                        titleCol.Item().Text(template.HeaderTitle).FontSize(isLandscape ? 11 : 13).Bold().AlignCenter();
-                        titleCol.Item().Text(template.SubHeaderTitle).FontSize(isLandscape ? 11 : 13).Bold().AlignCenter();
-                        titleCol.Item().Text("(M&E Copy – Liên cho Phòng Cơ Điện)").FontSize(isLandscape ? 9 : 10).AlignCenter();
-                    });
+                        // Cột trống bên trái đối xứng với cột Serial bên phải để tiêu đề nằm chính giữa 100%
+                        titleRow.ConstantColumn(140);
 
-                    // 3. Customer & Measurement Point Info
-                    col.Item().PaddingHorizontal(10).PaddingBottom(isLandscape ? 6 : 10).Row(infoRow =>
-                    {
-                        var customerName = statement.MeasurementPoint?.Customer?.FullName ?? "---";
-                        var pointCode = statement.MeasurementPoint?.Code ?? "---";
-                        var address = statement.MeasurementPoint?.Address ?? statement.MeasurementPoint?.Customer?.Address ?? "---";
-                        var serialNumber = statement.SerialNumber;
-
-                        infoRow.RelativeColumn().Column(left =>
+                        titleRow.RelativeColumn().Column(titleCol =>
                         {
-                            left.Item().Text($"Customer (Khách hàng): {customerName}").Bold();
-                            left.Item().Text($"Address (Địa chỉ): {address}");
-                            left.Item().Text($"Point Code (Mã điểm đo): {pointCode}     Serial No: {serialNumber}").Bold();
+                            var mainTitle = !string.IsNullOrWhiteSpace(template.HeaderTitle) ? template.HeaderTitle : "MONTHLY POWER METER READING";
+                            var subTitle = !string.IsNullOrWhiteSpace(template.SubHeaderTitle) ? template.SubHeaderTitle : "(PHIẾU CHỈ SỐ ĐIỆN HÀNG THÁNG)";
+                            var copyLbl = !string.IsNullOrWhiteSpace(layout.CopyLabel) ? layout.CopyLabel : "(M&E Copy – Liên cho Phòng Cơ Điện)";
+
+                            titleCol.Item().Text(mainTitle).FontSize(11.5f).Bold().AlignCenter();
+                            if (!string.IsNullOrWhiteSpace(subTitle))
+                            {
+                                titleCol.Item().Text(subTitle).FontSize(10.5f).Bold().AlignCenter();
+                            }
+                            if (!string.IsNullOrWhiteSpace(copyLbl))
+                            {
+                                titleCol.Item().Text(copyLbl).FontSize(8.5f).AlignCenter();
+                            }
                         });
 
-                        var fromDateStr = statement.PreviousDay.HasValue ? $"{statement.PreviousDay:00}/{statement.PreviousMonth:00}/{statement.PreviousYear}" : "01/10/2026";
-                        var toDateStr = $"{statement.Day:00}/{statement.Month:00}/{statement.Year}";
+                        // Cột bên phải: Mã biểu mẫu và Serial Number căn đều trái với nhau (text-start), format chuẩn theo TemplateNotice
+                        var trackingSerial = !string.IsNullOrWhiteSpace(serialNumber)
+                            ? string.Join("\u00A0", serialNumber.Trim().ToCharArray())
+                            : "---";
 
-                        infoRow.ConstantColumn(200).AlignRight().Column(right =>
+                        titleRow.ConstantColumn(140).AlignLeft().AlignBottom().PaddingBottom(2).Column(serialCol =>
                         {
-                            right.Item().Text($"Period (Kỳ): {fromDateStr} - {toDateStr}");
-                            right.Item().Text($"Meter Multiplier (Hệ số nhân): {statement.Multiplier}");
+                            var docCode = !string.IsNullOrWhiteSpace(layout.DocumentCode) ? layout.DocumentCode : "M&E-1/01 PR04";
+                            serialCol.Item().Text(docCode).FontSize(8.5f).FontColor("#000000");
+                            serialCol.Item().Text(text =>
+                            {
+                                text.Span("Serial No (số):\u00A0").FontSize(8.5f).FontColor("#000000");
+                                text.Span(trackingSerial).FontSize(11.5f).Bold().FontColor("#EF4444");
+                            });
                         });
                     });
 
-                    // 4. Data Table
-                    col.Item().PaddingHorizontal(10).Table(table =>
+                    // 3. Customer & Measurement Point Info (với gạch chân chuẩn như mẫu hiển thị)
+                    col.Item().PaddingBottom(3).Column(metaCol =>
                     {
-                        table.ColumnsDefinition(def =>
+                        metaCol.Item().PaddingBottom(2).Row(r =>
                         {
-                            def.RelativeColumn(1.8f); // Tariff
-                            def.RelativeColumn(1.2f); // Previous
-                            def.RelativeColumn(1.2f); // Current
-                            def.RelativeColumn(1.2f); // Difference
-                            def.RelativeColumn(0.8f); // Multiplier
-                            def.RelativeColumn(1.4f); // Consumption
-                            if (columns.Contains("PMAX")) def.RelativeColumn(1.2f);
-                            if (columns.Contains("COSPHI")) def.RelativeColumn(1.0f);
+                            r.ConstantColumn(115).Text("Tenant Name (Tên khách hàng):").FontSize(8.5f);
+                            r.RelativeColumn().BorderBottom(0.5f).BorderColor(Colors.Black).PaddingBottom(1).PaddingLeft(4).Text(customerName).FontSize(8.5f).Bold();
+                        });
+
+                        metaCol.Item().PaddingBottom(2).Row(r =>
+                        {
+                            r.ConstantColumn(115).Text("Meter ID (Mã điểm đo):").FontSize(8.5f);
+                            r.RelativeColumn().BorderBottom(0.5f).BorderColor(Colors.Black).PaddingBottom(1).PaddingLeft(4).Text(pointCode).FontSize(8.5f).Bold();
+                        });
+
+                        metaCol.Item().Row(r =>
+                        {
+                            r.RelativeColumn().Row(sub =>
+                            {
+                                sub.AutoItem().Text("Reading Time (Giờ ghi): ").FontSize(8.5f);
+                                sub.RelativeColumn().BorderBottom(0.5f).BorderColor(Colors.Black).PaddingBottom(1).PaddingLeft(4).Text(readingTimeStr).FontSize(8.5f).Bold();
+                            });
+                            r.ConstantColumn(14);
+                            r.RelativeColumn().Row(sub =>
+                            {
+                                sub.AutoItem().Text("Reading Date (Ngày ghi): ").FontSize(8.5f);
+                                sub.RelativeColumn().BorderBottom(0.5f).BorderColor(Colors.Black).PaddingBottom(1).PaddingLeft(4).Text(readingDateStr).FontSize(8.5f).Bold();
+                            });
+                            r.ConstantColumn(14);
+                            r.RelativeColumn().Row(sub =>
+                            {
+                                sub.AutoItem().Text("For month (Tháng): ").FontSize(8.5f);
+                                sub.RelativeColumn().BorderBottom(0.5f).BorderColor(Colors.Black).PaddingBottom(1).PaddingLeft(4).Text(forMonthStr).FontSize(8.5f).Bold();
+                            });
+                        });
+                    });
+
+                    // 4. Dynamic Horizontal Grid Matrix Table (Tự động co giãn các cột theo cấu hình Bật/Tắt)
+                    col.Item().Table(table =>
+                    {
+                        table.ColumnsDefinition(columns =>
+                        {
+                            columns.RelativeColumn(1.70f); // Description
+                            foreach (var mc in activeMetricCols)
+                            {
+                                columns.RelativeColumn(mc.Weight);
+                            }
                         });
 
                         // Header Row
                         table.Header(header =>
                         {
-                            header.Cell().Element(CellStyle).AlignCenter().Text("Biểu giá điện\n(Tariff)").Bold();
-                            header.Cell().Element(CellStyle).AlignCenter().Text("Chỉ số cũ\n(Previous)").Bold();
-                            header.Cell().Element(CellStyle).AlignCenter().Text("Chỉ số mới\n(Current)").Bold();
-                            header.Cell().Element(CellStyle).AlignCenter().Text("Độ lệch\n(Difference)").Bold();
-                            header.Cell().Element(CellStyle).AlignCenter().Text("HSN\n(Factor)").Bold();
-                            header.Cell().Element(CellStyle).AlignCenter().Text("Sản lượng (kWh)\n(Consumption)").Bold();
-                            if (columns.Contains("PMAX")) header.Cell().Element(CellStyle).AlignCenter().Text("Pmax\n(kW)").Bold();
-                            if (columns.Contains("COSPHI")) header.Cell().Element(CellStyle).AlignCenter().Text("Cos φ").Bold();
+                            header.Cell().Element(CellStyle).AlignCenter().AlignMiddle().Text("Description\n(Mô tả)").Bold().FontSize(7.2f);
+                            foreach (var mc in activeMetricCols)
+                            {
+                                header.Cell().Element(CellStyle).AlignCenter().AlignMiddle().Text(mc.Header).Bold().FontSize(7.2f);
+                            }
                         });
 
-                        var mult = statement.Multiplier > 0 ? statement.Multiplier : (statement.MeasurementPoint?.MultiplierFactor ?? 1);
-
-                        void AddRow(string label, double prev, double curr, double diff, double cons, double? pmax = null, double? cosphi = null)
+                        // Row 1: Previous meter reading (Chỉ số cũ)
+                        table.Cell().Element(CellStyle).AlignLeft().AlignMiddle().PaddingLeft(3).Text($"Previous meter reading\n(Chỉ số cũ)\nReading date: {fromDateStr}\n(Ngày ghi)").FontSize(7.2f);
+                        foreach (var mc in activeMetricCols)
                         {
-                            table.Cell().Element(CellStyle).Text(label);
-                            table.Cell().Element(CellStyle).AlignRight().Text($"{prev:N2}");
-                            table.Cell().Element(CellStyle).AlignRight().Text($"{curr:N2}");
-                            table.Cell().Element(CellStyle).AlignRight().Text($"{diff:N2}");
-                            table.Cell().Element(CellStyle).AlignCenter().Text($"{mult}");
-                            table.Cell().Element(CellStyle).AlignRight().Text($"{cons:N2}").Bold();
-                            if (columns.Contains("PMAX")) table.Cell().Element(CellStyle).AlignRight().Text(pmax.HasValue && pmax.Value > 0 ? $"{pmax.Value:N2}" : "-");
-                            if (columns.Contains("COSPHI")) table.Cell().Element(CellStyle).AlignCenter().Text(cosphi.HasValue && cosphi.Value > 0 ? $"{cosphi.Value:N2}" : "-");
+                            table.Cell().Element(CellStyle).AlignCenter().AlignMiddle().Text(mc.PrevVal).FontSize(7.5f);
                         }
 
-                        double? effectiveCosPhi = statement.CosPhi;
-                        if (!effectiveCosPhi.HasValue && statement.ConsumtionSg > 0 && statement.ConsumtionVc >= 0)
+                        // Row 2: Current meter reading (Chỉ số mới)
+                        table.Cell().Element(CellStyle).AlignLeft().AlignMiddle().PaddingLeft(3).Text("Current meter reading\n(Chỉ số mới)").FontSize(7.2f);
+                        foreach (var mc in activeMetricCols)
                         {
-                            var sApparent = Math.Sqrt((statement.ConsumtionSg * statement.ConsumtionSg) + (statement.ConsumtionVc * statement.ConsumtionVc));
-                            if (sApparent > 0)
+                            table.Cell().Element(CellStyle).AlignCenter().AlignMiddle().Text(mc.CurrVal).FontSize(7.5f);
+                        }
+
+                        // Row 3: Multiplier (Hệ số) - Có thể bật/tắt
+                        if (enabledCols.Contains("MULTIPLIER"))
+                        {
+                            table.Cell().Element(CellStyle).AlignLeft().AlignMiddle().PaddingLeft(3).Text("Multiplier\n(hệ số)").FontSize(7.2f);
+                            foreach (var mc in activeMetricCols)
                             {
-                                effectiveCosPhi = Math.Round(statement.ConsumtionSg / sApparent, 2, MidpointRounding.AwayFromZero);
+                                table.Cell().Element(CellStyle).AlignCenter().AlignMiddle().Text(mc.MultVal).FontSize(7.5f);
                             }
                         }
 
-                        if (columns.Contains("BT")) AddRow("1. Bình thường (Normal - BT)", statement.PreviousBt, statement.Bt, statement.Bt - statement.PreviousBt, statement.ConsumtionBt);
-                        if (columns.Contains("CD")) AddRow("2. Cao điểm (Peak - CD)", statement.PreviousCd, statement.Cd, statement.Cd - statement.PreviousCd, statement.ConsumtionCd);
-                        if (columns.Contains("TD")) AddRow("3. Thấp điểm (Off-Peak - TD)", statement.PreviousTd, statement.Td, statement.Td - statement.PreviousTd, statement.ConsumtionTd);
-                        if (columns.Contains("SG")) AddRow("Tổng điện năng hữu công (Total kWh)", statement.PreviousSg, statement.Sg, statement.Sg - statement.PreviousSg, statement.ConsumtionSg, statement.Pmax, effectiveCosPhi);
-                        if (columns.Contains("VC")) AddRow("Vô công (Reactive - kVARh)", statement.PreviousVc, statement.Vc, statement.Vc - statement.PreviousVc, statement.ConsumtionVc);
+                        // Row 4: Actual consumption (Số tiêu thụ thực tế)
+                        table.Cell().Element(CellStyle).AlignLeft().AlignMiddle().PaddingLeft(3).Text("Actual consumption\n(Số tiêu thụ thực tế)").FontSize(7.2f);
+                        foreach (var mc in activeMetricCols)
+                        {
+                            table.Cell().Element(CellStyle).AlignCenter().AlignMiddle().Text(mc.ConsVal).FontSize(7.5f);
+                        }
                     });
 
-                    // 5. Pmax Detail & Notes
-                    col.Item().PaddingHorizontal(10).PaddingTop(isLandscape ? 4 : 8).Column(notesCol =>
+                    // 5. Pmax Line Detail (LocalTime GMT+7) & Confirmation Notice
+                    col.Item().PaddingTop(2.5f).Column(footerCol =>
                     {
-                        if (statement.Pmax > 0)
+                        if (enabledCols.Contains("PMAX"))
                         {
-                            var pmaxTimeStr = statement.PmaxTime.HasValue ? statement.PmaxTime.Value.ToString("dd/MM/yyyy HH:mm:ss") : "---";
-                            notesCol.Item().Text($"* Công suất cực đại Pmax: {statement.Pmax:N2} kW (Ghi nhận lúc: {pmaxTimeStr})").Bold();
+                            var pmaxValStr = statement.Pmax > 0 ? FormatVal(statement.Pmax) : "0";
+                            footerCol.Item().PaddingLeft(2).Text($"* Công suất cực đại Pmax: {pmaxValStr} kW, ghi nhận hồi: {pmaxTimeLocalStr}").Bold().FontSize(8f);
                         }
 
-                        if (!string.IsNullOrWhiteSpace(template.FooterNotes))
-                        {
-                            notesCol.Item().PaddingTop(2).Text($"Ghi chú: {template.FooterNotes}").Italic().FontSize(isLandscape ? 7.5f : 8.5f);
-                        }
+                        footerCol.Item().PaddingTop(1.5f).PaddingLeft(2).Text("The above meter reading has been jointly read by the following Parties:\n(Các chỉ số trên đã được các Bên dưới đây xác nhận)").FontSize(7.5f);
                     });
 
-                    // 6. Signatures
-                    col.Item().PaddingHorizontal(10).PaddingTop(isLandscape ? 8 : 16).Row(sigRow =>
+                    // 6. Signatures Boxes (Party A & Party B)
+                    var partyALines = (!string.IsNullOrWhiteSpace(layout.PartyAName)
+                        ? layout.PartyAName
+                        : "Party A (VSIP Hai Phong Co., Ltd.)\nBên A (Công ty TNHH VSIP Hải Phòng)").Split('\n');
+                    var partyBLines = (!string.IsNullOrWhiteSpace(layout.PartyBName)
+                        ? layout.PartyBName
+                        : "Party B (Tenant)\nBên B (Khách hàng)").Split('\n');
+
+                    col.Item().PaddingTop(3.5f).Row(sigRow =>
                     {
                         if (template.RequireDualSignatures)
                         {
-                            sigRow.RelativeColumn(0.48f).Element(PartyBoxStyle).Column(partyA =>
+                            sigRow.RelativeColumn(0.47f).Element(PartyBoxStyle).Column(partyA =>
                             {
-                                partyA.Item().Text("Party A (Supplier)").Bold();
-                                partyA.Item().Text("Bên A (Đơn vị bán điện - VSIP Hải Phòng)");
-                                partyA.Item().PaddingVertical(isLandscape ? 8 : 15);
-                                partyA.Item().Text("Name and Signature \n(Ký và ghi rõ họ tên)").FontSize(7.5f);
+                                for (int i = 0; i < partyALines.Length; i++)
+                                {
+                                    var t = partyA.Item().Text(partyALines[i].Trim()).FontSize(8f);
+                                    if (i == 0) t.Bold();
+                                }
+                                partyA.Item().PaddingTop(12).Text("Name and Signature:\n(Ký và ghi rõ họ tên)").FontSize(7.5f);
                             });
 
-                            sigRow.RelativeColumn(0.04f);
+                            sigRow.ConstantColumn(36);
 
-                            sigRow.RelativeColumn(0.48f).Element(PartyBoxStyle).Column(partyB =>
+                            sigRow.RelativeColumn(0.47f).Element(PartyBoxStyle).Column(partyB =>
                             {
-                                partyB.Item().Text("Party B (Tenant)").Bold();
-                                partyB.Item().Text("Bên B (Khách hàng mua điện)");
-                                partyB.Item().PaddingVertical(isLandscape ? 8 : 15);
-                                partyB.Item().Text("Name and Signature \n(Ký và ghi rõ họ tên)").FontSize(7.5f);
+                                for (int i = 0; i < partyBLines.Length; i++)
+                                {
+                                    var t = partyB.Item().Text(partyBLines[i].Trim()).FontSize(8f);
+                                    if (i == 0) t.Bold();
+                                }
+                                partyB.Item().PaddingTop(12).Text("Name and Signature:\n(Ký và ghi rõ họ tên)").FontSize(7.5f);
                             });
                         }
                         else
                         {
-                            sigRow.RelativeColumn(0.5f).Element(PartyBoxStyle).Column(partyA =>
+                            sigRow.RelativeColumn(0.53f);
+                            sigRow.RelativeColumn(0.47f).Element(PartyBoxStyle).Column(partyA =>
                             {
-                                partyA.Item().Text("Party A (Supplier)").Bold();
-                                partyA.Item().Text("Bên A (Đơn vị bán điện - VSIP Hải Phòng)");
-                                partyA.Item().PaddingVertical(isLandscape ? 8 : 15);
-                                partyA.Item().Text("Name and Signature \n(Ký và ghi rõ họ tên)").FontSize(7.5f);
+                                for (int i = 0; i < partyALines.Length; i++)
+                                {
+                                    var t = partyA.Item().Text(partyALines[i].Trim()).FontSize(8f);
+                                    if (i == 0) t.Bold();
+                                }
+                                partyA.Item().PaddingTop(12).Text("Name and Signature:\n(Ký và ghi rõ họ tên)").FontSize(7.5f);
                             });
                         }
                     });
+
+                    // 7. Custom Footer (Left / Center / Right Logos & Text)
+                    bool showFooterLeft = !string.Equals(layout.FooterLeftMode, "NONE", StringComparison.OrdinalIgnoreCase);
+                    bool showFooterCenter = !string.Equals(layout.FooterCenterMode, "NONE", StringComparison.OrdinalIgnoreCase);
+                    bool showFooterRight = !string.Equals(layout.FooterRightMode, "NONE", StringComparison.OrdinalIgnoreCase);
+
+                    bool hasFooter = (showFooterLeft && (footerLeftLogoBytes.Length > 0 || !string.IsNullOrWhiteSpace(layout.FooterLeftText)))
+                        || (showFooterCenter && (footerCenterLogoBytes.Length > 0 || !string.IsNullOrWhiteSpace(layout.FooterCenterText)))
+                        || (showFooterRight && (footerRightLogoBytes.Length > 0 || !string.IsNullOrWhiteSpace(layout.FooterRightText)));
+
+                    if (hasFooter)
+                    {
+                        col.Item().PaddingTop(4).Row(fRow =>
+                        {
+                            fRow.RelativeColumn().AlignLeft().Column(fLeft =>
+                            {
+                                if (showFooterLeft && footerLeftLogoBytes.Length > 0)
+                                    fLeft.Item().MaxHeight(20).Image(footerLeftLogoBytes).FitArea();
+                                if (showFooterLeft && !string.IsNullOrWhiteSpace(layout.FooterLeftText))
+                                    fLeft.Item().Text(layout.FooterLeftText).FontSize(6.5f).FontColor("#475569");
+                            });
+
+                            fRow.RelativeColumn().AlignCenter().Column(fCenter =>
+                            {
+                                if (showFooterCenter && footerCenterLogoBytes.Length > 0)
+                                    fCenter.Item().AlignCenter().MaxHeight(20).Image(footerCenterLogoBytes).FitArea();
+                                if (showFooterCenter && !string.IsNullOrWhiteSpace(layout.FooterCenterText))
+                                    fCenter.Item().AlignCenter().Text(layout.FooterCenterText).FontSize(6.5f).FontColor("#475569");
+                            });
+
+                            fRow.RelativeColumn().AlignRight().Column(fRight =>
+                            {
+                                if (showFooterRight && footerRightLogoBytes.Length > 0)
+                                    fRight.Item().AlignRight().MaxHeight(20).Image(footerRightLogoBytes).FitArea();
+                                if (showFooterRight && !string.IsNullOrWhiteSpace(layout.FooterRightText))
+                                    fRight.Item().AlignRight().Text(layout.FooterRightText).FontSize(6.5f).FontColor("#475569");
+                            });
+                        });
+                    }
                 });
             });
         });
@@ -902,12 +1209,12 @@ public class StatementPdfGenerator : IStatementPdfGenerator
 
     private static IContainer CellStyle(IContainer container)
     {
-        return container.Border(0.5f).BorderColor(Colors.Black).Padding(3);
+        return container.Border(0.75f).BorderColor(Colors.Black).PaddingVertical(2.5f).PaddingHorizontal(2);
     }
 
     private static IContainer PartyBoxStyle(IContainer container)
     {
-        return container.Border(0.5f).BorderColor(Colors.Black).Padding(4);
+        return container.Border(0.75f).BorderColor(Colors.Black).PaddingVertical(3).PaddingHorizontal(5);
     }
 
     private static StatementPdfTemplateEntity GetFallbackDefaultTemplate()
@@ -920,7 +1227,7 @@ public class StatementPdfGenerator : IStatementPdfGenerator
             SubHeaderTitle = "(PHIẾU GHI SỐ ĐIỆN HÀNG THÁNG)",
             CompanyName = "VSIP HAI PHONG CO.,LTD",
             CompanyAddress = "VSIP Hai Phong Administration Office, VSIP Hai Phong Township, Industrial & Service Park, Hoa Binh Ward, Hai Phong City, Vietnam",
-            ContactPhone = "Tel: 84-225-3959868   Fax: 84-255-3959886",
+            ContactPhone = "Tel: 84-225-3959868   Fax: 84-225-3959886",
             PaperSize = "A5_LANDSCAPE",
             EngineType = "EXCEL_LIBREOFFICE",
             DisplayColumnsJson = "[\"BT\",\"CD\",\"TD\",\"SG\",\"VC\",\"PMAX\",\"COSPHI\"]",
@@ -935,17 +1242,18 @@ public class StatementPdfGenerator : IStatementPdfGenerator
     {
         return new PeriodicEnergyStatementEntity
         {
-            SerialNumber = "PB-202610-001",
-            Multiplier = 120,
+            SerialNumber = "00000162",
+            Multiplier = 1,
             MeasurementPoint = new MeasurementPointsEntity
             {
-                Code = "101.402.001",
-                Address = "Lô đất số IN1-4, KCN VSIP Hải Phòng, Xã An Lư, Huyện Thủy Nguyên, TP. Hải Phòng",
-                MultiplierFactor = 120,
+                Code = "KYOCERA 1",
+                Address = "KCN VSIP Hải Phòng",
+                MultiplierFactor = 1,
                 Customer = new CustomerEntity
                 {
-                    FullName = "CÔNG TY TNHH KYOCERA VIỆT NAM",
-                    Address = "Lô đất số IN1-4, KCN VSIP Hải Phòng"
+                    FullName = "CÔNG TY TNHH CÔNG NGHỆ MÁY VĂN PHÒNG KYOCERA VIỆT NAM",
+                    CustomerCode = "KYOCERA",
+                    Address = "KCN VSIP Hải Phòng"
                 }
             },
             Day = 31,
@@ -954,21 +1262,25 @@ public class StatementPdfGenerator : IStatementPdfGenerator
             PreviousDay = 1,
             PreviousMonth = 10,
             PreviousYear = 2026,
-            PreviousBt = 124567.0,
-            Bt = 125980.0,
-            ConsumtionBt = 169560.0,
-            PreviousCd = 34512.0,
-            Cd = 34980.0,
-            ConsumtionCd = 56160.0,
-            PreviousTd = 56089.0,
-            Td = 56890.0,
-            ConsumtionTd = 96120.0,
-            PreviousSg = 215168.0,
-            Sg = 217850.0,
-            ConsumtionSg = 321840.0,
-            ConsumtionVc = 45200.0,
-            Pmax = 1450.85,
-            PmaxTime = new DateTime(2026, 10, 15, 14, 30, 0)
+            BillingTimestamp = new DateTimeOffset(2026, 10, 31, 0, 0, 0, TimeSpan.FromHours(7)),
+            PreviousBt = 0,
+            Bt = 67,
+            ConsumtionBt = 67,
+            PreviousCd = 0,
+            Cd = 0,
+            ConsumtionCd = 0,
+            PreviousTd = 0,
+            Td = 0,
+            ConsumtionTd = 0,
+            PreviousSg = 0,
+            Sg = 67,
+            ConsumtionSg = 67,
+            PreviousVc = 0,
+            Vc = 28,
+            ConsumtionVc = 28,
+            Pmax = 66,
+            PmaxTime = new DateTimeOffset(2026, 11, 6, 3, 16, 0, TimeSpan.FromHours(7)),
+            CosPhi = 0.92
         };
     }
 }

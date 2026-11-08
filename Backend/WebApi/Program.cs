@@ -630,6 +630,56 @@ CREATE TABLE IF NOT EXISTS `MeterReplacements` (
         try { await db.Database.ExecuteSqlRawAsync(sql); } catch { }
     }
     app.Logger.LogInformation("Đã kiểm tra và đảm bảo các bảng Email Config và Metering mới tồn tại.");
+
+    try
+    {
+        using var notifScope = app.Services.CreateScope();
+        var notifSp = notifScope.ServiceProvider;
+        var notifRepo = notifSp.GetService<Application.Repositories.ReadOnly.INotificationTemplateReadOnlyRepository>();
+        var notifRwRepo = notifSp.GetService<Application.Repositories.ReadWrite.INotificationTemplateReadWriteRepository>();
+        var snowflake = notifSp.GetService<Nobisoft.Core.Interfaces.ISnowflakeIdService>();
+        if (notifRepo != null && notifRwRepo != null)
+        {
+            var prebuilts = Infrastructure.Services.Templates.NotificationTemplateService.GetPrebuiltDefaultTemplates();
+            var existingTemplates = await notifRepo.GetAllTemplatesAsync(null, CancellationToken.None);
+            foreach (var template in prebuilts)
+            {
+                var existing = existingTemplates.Find(x => x.Code == template.Code && x.IsDefault)
+                               ?? existingTemplates.Find(x => x.Code == template.Code);
+                if (existing != null)
+                {
+                    var entity = await notifRepo.GetByIdAsync(existing.Id, CancellationToken.None);
+                    if (entity != null)
+                    {
+                        entity.Name = template.Name;
+                        entity.SubjectTemplate = template.SubjectTemplate;
+                        entity.BodyHtmlTemplate = template.BodyHtmlTemplate;
+                        entity.Description = template.Description;
+                        entity.ModifiedTime = DateTimeOffset.UtcNow;
+                        await notifRwRepo.UpdateAsync(entity, CancellationToken.None);
+                        continue;
+                    }
+                }
+
+                if (snowflake != null)
+                {
+                    template.Id = await snowflake.GenerateId(CancellationToken.None);
+                }
+                template.CreatedTime = DateTimeOffset.UtcNow;
+                if (template.IsDefault)
+                {
+                    await notifRwRepo.SetDefaultAsync(template.Id, template.Code, CancellationToken.None);
+                }
+                await notifRwRepo.AddAsync(template, CancellationToken.None);
+            }
+            await notifRwRepo.SaveChangesAsync(CancellationToken.None);
+            app.Logger.LogInformation("Đã đồng bộ 3 mẫu email chuẩn mặc định vào CSDL thành công.");
+        }
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Không thể tự động đồng bộ mẫu email chuẩn khi khởi động: {Message}", ex.Message);
+    }
 }
 catch (Exception ex)
 {

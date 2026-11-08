@@ -52,7 +52,7 @@ public class StatementPdfTemplatesController : ControllerBase
 
     [HttpGet]
     [Route(Common.Url.Default.StatementPdfTemplates.List)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
     public async Task<RequestResult<List<StatementPdfTemplateDto>>> GetAllTemplatesAsync(CancellationToken cancellationToken)
     {
         try
@@ -104,15 +104,15 @@ public class StatementPdfTemplatesController : ControllerBase
                 Id = await _snowflakeIdService.GenerateId(cancellationToken),
                 Code = "STATEMENT_PDF_A5_STANDARD",
                 Name = "Mẫu A5 Tiêu chuẩn",
-                HeaderTitle = "PHIẾU BÁO CHỈ SỐ ĐIỆN NĂNG",
-                SubHeaderTitle = "(MONTHLY POWER METER READING)",
-                CompanyName = "CÔNG TY TNHH VSIP HẢI PHÒNG",
-                CompanyAddress = "Khu Đô thị, Công nghiệp và Dịch vụ VSIP Hải Phòng, Xã An Lư, Huyện Thủy Nguyên, TP. Hải Phòng",
-                ContactPhone = "Tel: (0225) 3959868   Fax: (0225) 3959886",
+                HeaderTitle = "MONTHLY POWER METER READING",
+                SubHeaderTitle = "(PHIẾU CHỈ SỐ ĐIỆN HÀNG THÁNG)",
+                CompanyName = "VSIP HAI PHONG CO.,LTD",
+                CompanyAddress = "VSIP Hai Phong Administration Office, VSIP Hai Phong Township, Industrial & Service Park, Hoa Binh Ward, Hai Phong City, Vietnam",
+                ContactPhone = "Tel: 84-225-3959868   Fax: 84-225-3959886",
                 LogoBase64 = StatementPdfGenerator.DefaultLogoBase64,
                 PaperSize = "A5_LANDSCAPE",
-                EngineType = "EXCEL_LIBREOFFICE",
-                DisplayColumnsJson = "[\"BT\",\"CD\",\"TD\",\"SG\",\"VC\",\"PMAX\",\"COSPHI\"]",
+                EngineType = "QUEST_PDF",
+                DisplayColumnsJson = "[\"BT\",\"CD\",\"TD\",\"SG\",\"VC\",\"COSPHI\",\"REMARKS\",\"PMAX\",\"MULTIPLIER\"]",
                 RequireDualSignatures = true,
                 FooterNotes = "Quý khách vui lòng kiểm tra và phản hồi số liệu trong vòng 03 ngày làm việc kể từ ngày nhận phiếu báo.",
                 IsDefault = true,
@@ -125,15 +125,15 @@ public class StatementPdfTemplatesController : ControllerBase
                 Id = await _snowflakeIdService.GenerateId(cancellationToken),
                 Code = "STATEMENT_PDF_A4_FULL",
                 Name = "Mẫu A4 Đầy đủ",
-                HeaderTitle = "PHIẾU BÁO CHỈ SỐ VÀ SẢN LƯỢNG ĐIỆN NĂNG CHI TIẾT",
-                SubHeaderTitle = "BÁO CÁO ĐO ĐẾM KỲ HÀNG THÁNG - HỆ THỐNG AMR/MDMS",
-                CompanyName = "CÔNG TY TNHH VSIP HẢI PHÒNG",
-                CompanyAddress = "Khu Đô thị, Công nghiệp và Dịch vụ VSIP Hải Phòng, Thủy Nguyên, Hải Phòng",
-                ContactPhone = "Tel: (0225) 3959868 - Phòng Quản Lý Vận Hành Cơ Điện",
+                HeaderTitle = "MONTHLY POWER METER READING",
+                SubHeaderTitle = "(PHIẾU CHỈ SỐ ĐIỆN HÀNG THÁNG)",
+                CompanyName = "VSIP HAI PHONG CO.,LTD",
+                CompanyAddress = "VSIP Hai Phong Administration Office, VSIP Hai Phong Township, Industrial & Service Park, Hoa Binh Ward, Hai Phong City, Vietnam",
+                ContactPhone = "Tel: 84-225-3959868   Fax: 84-225-3959886",
                 LogoBase64 = StatementPdfGenerator.DefaultLogoBase64,
                 PaperSize = "A4_PORTRAIT",
-                EngineType = "EXCEL_LIBREOFFICE",
-                DisplayColumnsJson = "[\"BT\",\"CD\",\"TD\",\"SG\",\"VC\",\"PMAX\",\"COSPHI\"]",
+                EngineType = "QUEST_PDF",
+                DisplayColumnsJson = "[\"BT\",\"CD\",\"TD\",\"SG\",\"VC\",\"COSPHI\",\"REMARKS\",\"PMAX\",\"MULTIPLIER\"]",
                 RequireDualSignatures = true,
                 FooterNotes = "Phiếu báo này được kết xuất tự động từ hệ thống đo đếm từ xa AMR/MDMS. Mọi yêu cầu đối soát số liệu kỹ thuật xin liên hệ Bộ phận Vận hành Đo đếm.",
                 IsDefault = false,
@@ -155,7 +155,7 @@ public class StatementPdfTemplatesController : ControllerBase
 
     [HttpGet]
     [Route(Common.Url.Default.StatementPdfTemplates.View)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
     public async Task<RequestResult<StatementPdfTemplateDto>> GetDetailAsync([FromRoute] long id, CancellationToken cancellationToken)
     {
         try

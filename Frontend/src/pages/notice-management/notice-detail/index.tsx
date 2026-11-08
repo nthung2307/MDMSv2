@@ -178,45 +178,67 @@ const NoticeDetail = () => {
 
   // Print Notice
   const printListTemplate = () => {
+    if (!sendData.listSend || sendData.listSend.length === 0) return;
+
     const tempDiv = document.createElement('div');
+    tempDiv.style.width = '794px';
+    tempDiv.style.maxWidth = '794px';
+    tempDiv.style.minWidth = '794px';
+    tempDiv.style.backgroundColor = '#ffffff';
+    tempDiv.style.boxSizing = 'border-box';
+
     const root = createRoot(tempDiv);
     root.render(
-      <div>
+      <div style={{ width: '794px', backgroundColor: '#ffffff' }}>
         {sendData.listSend.map((record: any, index: number) => (
-          <div key={index} style={{ pageBreakAfter: 'always' }}>
+          <div
+            key={index}
+            style={{
+              pageBreakAfter: 'always',
+              maxHeight: '555px',
+              overflow: 'hidden',
+              backgroundColor: '#ffffff',
+            }}
+          >
             <TemplateNotice record={record} />
           </div>
         ))}
       </div>
     );
-    let opt = {
+    const opt = {
       margin: 0,
       filename: 'phiếu báo.pdf',
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      },
       jsPDF: { unit: 'in', format: 'a5', orientation: 'landscape' },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
     };
 
-    html2pdf()
-      .set(opt)
-      .from(tempDiv)
-      .toPdf()
-      .get('pdf')
-      .then((pdf: any) => {
-        const pdfBlobUrl = pdf.output('bloburl');
-        const printWindow = window.open(pdfBlobUrl, '_blank');
-        if (printWindow) {
-          printWindow.onload = () => {
-            setTimeout(() => {
-              printWindow.print();
-            }, 500);
-          };
-        }
-      });
-
     setTimeout(() => {
-      root.unmount();
-    }, 0);
+      html2pdf()
+        .set(opt)
+        .from(tempDiv)
+        .toPdf()
+        .get('pdf')
+        .then((pdf: any) => {
+          const pdfBlobUrl = pdf.output('bloburl');
+          const printWindow = window.open(pdfBlobUrl, '_blank');
+          if (printWindow) {
+            printWindow.onload = () => {
+              setTimeout(() => {
+                printWindow.print();
+              }, 500);
+            };
+          }
+        })
+        .finally(() => {
+          root.unmount();
+        });
+    }, 200);
   };
 
   const getListNoticeAsync = async ({

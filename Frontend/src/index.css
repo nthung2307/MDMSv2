@@ -532,13 +532,12 @@ textarea.ant-input {
 .table-pdf td {
   font-size: 11px;
   line-height: 12px;
-  padding: 10px !important;
   font-family: 'Times New Roman', serif !important;
 }
 
 .table-pdf th {
   background: none !important;
-  padding: 0 !important;
+  padding: 4px 2px !important;
   border-inline-end: 1px solid #000000 !important;
   border-bottom: 1px solid #000000 !important;
   border-start-end-radius: 0 !important;
@@ -574,7 +573,7 @@ textarea.ant-input {
 }
 
 .table-pdf td {
-  padding: 0 0 0 5px !important;
+  padding: 3px 0 3px 5px !important;
   border-bottom: 1px solid #000000 !important;
   border-inline-end: 1px solid #000000 !important;
 }
@@ -584,7 +583,9 @@ textarea.ant-input {
 }
 
 .table-pdf .ant-table-cell {
-  height: 50px !important;
+  height: auto !important;
+  min-height: 28px !important;
+  vertical-align: middle !important;
 }
 
 .form-pdf p,
