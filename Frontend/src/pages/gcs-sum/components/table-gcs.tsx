@@ -79,6 +79,7 @@ const TableGcs = (props: Props) => {
       width: 130,
       render: (value, record) => {
         const displayValue = record.newPreviousReading ?? value;
+        const isPmax = record.meterReadingSet === 'Pmax';
         return (
           <Tooltip placement='bottomLeft' title={defineTooltip(record)}>
             <button
@@ -91,7 +92,7 @@ const TableGcs = (props: Props) => {
               <span>
                 {displayValue === null || displayValue === undefined
                   ? '-'
-                  : formatNumberWithCommas(displayValue)}
+                  : formatNumberWithCommas(displayValue, isPmax ? 2 : undefined)}
               </span>
               {record.isChange && record.newPreviousReading !== null && record.newPreviousReading !== undefined && (
                 <img src={EditedIc} alt='' className='w-5' />
@@ -144,10 +145,11 @@ const TableGcs = (props: Props) => {
           );
         }
 
+        const isPmax = record.meterReadingSet === 'Pmax';
         const displayValue =
           record.newCurrentReading != null
-            ? formatNumberWithCommas(record.newCurrentReading)
-            : formatNumberWithCommas(value);
+            ? formatNumberWithCommas(record.newCurrentReading, isPmax ? 2 : undefined)
+            : formatNumberWithCommas(value, isPmax ? 2 : undefined);
 
         if (isSuspicious) {
           return (

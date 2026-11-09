@@ -147,16 +147,16 @@ export const StatementPdfTemplatesPage: React.FC = () => {
   const [activeRecord, setActiveRecord] = useState<StatementPdfTemplateDto | null>(null);
 
   // Live state for immediate WYSIWYG preview
-  const [companyName, setCompanyName] = useState<string>('VSIP HAI PHONG CO.,LTD');
+  const [companyName, setCompanyName] = useState<string>('VSIP HAI PHONG CO., LTD');
   const [companyAddress, setCompanyAddress] = useState<string>(
-    'VSIP Hai Phong Administration Office, VSIP Hai Phong Township, Industrial & Service Park, Hoa Bình Ward, Hai Phong City, Vietnam'
+    'VSIP Hai Phong Administration Office, VSIP Hai Phong Township, Industrial & Service Park\nHoa Binh Ward, Hai Phong City, Vietnam'
   );
   const [contactPhone, setContactPhone] = useState<string>(
     'Tel: 84-225-3959868   Fax: 84-225-3959886'
   );
   const [headerTitle, setHeaderTitle] = useState<string>('MONTHLY POWER METER READING');
   const [subHeaderTitle, setSubHeaderTitle] = useState<string>(
-    '(PHIẾU CHỈ SỐ ĐIỆN HÀNG THÁNG)'
+    'PHIẾU GHI CHỈ SỐ ĐIỆN HÀNG THÁNG'
   );
   const [paperSize, setPaperSize] = useState<string>('A5_LANDSCAPE');
   const [requireDualSignatures, setRequireDualSignatures] = useState<boolean>(true);
@@ -182,11 +182,14 @@ export const StatementPdfTemplatesPage: React.FC = () => {
     const parsedLayout = parseStatementLayoutConfig(tpl.displayColumnsJson);
     const parsedLogos = parseStatementLogosConfig(tpl.excelTemplateBase64, tpl.logoBase64);
 
-    setCompanyName(tpl.companyName || 'VSIP HAI PHONG CO.,LTD');
-    setCompanyAddress(tpl.companyAddress || '');
+    setCompanyName(tpl.companyName || 'VSIP HAI PHONG CO., LTD');
+    setCompanyAddress(
+      tpl.companyAddress ||
+        'VSIP Hai Phong Administration Office, VSIP Hai Phong Township, Industrial & Service Park\nHoa Binh Ward, Hai Phong City, Vietnam'
+    );
     setContactPhone(tpl.contactPhone || 'Tel: 84-225-3959868   Fax: 84-225-3959886');
     setHeaderTitle(tpl.headerTitle || 'MONTHLY POWER METER READING');
-    setSubHeaderTitle(tpl.subHeaderTitle || '(PHIẾU CHỈ SỐ ĐIỆN HÀNG THÁNG)');
+    setSubHeaderTitle(tpl.subHeaderTitle || 'PHIẾU GHI CHỈ SỐ ĐIỆN HÀNG THÁNG');
     setPaperSize(tpl.paperSize || 'A5_LANDSCAPE');
     setRequireDualSignatures(true);
     setFooterNotes(tpl.footerNotes || '');
@@ -194,11 +197,13 @@ export const StatementPdfTemplatesPage: React.FC = () => {
     setLogosConfig(parsedLogos);
 
     form.setFieldsValue({
-      companyName: tpl.companyName || 'VSIP HAI PHONG CO.,LTD',
-      companyAddress: tpl.companyAddress || '',
+      companyName: tpl.companyName || 'VSIP HAI PHONG CO., LTD',
+      companyAddress:
+        tpl.companyAddress ||
+        'VSIP Hai Phong Administration Office, VSIP Hai Phong Township, Industrial & Service Park\nHoa Binh Ward, Hai Phong City, Vietnam',
       contactPhone: tpl.contactPhone || 'Tel: 84-225-3959868   Fax: 84-225-3959886',
       headerTitle: tpl.headerTitle || 'MONTHLY POWER METER READING',
-      subHeaderTitle: tpl.subHeaderTitle || '(PHIẾU CHỈ SỐ ĐIỆN HÀNG THÁNG)',
+      subHeaderTitle: tpl.subHeaderTitle || 'PHIẾU GHI CHỈ SỐ ĐIỆN HÀNG THÁNG',
       paperSize: tpl.paperSize || 'A5_LANDSCAPE',
       requireDualSignatures: true,
       footerNotes: tpl.footerNotes || '',
@@ -526,7 +531,7 @@ export const StatementPdfTemplatesPage: React.FC = () => {
                         <Input
                           value={subHeaderTitle}
                           onChange={(e) => setSubHeaderTitle(e.target.value)}
-                          placeholder='(PHIẾU CHỈ SỐ ĐIỆN HÀNG THÁNG)'
+                          placeholder='PHIẾU GHI CHỈ SỐ ĐIỆN HÀNG THÁNG'
                         />
                       </Form.Item>
 

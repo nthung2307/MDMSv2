@@ -109,21 +109,21 @@ public class FinalMeterReadingCommandHandler : IFinalMeterReadingCommandHandler
                     var vcRec = group.FirstOrDefault(x => x.MeterReadingSet == "VC");
                     var pmaxRec = group.FirstOrDefault(x => x.MeterReadingSet == "Pmax");
 
-                    var btCurr = btRec?.NewCurrentReading ?? btRec?.CurrentReading ?? 0;
-                    var cdCurr = cdRec?.NewCurrentReading ?? cdRec?.CurrentReading ?? 0;
-                    var tdCurr = tdRec?.NewCurrentReading ?? tdRec?.CurrentReading ?? 0;
-                    var sgCurr = sgRec?.NewCurrentReading ?? sgRec?.CurrentReading ?? 0;
-                    var vcCurr = vcRec?.NewCurrentReading ?? vcRec?.CurrentReading ?? 0;
-                    var pmaxCurr = pmaxRec?.NewCurrentReading ?? pmaxRec?.CurrentReading ?? 0;
+                    var btCurr = btRec?.NewCurrentReading ?? btRec?.CurrentReading ?? 0m;
+                    var cdCurr = cdRec?.NewCurrentReading ?? cdRec?.CurrentReading ?? 0m;
+                    var tdCurr = tdRec?.NewCurrentReading ?? tdRec?.CurrentReading ?? 0m;
+                    var sgCurr = sgRec?.NewCurrentReading ?? sgRec?.CurrentReading ?? 0m;
+                    var vcCurr = vcRec?.NewCurrentReading ?? vcRec?.CurrentReading ?? 0m;
+                    var pmaxCurr = pmaxRec?.NewCurrentReading ?? pmaxRec?.CurrentReading ?? 0m;
 
-                    var btPrev = btRec?.NewPreviousReading ?? btRec?.PreviousReading ?? 0;
-                    var cdPrev = cdRec?.NewPreviousReading ?? cdRec?.PreviousReading ?? 0;
-                    var tdPrev = tdRec?.NewPreviousReading ?? tdRec?.PreviousReading ?? 0;
-                    var sgPrev = sgRec?.NewPreviousReading ?? sgRec?.PreviousReading ?? 0;
-                    var vcPrev = vcRec?.NewPreviousReading ?? vcRec?.PreviousReading ?? 0;
-                    var pmaxPrev = pmaxRec?.NewPreviousReading ?? pmaxRec?.PreviousReading ?? 0;
+                    var btPrev = btRec?.NewPreviousReading ?? btRec?.PreviousReading ?? 0m;
+                    var cdPrev = cdRec?.NewPreviousReading ?? cdRec?.PreviousReading ?? 0m;
+                    var tdPrev = tdRec?.NewPreviousReading ?? tdRec?.PreviousReading ?? 0m;
+                    var sgPrev = sgRec?.NewPreviousReading ?? sgRec?.PreviousReading ?? 0m;
+                    var vcPrev = vcRec?.NewPreviousReading ?? vcRec?.PreviousReading ?? 0m;
+                    var pmaxPrev = pmaxRec?.NewPreviousReading ?? pmaxRec?.PreviousReading ?? 0m;
 
-                    var mult = btRec?.MultiplierFactor ?? sgRec?.MultiplierFactor ?? group.FirstOrDefault()?.MultiplierFactor ?? 1;
+                    var mult = btRec?.MultiplierFactor ?? sgRec?.MultiplierFactor ?? group.FirstOrDefault()?.MultiplierFactor ?? 1.0m;
 
                     var consBt = btRec?.Consumption ?? ((btCurr - btPrev) * mult);
                     var consCd = cdRec?.Consumption ?? ((cdCurr - cdPrev) * mult);
@@ -131,7 +131,7 @@ public class FinalMeterReadingCommandHandler : IFinalMeterReadingCommandHandler
                     var consSg = sgRec?.Consumption ?? ((sgCurr - sgPrev) * mult);
                     var consVc = vcRec?.Consumption ?? ((vcCurr - vcPrev) * mult);
 
-                    double? effectiveAp = consSg > 0 ? consSg : ((consBt + consCd + consTd) > 0 ? (consBt + consCd + consTd) : consSg);
+                    decimal? effectiveAp = consSg > 0m ? consSg : ((consBt + consCd + consTd) > 0m ? (consBt + consCd + consTd) : consSg);
                     var cosPhi = group.FirstOrDefault(x => x.CosPhi.HasValue)?.CosPhi
                                  ?? Infrastructure.Repositories.ReadWrite.GcsTemporaryReadWriteRepository.CalculateAverageCosPhi(effectiveAp, consVc);
 
@@ -213,6 +213,9 @@ public class FinalMeterReadingCommandHandler : IFinalMeterReadingCommandHandler
             for (int i = orderedTemporary.Count - 1; i >= 0; i--)
             {
                 var item = orderedTemporary[i];
+                var isPmax = string.Equals(item.MeterReadingSet, "Pmax", StringComparison.OrdinalIgnoreCase);
+                var prevReading = item.NewPreviousReading ?? item.PreviousReading;
+                var currReading = item.NewCurrentReading ?? item.CurrentReading;
                 gcsCutOffCycle.Day = item.Day;
                 monthlyDetailsToInsert.Add(new GcsMonthlyDetailEntity
                 {
@@ -220,8 +223,8 @@ public class FinalMeterReadingCommandHandler : IFinalMeterReadingCommandHandler
                     GcsCutoffCycleId = gcsCutoffCycleId,
                     MeasurementPointId = item.MeasurementPointId,
                     MeterReadingSet = item.MeterReadingSet,
-                    PreviousReading = item.NewPreviousReading ?? item.PreviousReading,
-                    CurrentReading = item.NewCurrentReading ?? item.CurrentReading,
+                    PreviousReading = isPmax && prevReading.HasValue ? Math.Round(prevReading.Value, 2, MidpointRounding.AwayFromZero) : prevReading,
+                    CurrentReading = isPmax && currReading.HasValue ? Math.Round(currReading.Value, 2, MidpointRounding.AwayFromZero) : currReading,
                     MultiplierFactor = item.MultiplierFactor,
                     Consumption = item.Consumption,
                     CosPhi = item.CosPhi,
@@ -256,24 +259,24 @@ public class FinalMeterReadingCommandHandler : IFinalMeterReadingCommandHandler
                     Month = request.Request.Month,
                     Year = request.Request.Year,
                     PeriodNumber = request.Request.PeriodNumber,
-                    Bt = Math.Round((double)group.Bt, 2),
-                    Cd = Math.Round((double)group.Cd, 2),
-                    Td = Math.Round((double)group.Td, 2),
-                    Sg = Math.Round((double)group.Sg, 2),
-                    Vc = Math.Round((double)group.Vc, 2),
-                    Pmax = Math.Round((double)group.Pmax, 2),
-                    PreviousBt = Math.Round((double)group.PreviousBt, 2),
-                    PreviousCd = Math.Round((double)group.PreviousCd, 2),
-                    PreviousTd = Math.Round((double)group.PreviousTd, 2),
-                    PreviousSg = Math.Round((double)group.PreviousSg, 2),
-                    PreviousVc = Math.Round((double)group.PreviousVc, 2),
-                    PreviousPmax = Math.Round((double)group.PreviousPmax, 2),
-                    Multiplier = Math.Round((double)group.Multiplier, 2),
-                    ConsumtionBt = Math.Round((double)group.ConsumtionBt, 2),
-                    ConsumtionCd = Math.Round((double)group.ConsumtionCd, 2),
-                    ConsumtionTd = Math.Round((double)group.ConsumtionTd, 2),
-                    ConsumtionSg = Math.Round((double)group.ConsumtionSg, 2),
-                    ConsumtionVc = Math.Round((double)group.ConsumtionVc, 2),
+                    Bt = Math.Round(group.Bt, 4, MidpointRounding.AwayFromZero),
+                    Cd = Math.Round(group.Cd, 4, MidpointRounding.AwayFromZero),
+                    Td = Math.Round(group.Td, 4, MidpointRounding.AwayFromZero),
+                    Sg = Math.Round(group.Sg, 4, MidpointRounding.AwayFromZero),
+                    Vc = Math.Round(group.Vc, 4, MidpointRounding.AwayFromZero),
+                    Pmax = Math.Round(group.Pmax, 2, MidpointRounding.AwayFromZero),
+                    PreviousBt = Math.Round(group.PreviousBt, 4, MidpointRounding.AwayFromZero),
+                    PreviousCd = Math.Round(group.PreviousCd, 4, MidpointRounding.AwayFromZero),
+                    PreviousTd = Math.Round(group.PreviousTd, 4, MidpointRounding.AwayFromZero),
+                    PreviousSg = Math.Round(group.PreviousSg, 4, MidpointRounding.AwayFromZero),
+                    PreviousVc = Math.Round(group.PreviousVc, 4, MidpointRounding.AwayFromZero),
+                    PreviousPmax = Math.Round(group.PreviousPmax, 2, MidpointRounding.AwayFromZero),
+                    Multiplier = Math.Round(group.Multiplier, 4, MidpointRounding.AwayFromZero),
+                    ConsumtionBt = Math.Round(group.ConsumtionBt, 4, MidpointRounding.AwayFromZero),
+                    ConsumtionCd = Math.Round(group.ConsumtionCd, 4, MidpointRounding.AwayFromZero),
+                    ConsumtionTd = Math.Round(group.ConsumtionTd, 4, MidpointRounding.AwayFromZero),
+                    ConsumtionSg = Math.Round(group.ConsumtionSg, 4, MidpointRounding.AwayFromZero),
+                    ConsumtionVc = Math.Round(group.ConsumtionVc, 4, MidpointRounding.AwayFromZero),
                     CosPhi = group.CosPhi.HasValue ? Math.Round(group.CosPhi.Value, 2, MidpointRounding.AwayFromZero) : null,
                     BillingTimestamp = group.BillingTimestamp,
                     PmaxTime = group.PmaxTime,

@@ -64,6 +64,12 @@ public class NotificationTemplateService : INotificationTemplateService
         });
     }
 
+    public static bool IsGarbledEncoding(string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return false;
+        return text.Contains('├') || text.Contains('ß') || text.Contains('─') || text.Contains('║') || text.Contains('¥') || text.Contains('┬') || text.Contains('┐') || text.Contains('└');
+    }
+
     public async Task<(string Subject, string BodyHtml)> RenderNotificationAsync(string code, IDictionary<string, object?> context, CancellationToken cancellationToken = default)
     {
         if (_statementPdfTemplateRepository != null)
@@ -72,17 +78,27 @@ public class NotificationTemplateService : INotificationTemplateService
             if (activeStmtTpl != null)
             {
                 var layout = StatementPdfGenerator.ParseLayoutConfig(activeStmtTpl);
-                if (!context.ContainsKey("CompanyName") || string.IsNullOrWhiteSpace(context["CompanyName"]?.ToString()))
+                var compName = !string.IsNullOrWhiteSpace(activeStmtTpl.CompanyName) && !IsGarbledEncoding(activeStmtTpl.CompanyName)
+                    ? activeStmtTpl.CompanyName
+                    : "CÔNG TY TNHH VSIP HẢI PHÒNG";
+                var compAddr = !string.IsNullOrWhiteSpace(activeStmtTpl.CompanyAddress) && !IsGarbledEncoding(activeStmtTpl.CompanyAddress)
+                    ? activeStmtTpl.CompanyAddress
+                    : "Khu Đô thị, Công nghiệp và Dịch vụ VSIP Hải Phòng, Thủy Nguyên, Hải Phòng";
+                var compPhone = !string.IsNullOrWhiteSpace(activeStmtTpl.ContactPhone) && !IsGarbledEncoding(activeStmtTpl.ContactPhone)
+                    ? activeStmtTpl.ContactPhone
+                    : "(0225) 3959 888";
+
+                if (!context.ContainsKey("CompanyName") || string.IsNullOrWhiteSpace(context["CompanyName"]?.ToString()) || IsGarbledEncoding(context["CompanyName"]?.ToString()))
                 {
-                    context["CompanyName"] = !string.IsNullOrWhiteSpace(activeStmtTpl.CompanyName) ? activeStmtTpl.CompanyName : "VSIP HAI PHONG CO.,LTD";
+                    context["CompanyName"] = compName;
                 }
-                if (!context.ContainsKey("CompanyAddress") || string.IsNullOrWhiteSpace(context["CompanyAddress"]?.ToString()))
+                if (!context.ContainsKey("CompanyAddress") || string.IsNullOrWhiteSpace(context["CompanyAddress"]?.ToString()) || IsGarbledEncoding(context["CompanyAddress"]?.ToString()))
                 {
-                    context["CompanyAddress"] = activeStmtTpl.CompanyAddress ?? string.Empty;
+                    context["CompanyAddress"] = compAddr;
                 }
-                if (!context.ContainsKey("ContactPhone") || string.IsNullOrWhiteSpace(context["ContactPhone"]?.ToString()))
+                if (!context.ContainsKey("ContactPhone") || string.IsNullOrWhiteSpace(context["ContactPhone"]?.ToString()) || IsGarbledEncoding(context["ContactPhone"]?.ToString()))
                 {
-                    context["ContactPhone"] = activeStmtTpl.ContactPhone ?? string.Empty;
+                    context["ContactPhone"] = compPhone;
                 }
                 if (!context.ContainsKey("TaxCode") || string.IsNullOrWhiteSpace(context["TaxCode"]?.ToString()))
                 {
@@ -129,15 +145,15 @@ public class NotificationTemplateService : INotificationTemplateService
 
                 // Nạp thông tin công ty / đơn vị cung cấp điện tập trung từ SystemConfig
                 var companyName = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CompanyName)?.Value;
-                if (!string.IsNullOrWhiteSpace(companyName))
+                if (!string.IsNullOrWhiteSpace(companyName) && !IsGarbledEncoding(companyName))
                     context["CompanyName"] = companyName;
 
                 var companyAddress = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CompanyAddress)?.Value;
-                if (!string.IsNullOrWhiteSpace(companyAddress))
+                if (!string.IsNullOrWhiteSpace(companyAddress) && !IsGarbledEncoding(companyAddress))
                     context["CompanyAddress"] = companyAddress.Replace("\r\n", ", ").Replace("\n", ", ");
 
                 var companyPhone = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CompanyPhone)?.Value;
-                if (!string.IsNullOrWhiteSpace(companyPhone))
+                if (!string.IsNullOrWhiteSpace(companyPhone) && !IsGarbledEncoding(companyPhone))
                     context["ContactPhone"] = companyPhone;
 
                 var companyTaxCode = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CompanyTaxCode)?.Value;
@@ -153,6 +169,11 @@ public class NotificationTemplateService : INotificationTemplateService
         var template = await _repository.GetDefaultByCodeAsync(code, cancellationToken);
         if (template != null)
         {
+            if (IsGarbledEncoding(template.BodyHtmlTemplate) || IsGarbledEncoding(template.SubjectTemplate))
+            {
+                _logger.LogWarning("Phát hiện mẫu thông báo '{Code}' trong CSDL bị lỗi font mã hóa ký tự. Tự động chuyển về mẫu chuẩn mặc định.", code);
+                return GetFallbackDefaultTemplate(code, context);
+            }
             var cleanedHtml = CleanLegacyFields(template.BodyHtmlTemplate);
             var subject = Render(template.SubjectTemplate, context);
             var body = Render(cleanedHtml, context);

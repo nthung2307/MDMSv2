@@ -220,8 +220,22 @@ export const isEmpty = (prop: any) => {
   );
 };
 
-export const formatNumberWithCommas = (number: number) => {
-  return number ? number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') : 0;
+export const formatNumberWithCommas = (
+  number: number | string | null | undefined,
+  decimals?: number
+) => {
+  if (number === null || number === undefined || number === '') return 0;
+  const num = Number(number);
+  if (isNaN(num)) return number.toString();
+  if (decimals !== undefined) {
+    const parts = num.toFixed(decimals).split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return parts.join('.');
+  }
+  const str = number.toString();
+  const parts = str.split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return parts.join('.');
 };
 
 export const onScrollToParentOfMessageError = () => {
@@ -275,16 +289,25 @@ export const generateRandomString = (length: number) => {
 export const getAccountRole = () => {
   const localStorage = new LocalStorageService();
   const accessToken: string = localStorage.readStorage(Constants.API_TOKEN_STORAGE);
-  if (!accessToken) return null;
-  const accountRole: any = jwtDecode(accessToken);
-  return accountRole?.role;
+  if (!accessToken || typeof accessToken !== 'string') return null;
+  try {
+    const accountRole: any = jwtDecode(accessToken);
+    return accountRole?.role ?? null;
+  } catch {
+    return null;
+  }
 };
 
 export const getAccountId = () => {
   const localStorage = new LocalStorageService();
   const accessToken: string = localStorage.readStorage(Constants.API_TOKEN_STORAGE);
-  const accountID: any = jwtDecode(accessToken);
-  return accountID?.id;
+  if (!accessToken || typeof accessToken !== 'string') return null;
+  try {
+    const accountID: any = jwtDecode(accessToken);
+    return accountID?.id ?? null;
+  } catch {
+    return null;
+  }
 };
 
 export const isMatchRoles = (roles: string[]) => {

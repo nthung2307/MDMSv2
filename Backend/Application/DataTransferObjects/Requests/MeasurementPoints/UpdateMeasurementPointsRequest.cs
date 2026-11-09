@@ -10,5 +10,5 @@ public class UpdateMeasurementPointsRequest
     public long CustomerId { get; set; }
     public long? GcsId { get; set; }
     public string Status { get; set; }
-    public double MultiplierFactor { get; set; }
+    public decimal MultiplierFactor { get; set; } = 1.0m;
 }

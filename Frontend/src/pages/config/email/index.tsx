@@ -60,6 +60,7 @@ const EmailConfigPage = () => {
           form.setFieldsValue({
             providerType: type,
             senderEmail: data.senderEmail,
+            senderDisplayName: data.senderDisplayName || '',
             tenantId: data.tenantId,
             clientId: data.clientId,
             clientSecret: '',
@@ -106,7 +107,7 @@ const EmailConfigPage = () => {
         {
           providerType: values.providerType,
           senderEmail: values.senderEmail,
-          senderDisplayName: null,
+          senderDisplayName: values.senderDisplayName || values.senderEmail || '',
           tenantId: values.tenantId,
           clientId: values.clientId,
           clientSecret: values.clientSecret || null,
@@ -148,6 +149,7 @@ const EmailConfigPage = () => {
         testRecipientEmail: testEmail,
         providerType: currentValues.providerType,
         senderEmail: currentValues.senderEmail,
+        senderDisplayName: currentValues.senderDisplayName || currentValues.senderEmail || '',
         tenantId: currentValues.tenantId,
         clientId: currentValues.clientId,
         clientSecret: currentValues.clientSecret || null,
@@ -272,6 +274,18 @@ const EmailConfigPage = () => {
                         size='large'
                         prefix={<IoMailOutline className='text-gray-400 mr-1' />}
                         placeholder='Ví dụ: noreply.hoadondientu.hp@vsip.com.vn'
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      label='Tên hiển thị người gửi (Sender Display Name)'
+                      name='senderDisplayName'
+                      tooltip='Tên hiển thị trên hộp thư người nhận (Ví dụ: VSIP Hải Phòng - AMR/MDMS)'
+                    >
+                      <Input
+                        size='large'
+                        placeholder='Ví dụ: VSIP Hải Phòng - AMR System'
                       />
                     </Form.Item>
                   </Col>

@@ -10,7 +10,7 @@ namespace Infrastructure.Common.Handlers
     // We set the TRequirement as one of our custom requirements which is PermissionsRequirement. This handler
     // will be automatically triggered if registered in startup and a policy has this type of requirement.
     // Type of permission in table RolePermissions must be "Permission"
-    public class PermissionsAuthorizationHandler : AuthorizationHandler<PermissionsRequirement>, ISingletonDependency
+    public class PermissionsAuthorizationHandler : AuthorizationHandler<PermissionsRequirement>, IScopedDependency
     {
         private readonly ILogger<PermissionsAuthorizationHandler> _logger;
         private readonly IUserReadOnlyRepository _userProfileReadOnlyRepository;

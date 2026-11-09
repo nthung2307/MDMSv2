@@ -13,8 +13,8 @@ public class UpdateListGcsTemporaryRequest
 public class UpdateGcsTemporaryRequest
 {
     public long Id { get; set; }
-    public double? NewCurrentReading { get; set; }
-    public double? NewPreviousReading { get; set; }
+    public decimal? NewCurrentReading { get; set; }
+    public decimal? NewPreviousReading { get; set; }
     public bool? IsChange { get; set; }
 }
 

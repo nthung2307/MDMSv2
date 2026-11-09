@@ -9,7 +9,7 @@ public class MeasurementPointGcsDto
     public string Code { get; set; }
     public string? Description { get; set; }
     public string? CustomerName { get; set; }
-    public double MultiplierFactor { get; set; }
+    public decimal MultiplierFactor { get; set; }
     public long? GcsId { get; set; }
     public long? OldGcsId { get; set; }
     public bool IsNewChange { get; set; }

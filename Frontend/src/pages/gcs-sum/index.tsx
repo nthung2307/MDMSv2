@@ -136,7 +136,9 @@ const GCSSum = () => {
       const indexData = data?.findIndex((item) => item.id === record.id);
       if (indexData !== undefined && indexData !== -1) {
         const isEditCurrent = isShowDialogEdit.fieldType === 'current';
-        const editedValue = Number(dataReading.newValueReading);
+        const isPmax = record.meterReadingSet === 'Pmax';
+        const rawNum = Number(dataReading.newValueReading);
+        const editedValue = isPmax ? Number(rawNum.toFixed(2)) : rawNum;
         const nextNewCurrentReading = isEditCurrent
           ? editedValue
           : record.newCurrentReading ?? record.currentReading;
@@ -144,7 +146,7 @@ const GCSSum = () => {
           ? record.newPreviousReading ?? record.previousReading
           : editedValue;
         const consumption =
-          record.meterReadingSet === 'Pmax'
+          isPmax
             ? null
             : (nextNewCurrentReading - nextNewPreviousReading) * record.multiplierFactor;
         dataEx[indexData] = {
@@ -197,12 +199,12 @@ const GCSSum = () => {
         isShowDialogEdit.fieldType === 'current'
           ? {
               id: record.id,
-              newCurrentReading: Number(dataReading.newValueReading),
+              newCurrentReading: editedValue,
               isChange: isManualChange,
             }
           : {
               id: record.id,
-              newPreviousReading: Number(dataReading.newValueReading),
+              newPreviousReading: editedValue,
               isChange: isManualChange,
             };
       const params = new UpdateGCSTemporaryRequest({
@@ -332,23 +334,30 @@ const GCSSum = () => {
   };
 
   const dataExport = data?.map((item) => {
+    const isPmax = item.meterReadingSet === 'Pmax';
+    const prevVal = item.newPreviousReading ?? item.previousReading;
+    const currVal = item.newCurrentReading ?? item.currentReading;
     return {
       measurementPoint: item.measurementPoint.code ?? 'N/A',
       description: item.measurementPoint.description ?? '',
       customer: item.measurementPoint.customer.fullName ?? 'N/A',
       meterReadingSet: item.meterReadingSet ?? 'N/A',
       previousReading:
-        formatNumberWithCommas(item.newPreviousReading ?? item.previousReading) ?? '????',
+        prevVal != null
+          ? formatNumberWithCommas(prevVal, isPmax ? 2 : undefined)
+          : '????',
       isChange: item.newCurrentReading != null || item.newPreviousReading != null,
       currentReading:
-        item.newCurrentReading ?? item.currentReading
-          ? formatNumberWithCommas(item.newCurrentReading ?? item.currentReading)
+        currVal != null
+          ? formatNumberWithCommas(currVal, isPmax ? 2 : undefined)
           : '????',
-      multiplierFactor: item.multiplierFactor ?? '????',
+      multiplierFactor: isPmax ? '' : (item.multiplierFactor ?? '????'),
       consumption:
-        item.currentReading || item.newCurrentReading
+        isPmax
+          ? 'N/A'
+          : item.consumption != null
           ? formatNumberWithCommas(item.consumption)
-          : 'N/A',
+          : (currVal != null ? formatNumberWithCommas(item.consumption) : 'N/A'),
     };
   });
   useEffect(() => {
@@ -397,12 +406,20 @@ const GCSSum = () => {
       return;
     }
 
-    const initValue =
+    const val =
       isShowDialogEdit.fieldType === 'previous'
         ? isShowDialogEdit.record.newPreviousReading ?? isShowDialogEdit.record.previousReading
         : isShowDialogEdit.record.newCurrentReading ?? isShowDialogEdit.record.currentReading;
+    const isPmax = isShowDialogEdit.record.meterReadingSet === 'Pmax';
 
-    setDataReading({ newValueReading: initValue });
+    setDataReading({
+      newValueReading:
+        val != null
+          ? isPmax
+            ? Number(val).toFixed(2)
+            : val
+          : '',
+    });
   }, [isShowDialogEdit]);
 
   const periodDate = GCSName ? GCSName.nameGcs.dayPeriod[GCSName?.periodNumber - 1] : '1';

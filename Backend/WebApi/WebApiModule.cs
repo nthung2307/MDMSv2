@@ -13,12 +13,11 @@ public class WebApiModule : Module
         {
             var factory = context.Resolve<IDbContextFactory<AppReadWriteDbContext>>();
             return factory.CreateDbContext();
-        });
+        }).InstancePerLifetimeScope();
         builder.Register(context =>
         {
             var factory = context.Resolve<IDbContextFactory<AppReadOnlyDbContext>>();
             return factory.CreateDbContext();
-        });
-        base.Load(builder);
+        }).InstancePerLifetimeScope();
     }
 }

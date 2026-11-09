@@ -53,26 +53,26 @@ import totalOutputMeasurementPoints from '@/pages/reports/total-output-measureme
 import YearlyFinalizedEnergyReport from '@/pages/reports/yearly-finalized-energy-report/yearly-finalized-energy-report.tsx';
 import ActivePointsEnergyReport from '@/pages/reports/active-points-energy-report/active-points-energy-report.tsx';
 
-export const AdminPage = () => {
-  // 👇️ conditionally redirect based on isAuthenticated boolean
-  const AuthWrapper = () => {
-    let localStorageService = new LocalStorageService();
-    let accessToken = localStorageService.readStorage(Constants.API_TOKEN_STORAGE);
-    if (accessToken) {
-      switch (getAccountRole()) {
-        case Constants.Role.Customer.value:
-        case Constants.Role.Staff.value:
-        case Constants.Role.Admin.value:
-        case Constants.Role.SuperAdmin.value:
-          return <Navigate to={ROUTE_PATH.POINT_MONITORING} />;
-        default:
-          return <Navigate to={ROUTE_PATH.FORBIDDEN_ACCESS} />;
-      }
-    } else {
-      return <Navigate to={ROUTE_PATH.LOGIN} replace={true} />;
+// 👇️ conditionally redirect based on isAuthenticated boolean
+const AuthWrapper = () => {
+  const localStorageService = new LocalStorageService();
+  const accessToken = localStorageService.readStorage(Constants.API_TOKEN_STORAGE);
+  if (accessToken) {
+    switch (getAccountRole()) {
+      case Constants.Role.Customer.value:
+      case Constants.Role.Staff.value:
+      case Constants.Role.Admin.value:
+      case Constants.Role.SuperAdmin.value:
+        return <Navigate to={ROUTE_PATH.POINT_MONITORING} />;
+      default:
+        return <Navigate to={ROUTE_PATH.FORBIDDEN_ACCESS} />;
     }
-  };
+  } else {
+    return <Navigate to={ROUTE_PATH.LOGIN} replace={true} />;
+  }
+};
 
+export const AdminPage = () => {
   return (
     <div>
       <MainLayout>
@@ -502,7 +502,16 @@ export const AdminPage = () => {
           {/* Report Management */}
           <Route
             path={ROUTE_PATH.REPORT_MANAGEMENT}
-            element={<PrivateRoute component={ReportManagement} roles={[]} />}
+            element={
+              <PrivateRoute
+                component={ReportManagement}
+                roles={[
+                  Constants.Role.SuperAdmin.value,
+                  Constants.Role.Admin.value,
+                  Constants.Role.Staff.value,
+                ]}
+              />
+            }
           />
           {/* End of Report Management */}
           {/* GCS Sum */}

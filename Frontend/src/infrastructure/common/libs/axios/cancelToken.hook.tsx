@@ -14,7 +14,10 @@ export const useCancelToken = () => {
   const axiosSource: any = useRef(null);
 
   const newCancelToken = useCallback(() => {
-    let CancelToken = axios.CancelToken;
+    if (axiosSource.current) {
+      axiosSource.current.cancel();
+    }
+    const CancelToken = axios.CancelToken;
     axiosSource.current = CancelToken.source();
     return axiosSource.current.token;
   }, []);

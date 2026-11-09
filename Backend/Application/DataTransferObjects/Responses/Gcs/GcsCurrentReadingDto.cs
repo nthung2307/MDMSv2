@@ -9,6 +9,6 @@ public class GcsCurrentReadingDto
     public int CurrentMonth { get; set; }
     public int CurrentYear { get; set; }
     public long MeasurementPointId { get; set; }
-    public double? CurrentReading { get; set; }
+    public decimal? CurrentReading { get; set; }
     public string MeterReadingSet { get; set; }
 }

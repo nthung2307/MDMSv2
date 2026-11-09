@@ -21,7 +21,7 @@ const LeftMenu = () => {
   // Check if the user is allowed to access the menu item
   const isAllowed = (allowedPermissions: string[]): boolean => {
     if (!role) return false;
-    return allowedPermissions.some((permission) => role.includes(permission));
+    return allowedPermissions.includes(role);
   };
 
   const findKeyByHyperlink = (menu: any, targetHyperlink: string): string | any => {

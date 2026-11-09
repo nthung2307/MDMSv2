@@ -1241,7 +1241,12 @@ export const NotificationTemplatesPage: React.FC = () => {
                   padding: 8,
                   width: '100%',
                 }}
-                dangerouslySetInnerHTML={{ __html: livePreview.renderedHtml }}
+                dangerouslySetInnerHTML={{
+                  __html: (livePreview.renderedHtml || '')
+                    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+                    .replace(/\son\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+                    .replace(/javascript\s*:/gi, ''),
+                }}
               />
             </div>
           </Card>

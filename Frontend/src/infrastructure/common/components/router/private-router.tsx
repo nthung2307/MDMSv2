@@ -16,21 +16,27 @@ export const PrivateRoute: React.FC<Props> = ({ component: RouteComponent, roles
   let storage: any = localStorageService.readStorage(Constants.API_TOKEN_STORAGE);
 
   if (storage) {
-    const info: any = jwtDecode(storage);
-    let permissions = info?.role;
-    let checkRole = false;
-    if (roles && roles.length) {
-      roles.some((role) => {
-        if (permissions === role) {
-          checkRole = true;
-          return true;
-        }
-      });
+    try {
+      const info: any = jwtDecode(storage);
+      const permissions = info?.role;
+      let checkRole = false;
+      if (roles && roles.length) {
+        roles.some((role) => {
+          if (permissions === role) {
+            checkRole = true;
+            return true;
+          }
+        });
+      }
+      if (checkRole) {
+        return <RouteComponent />;
+      }
+      return <Navigate to={ROUTE_PATH.FORBIDDEN_ACCESS} />;
+    } catch {
+      localStorageService.removeStorage(Constants.API_TOKEN_STORAGE);
+      localStorageService.removeStorage(Constants.API_REFRESH_TOKEN_STORAGE);
+      return <Navigate to={ROUTE_PATH.LOGIN} />;
     }
-    if (checkRole) {
-      return <RouteComponent />;
-    }
-    return <Navigate to={ROUTE_PATH.FORBIDDEN_ACCESS} />;
   }
 
   return <Navigate to={ROUTE_PATH.LOGIN} />;

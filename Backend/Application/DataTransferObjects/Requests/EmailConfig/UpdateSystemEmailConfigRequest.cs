@@ -2,9 +2,9 @@ namespace Application.DataTransferObjects.Requests.EmailConfig;
 
 public class UpdateSystemEmailConfigRequest
 {
-    public string ProviderType { get; set; } = "MICROSOFT_GRAPH"; // MICROSOFT_GRAPH, CUSTOM_SMTP, GMAIL
-    public string SenderEmail { get; set; } = string.Empty;
-    public string SenderDisplayName { get; set; } = string.Empty;
+    public string? ProviderType { get; set; } = "MICROSOFT_GRAPH"; // MICROSOFT_GRAPH, CUSTOM_SMTP, GMAIL
+    public string? SenderEmail { get; set; }
+    public string? SenderDisplayName { get; set; }
 
     // Microsoft Graph API
     public string? TenantId { get; set; }

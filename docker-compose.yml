@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # 1. Cơ sở dữ liệu MySQL 8.0
+  mysql:
+    image: mysql:8.0
+    container_name: mdms_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-Abc@123456}
+      MYSQL_DATABASE: amr
+      TZ: Asia/Ho_Chi_Minh
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+07:00
+      - --max_connections=500
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./Installers/Database/amr_full.sql:/docker-entrypoint-initdb.d/01_amr_full.sql:ro
+      - ./Installers/Database/20261031_create_email_config_and_metering_tables.sql:/docker-entrypoint-initdb.d/02_email_and_metering.sql:ro
+      - ./Installers/Database/20261109_fix_vietnamese_font_encoding.sql:/docker-entrypoint-initdb.d/03_fix_encoding.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-Abc@123456}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mdms_net
+
+  # 2. Backend WebApi .NET 8
+  backend:
+    build:
+      context: .
+      dockerfile: Backend/WebApi/Dockerfile
+    container_name: mdms_backend
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      AppDb__Server: mysql
+      AppDb__Port: 3306
+      AppDb__DatabaseName: amr
+      AppDb__UserName: root
+      AppDb__Password: ${DB_PASSWORD:-Abc@123456}
+      TZ: Asia/Ho_Chi_Minh
+    ports:
+      - "8080:8080"
+    networks:
+      - mdms_net
+
+  # 3. Frontend React 18 + Nginx
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile.prod
+    container_name: mdms_frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "8866:80"
+    networks:
+      - mdms_net
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  mdms_net:
+    driver: bridge
+

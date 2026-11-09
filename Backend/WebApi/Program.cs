@@ -36,10 +36,6 @@ var builder = WebApplication.CreateBuilder(args);
 var env = builder.Environment.EnvironmentName;
 
 Console.WriteLine($"==> ⚙️⚙️⚙️⚙️⚙️ Current Environment info: {env}");
-foreach (var (key, value) in builder.Configuration.AsEnumerable())
-{
-    Console.WriteLine($"-\t\t{key}-{value}");
-}
 
 builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
 
@@ -146,6 +142,9 @@ builder.Services.Configure<AppDbConfiguration>(builder.Configuration.GetSection(
 var appDb = new AppDbConfiguration();
 builder.Configuration.GetSection("AppDb").Bind(appDb);
 
+// JWT
+builder.Services.Configure<Nobisoft.Core.Authorization.Commons.JwtConfiguration>(builder.Configuration.GetSection("JwtConfigurations"));
+
 // Email
 builder.Services.Configure<EmailConfiguration>(builder.Configuration.GetSection("Email"));
 var appEmail = new EmailConfiguration();
@@ -187,7 +186,11 @@ builder.Services.AddAuthentication(config =>
             // If the request is for our hub...
             var path = context.HttpContext.Request.Path;
             if (!string.IsNullOrEmpty(accessToken) &&
-                (path.StartsWithSegments("/notification/web")))
+                (path.StartsWithSegments("/notification/web") ||
+                 path.StartsWithSegments("/listnotificationhub") ||
+                 path.StartsWithSegments("/detailnotificationhub") ||
+                 path.StartsWithSegments("/detailnotificationdatetimehub") ||
+                 path.StartsWithSegments("/notificationeventhub")))
             {
                 // Read the token out of the query string
                 context.Token = accessToken;
@@ -284,7 +287,10 @@ builder.Services.AddPooledDbContextFactory<AppReadWriteDbContext>(options =>
         opts.MigrationsAssembly(typeof(WebApiModule).Assembly.FullName);
         opts.CommandTimeout(180);
     });
-    options.EnableSensitiveDataLogging();
+    if (builder.Environment.IsDevelopment())
+    {
+        options.EnableSensitiveDataLogging();
+    }
     options.UseLoggerFactory(LoggerFactory.Create(loggingBuilder =>
     {
         loggingBuilder.AddConsole();
@@ -301,7 +307,10 @@ builder.Services.AddPooledDbContextFactory<AppReadOnlyDbContext>(options =>
         opts.MigrationsAssembly(typeof(WebApiModule).Assembly.FullName);
         opts.CommandTimeout(180);
     });
-    options.EnableSensitiveDataLogging();
+    if (builder.Environment.IsDevelopment())
+    {
+        options.EnableSensitiveDataLogging();
+    }
     options.UseLoggerFactory(LoggerFactory.Create(loggingBuilder =>
     {
         loggingBuilder.AddConsole();
@@ -392,7 +401,6 @@ app.UseHealthChecks("/health", new HealthCheckOptions
 
 app.UseHttpsRedirection();
 app.UseHangfireDashboard("/dashboard");
-app.UseHangfireServer();
 RecurringJob.AddOrUpdate<BackgroundJobService>(
     "GroupDataPerMeter",
     job => job.GroupDataPerMeter(CancellationToken.None),
@@ -431,7 +439,7 @@ RecurringJob.AddOrUpdate<BackgroundJobService>(
 
 app.UseCors("AllowAllDomains");
 app.UseMiddleware<HeaderTrackingMiddleware>();
-app.UseMiddleware<ExceptionKillerMiddleware>(true);
+app.UseMiddleware<ExceptionKillerMiddleware>(app.Environment.IsDevelopment());
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
@@ -606,18 +614,18 @@ CREATE TABLE IF NOT EXISTS `MeterReplacements` (
     catch { }
     var extraAlterSqls = new[]
     {
-        "ALTER TABLE `GcsTemporary` ADD COLUMN `CosPhi` double DEFAULT NULL;",
-        "ALTER TABLE `gcstemporary` ADD COLUMN `CosPhi` double DEFAULT NULL;",
+        "ALTER TABLE `GcsTemporary` ADD COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
+        "ALTER TABLE `gcstemporary` ADD COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
         "ALTER TABLE `GcsTemporary` ADD COLUMN `PmaxTime` datetime(6) DEFAULT NULL;",
         "ALTER TABLE `gcstemporary` ADD COLUMN `PmaxTime` datetime(6) DEFAULT NULL;",
-        "ALTER TABLE `GcsMonthlyDetail` ADD COLUMN `CosPhi` double DEFAULT NULL;",
-        "ALTER TABLE `gcsmonthlydetail` ADD COLUMN `CosPhi` double DEFAULT NULL;",
+        "ALTER TABLE `GcsMonthlyDetail` ADD COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
+        "ALTER TABLE `gcsmonthlydetail` ADD COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
         "ALTER TABLE `GcsMonthlyDetail` ADD COLUMN `ReadingTime` datetime(6) DEFAULT NULL;",
         "ALTER TABLE `gcsmonthlydetail` ADD COLUMN `ReadingTime` datetime(6) DEFAULT NULL;",
         "ALTER TABLE `GcsMonthlyDetail` ADD COLUMN `PmaxTime` datetime(6) DEFAULT NULL;",
         "ALTER TABLE `gcsmonthlydetail` ADD COLUMN `PmaxTime` datetime(6) DEFAULT NULL;",
-        "ALTER TABLE `PeriodicEnergyStatement` ADD COLUMN `CosPhi` double DEFAULT NULL;",
-        "ALTER TABLE `periodicenergystatement` ADD COLUMN `CosPhi` double DEFAULT NULL;",
+        "ALTER TABLE `PeriodicEnergyStatement` ADD COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
+        "ALTER TABLE `periodicenergystatement` ADD COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
         "ALTER TABLE `PeriodicEnergyStatement` ADD COLUMN `PmaxTime` datetime(6) DEFAULT NULL;",
         "ALTER TABLE `periodicenergystatement` ADD COLUMN `PmaxTime` datetime(6) DEFAULT NULL;",
         "ALTER TABLE `PeriodicEnergyStatement` ADD COLUMN `PreviousPmaxTime` datetime(6) DEFAULT NULL;",
@@ -629,48 +637,217 @@ CREATE TABLE IF NOT EXISTS `MeterReplacements` (
     {
         try { await db.Database.ExecuteSqlRawAsync(sql); } catch { }
     }
-    app.Logger.LogInformation("Đã kiểm tra và đảm bảo các bảng Email Config và Metering mới tồn tại.");
+
+    // Phase 3: Chuẩn hóa kiểu số liệu đo đếm sang DECIMAL(18, 4) và DECIMAL(5, 2)
+    var decimalMigrationSqls = new[]
+    {
+        // GcsTemporary
+        "ALTER TABLE `gcstemporary` MODIFY COLUMN `PreviousReading` decimal(18, 4) DEFAULT NULL;",
+        "ALTER TABLE `gcstemporary` MODIFY COLUMN `CurrentReading` decimal(18, 4) DEFAULT NULL;",
+        "ALTER TABLE `gcstemporary` MODIFY COLUMN `NewCurrentReading` decimal(18, 4) DEFAULT NULL;",
+        "ALTER TABLE `gcstemporary` MODIFY COLUMN `NewPreviousReading` decimal(18, 4) DEFAULT NULL;",
+        "ALTER TABLE `gcstemporary` MODIFY COLUMN `MultiplierFactor` decimal(18, 4) NOT NULL DEFAULT '1.0000';",
+        "ALTER TABLE `gcstemporary` MODIFY COLUMN `Consumption` decimal(18, 4) DEFAULT NULL;",
+        "ALTER TABLE `gcstemporary` MODIFY COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
+        "ALTER TABLE `GcsTemporary` MODIFY COLUMN `PreviousReading` decimal(18, 4) DEFAULT NULL;",
+        "ALTER TABLE `GcsTemporary` MODIFY COLUMN `CurrentReading` decimal(18, 4) DEFAULT NULL;",
+        "ALTER TABLE `GcsTemporary` MODIFY COLUMN `NewCurrentReading` decimal(18, 4) DEFAULT NULL;",
+        "ALTER TABLE `GcsTemporary` MODIFY COLUMN `NewPreviousReading` decimal(18, 4) DEFAULT NULL;",
+        "ALTER TABLE `GcsTemporary` MODIFY COLUMN `MultiplierFactor` decimal(18, 4) NOT NULL DEFAULT '1.0000';",
+        "ALTER TABLE `GcsTemporary` MODIFY COLUMN `Consumption` decimal(18, 4) DEFAULT NULL;",
+        "ALTER TABLE `GcsTemporary` MODIFY COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
+
+        // GcsMonthlyDetail
+        "ALTER TABLE `gcsmonthlydetail` MODIFY COLUMN `PreviousReading` decimal(18, 4) DEFAULT NULL;",
+        "ALTER TABLE `gcsmonthlydetail` MODIFY COLUMN `CurrentReading` decimal(18, 4) DEFAULT NULL;",
+        "ALTER TABLE `gcsmonthlydetail` MODIFY COLUMN `MultiplierFactor` decimal(18, 4) NOT NULL DEFAULT '1.0000';",
+        "ALTER TABLE `gcsmonthlydetail` MODIFY COLUMN `Consumption` decimal(18, 4) DEFAULT NULL;",
+        "ALTER TABLE `gcsmonthlydetail` MODIFY COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
+        "ALTER TABLE `GcsMonthlyDetail` MODIFY COLUMN `PreviousReading` decimal(18, 4) DEFAULT NULL;",
+        "ALTER TABLE `GcsMonthlyDetail` MODIFY COLUMN `CurrentReading` decimal(18, 4) DEFAULT NULL;",
+        "ALTER TABLE `GcsMonthlyDetail` MODIFY COLUMN `MultiplierFactor` decimal(18, 4) NOT NULL DEFAULT '1.0000';",
+        "ALTER TABLE `GcsMonthlyDetail` MODIFY COLUMN `Consumption` decimal(18, 4) DEFAULT NULL;",
+        "ALTER TABLE `GcsMonthlyDetail` MODIFY COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
+
+        // PeriodicEnergyStatement
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `Bt` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `Cd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `Td` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `Sg` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `Vc` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `Pmax` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `PreviousBt` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `PreviousCd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `PreviousTd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `PreviousSg` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `PreviousVc` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `PreviousPmax` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `ConsumtionBt` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `ConsumtionCd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `ConsumtionTd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `ConsumtionSg` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `ConsumtionVc` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `Multiplier` decimal(18, 4) NOT NULL DEFAULT '1.0000';",
+        "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `Bt` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `Cd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `Td` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `Sg` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `Vc` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `Pmax` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `PreviousBt` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `PreviousCd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `PreviousTd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `PreviousSg` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `PreviousVc` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `PreviousPmax` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `ConsumtionBt` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `ConsumtionCd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `ConsumtionTd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `ConsumtionSg` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `ConsumtionVc` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `Multiplier` decimal(18, 4) NOT NULL DEFAULT '1.0000';",
+        "ALTER TABLE `PeriodicEnergyStatement` MODIFY COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
+
+        // MeasurementPoints
+        "ALTER TABLE `measurementpoints` MODIFY COLUMN `MultiplierFactor` decimal(18, 4) NOT NULL DEFAULT '1.0000';",
+        "ALTER TABLE `MeasurementPoints` MODIFY COLUMN `MultiplierFactor` decimal(18, 4) NOT NULL DEFAULT '1.0000';",
+
+        // MeterReplacements
+        "ALTER TABLE `meterreplacements` MODIFY COLUMN `OldMeterMultiplier` decimal(18, 4) NOT NULL DEFAULT '1.0000';",
+        "ALTER TABLE `meterreplacements` MODIFY COLUMN `OldBt` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `meterreplacements` MODIFY COLUMN `OldCd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `meterreplacements` MODIFY COLUMN `OldTd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `meterreplacements` MODIFY COLUMN `OldSg` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `meterreplacements` MODIFY COLUMN `OldVc` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `meterreplacements` MODIFY COLUMN `OldPmax` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `meterreplacements` MODIFY COLUMN `NewMeterMultiplier` decimal(18, 4) NOT NULL DEFAULT '1.0000';",
+        "ALTER TABLE `meterreplacements` MODIFY COLUMN `NewBt` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `meterreplacements` MODIFY COLUMN `NewCd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `meterreplacements` MODIFY COLUMN `NewTd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `meterreplacements` MODIFY COLUMN `NewSg` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `meterreplacements` MODIFY COLUMN `NewVc` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `meterreplacements` MODIFY COLUMN `NewPmax` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `MeterReplacements` MODIFY COLUMN `OldMeterMultiplier` decimal(18, 4) NOT NULL DEFAULT '1.0000';",
+        "ALTER TABLE `MeterReplacements` MODIFY COLUMN `OldBt` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `MeterReplacements` MODIFY COLUMN `OldCd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `MeterReplacements` MODIFY COLUMN `OldTd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `MeterReplacements` MODIFY COLUMN `OldSg` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `MeterReplacements` MODIFY COLUMN `OldVc` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `MeterReplacements` MODIFY COLUMN `OldPmax` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `MeterReplacements` MODIFY COLUMN `NewMeterMultiplier` decimal(18, 4) NOT NULL DEFAULT '1.0000';",
+        "ALTER TABLE `MeterReplacements` MODIFY COLUMN `NewBt` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `MeterReplacements` MODIFY COLUMN `NewCd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `MeterReplacements` MODIFY COLUMN `NewTd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `MeterReplacements` MODIFY COLUMN `NewSg` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `MeterReplacements` MODIFY COLUMN `NewVc` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+        "ALTER TABLE `MeterReplacements` MODIFY COLUMN `NewPmax` decimal(18, 4) NOT NULL DEFAULT '0.0000';"
+    };
+    foreach (var sql in decimalMigrationSqls)
+    {
+        try { await db.Database.ExecuteSqlRawAsync(sql); } catch { }
+    }
+
+    var compositeIndexSqls = new[]
+    {
+        "CREATE INDEX `IX_MPMonitoring_PointId_CreatedTime` ON `MeasurementPointMonitoring` (`MeasurementPointsId`, `CreatedTime`);",
+        "CREATE INDEX `IX_MPMonitoring_PointId_CreatedTime` ON `measurementpointmonitoring` (`MeasurementPointsId`, `CreatedTime`);",
+        "CREATE INDEX `IX_MPMonitoring_PointId_Tag_CreatedTime` ON `MeasurementPointMonitoring` (`MeasurementPointsId`, `TagNameId`, `CreatedTime`);",
+        "CREATE INDEX `IX_MPMonitoring_PointId_Tag_CreatedTime` ON `measurementpointmonitoring` (`MeasurementPointsId`, `TagNameId`, `CreatedTime`);",
+        "CREATE INDEX `IX_MPMonitoringDT_PointId_CreatedTime` ON `MeasurementPointMonitoringByDateTime` (`MeasurementPointId`, `CreatedTime`);",
+        "CREATE INDEX `IX_MPMonitoringDT_PointId_CreatedTime` ON `measurementpointmonitoringbydatetime` (`MeasurementPointId`, `CreatedTime`);",
+        "CREATE INDEX `IX_MPMonitoringHourly_PointId_CreatedTime` ON `MeasurementPointMonitoringHourly` (`MeasurementPointId`, `CreatedTime`);",
+        "CREATE INDEX `IX_MPMonitoringHourly_PointId_CreatedTime` ON `measurementpointmonitoringhourly` (`MeasurementPointId`, `CreatedTime`);",
+        "CREATE INDEX `IX_MPHalfHourEnergy_PointId_CreatedTime` ON `MeasurementPointHalfHourEnergyReports` (`MeasurementPointId`, `CreatedTime`);",
+        "CREATE INDEX `IX_MPHalfHourEnergy_PointId_CreatedTime` ON `measurementpointhalfhourenergyreports` (`MeasurementPointId`, `CreatedTime`);",
+        "CREATE INDEX `IX_MPDailyEnergy_PointId_CreatedTime` ON `MeasurementPointDailyEnergyReports` (`MeasurementPointId`, `CreatedTime`);",
+        "CREATE INDEX `IX_MPDailyEnergy_PointId_CreatedTime` ON `measurementpointdailyenergyreports` (`MeasurementPointId`, `CreatedTime`);",
+        "CREATE INDEX `IX_GcsTemporary_Gcs_Cycle` ON `GcsTemporary` (`GcsId`, `Year`, `Month`, `PeriodNumber`);",
+        "CREATE INDEX `IX_GcsTemporary_Gcs_Cycle` ON `gcstemporary` (`GcsId`, `Year`, `Month`, `PeriodNumber`);",
+        "CREATE INDEX `IX_GcsMonthlyDetail_Cycle_Point` ON `GcsMonthlyDetail` (`GcsCutoffCycleId`, `MeasurementPointId`);",
+        "CREATE INDEX `IX_GcsMonthlyDetail_Cycle_Point` ON `gcsmonthlydetail` (`GcsCutoffCycleId`, `MeasurementPointId`);",
+        "CREATE INDEX `IX_PeriodicStatement_Gcs_Cycle` ON `PeriodicEnergyStatement` (`GcsId`, `Year`, `Month`, `PeriodNumber`);",
+        "CREATE INDEX `IX_PeriodicStatement_Gcs_Cycle` ON `periodicenergystatement` (`GcsId`, `Year`, `Month`, `PeriodNumber`);",
+        "CREATE INDEX `IX_GcsCutoffCycle_Gcs_Cycle` ON `GcsCutoffCycle` (`GcsId`, `Year`, `Month`, `PeriodNumber`);",
+        "CREATE INDEX `IX_GcsCutoffCycle_Gcs_Cycle` ON `gcscutoffcycle` (`GcsId`, `Year`, `Month`, `PeriodNumber`);"
+    };
+    foreach (var indexSql in compositeIndexSqls)
+    {
+        try { await db.Database.ExecuteSqlRawAsync(indexSql); } catch { }
+    }
+    app.Logger.LogInformation("Đã kiểm tra và đảm bảo các bảng Email Config, Metering mới và Composite Indexes tồn tại.");
+
+    var fixEncodingSqls = new[]
+    {
+        "SET NAMES utf8mb4;",
+        @"UPDATE `StatementPdfTemplates` SET 
+            `Name` = 'Mẫu phiếu báo A5 Ngang - Chuẩn VSIP Hải Phòng',
+            `HeaderTitle` = 'MONTHLY POWER METER READING',
+            `SubHeaderTitle` = 'PHIẾU GHI CHỈ SỐ ĐIỆN HÀNG THÁNG',
+            `CompanyName` = 'VSIP HAI PHONG CO., LTD',
+            `CompanyAddress` = 'VSIP Hai Phong Administration Office, VSIP Hai Phong Township, Industrial & Service Park\nHoa Binh Ward, Hai Phong City, Vietnam',
+            `ContactPhone` = 'Tel: 84-225-3959868   Fax: 84-225-3959886',
+            `PaperSize` = 'A5_LANDSCAPE',
+            `EngineType` = 'QUEST_PDF',
+            `DisplayColumnsJson` = '{\""columns\"":[\""BT\"",\""CD\"",\""TD\"",\""SG\"",\""VC\"",\""COSPHI\"",\""REMARKS\"",\""PMAX\"",\""MULTIPLIER\""],\""documentCode\"":\""M&E-1/01 PR04\"",\""copyLabel\"":\""(M&E Copy – Liên cho Phòng Cơ Điện)\"",\""partyAName\"":\""Party A (VSIP Hai Phong Co., Ltd)\\nBên A (Công ty TNHH VSIP Hải Phòng)\"",\""partyBName\"":\""Party B (Tenant)\\nBên B (Khách hàng)\"",\""headerLeftMode\"":\""LOGO\"",\""headerCenterMode\"":\""LOGO\"",\""headerRightMode\"":\""DECOR\"",\""footerLeftMode\"":\""LOGO\"",\""footerCenterMode\"":\""LOGO\"",\""footerRightMode\"":\""LOGO\""}',
+            `RequireDualSignatures` = 1,
+            `FooterNotes` = 'Quý khách vui lòng kiểm tra và phản hồi số liệu trong vòng 03 ngày làm việc kể từ ngày nhận phiếu báo.'
+          WHERE `Code` = 'A5_VSIP_STANDARD' OR `Code` = 'STATEMENT_PDF_A5_STANDARD' OR `Id` = 1;",
+        @"UPDATE `statementpdftemplates` SET 
+            `Name` = 'Mẫu phiếu báo A5 Ngang - Chuẩn VSIP Hải Phòng',
+            `HeaderTitle` = 'MONTHLY POWER METER READING',
+            `SubHeaderTitle` = 'PHIẾU GHI CHỈ SỐ ĐIỆN HÀNG THÁNG',
+            `CompanyName` = 'VSIP HAI PHONG CO., LTD',
+            `CompanyAddress` = 'VSIP Hai Phong Administration Office, VSIP Hai Phong Township, Industrial & Service Park\nHoa Binh Ward, Hai Phong City, Vietnam',
+            `ContactPhone` = 'Tel: 84-225-3959868   Fax: 84-225-3959886',
+            `PaperSize` = 'A5_LANDSCAPE',
+            `EngineType` = 'QUEST_PDF',
+            `DisplayColumnsJson` = '{\""columns\"":[\""BT\"",\""CD\"",\""TD\"",\""SG\"",\""VC\"",\""COSPHI\"",\""REMARKS\"",\""PMAX\"",\""MULTIPLIER\""],\""documentCode\"":\""M&E-1/01 PR04\"",\""copyLabel\"":\""(M&E Copy – Liên cho Phòng Cơ Điện)\"",\""partyAName\"":\""Party A (VSIP Hai Phong Co., Ltd)\\nBên A (Công ty TNHH VSIP Hải Phòng)\"",\""partyBName\"":\""Party B (Tenant)\\nBên B (Khách hàng)\"",\""headerLeftMode\"":\""LOGO\"",\""headerCenterMode\"":\""LOGO\"",\""headerRightMode\"":\""DECOR\"",\""footerLeftMode\"":\""LOGO\"",\""footerCenterMode\"":\""LOGO\"",\""footerRightMode\"":\""LOGO\""}',
+            `RequireDualSignatures` = 1,
+            `FooterNotes` = 'Quý khách vui lòng kiểm tra và phản hồi số liệu trong vòng 03 ngày làm việc kể từ ngày nhận phiếu báo.'
+          WHERE `Code` = 'A5_VSIP_STANDARD' OR `Code` = 'STATEMENT_PDF_A5_STANDARD' OR `Id` = 1;",
+        @"UPDATE `SystemEmailConfigs` SET `SenderDisplayName` = 'VSIP Hải Phòng - Phòng Cơ Điện' WHERE `Id` = 1;",
+        @"UPDATE `systememailconfigs` SET `SenderDisplayName` = 'VSIP Hải Phòng - Phòng Cơ Điện' WHERE `Id` = 1;"
+    };
+    foreach (var sql in fixEncodingSqls)
+    {
+        try { await db.Database.ExecuteSqlRawAsync(sql); } catch { }
+    }
 
     try
     {
         using var notifScope = app.Services.CreateScope();
         var notifSp = notifScope.ServiceProvider;
-        var notifRepo = notifSp.GetService<Application.Repositories.ReadOnly.INotificationTemplateReadOnlyRepository>();
         var notifRwRepo = notifSp.GetService<Application.Repositories.ReadWrite.INotificationTemplateReadWriteRepository>();
         var snowflake = notifSp.GetService<Nobisoft.Core.Interfaces.ISnowflakeIdService>();
-        if (notifRepo != null && notifRwRepo != null)
+        if (notifRwRepo != null)
         {
             var prebuilts = Infrastructure.Services.Templates.NotificationTemplateService.GetPrebuiltDefaultTemplates();
-            var existingTemplates = await notifRepo.GetAllTemplatesAsync(null, CancellationToken.None);
             foreach (var template in prebuilts)
             {
-                var existing = existingTemplates.Find(x => x.Code == template.Code && x.IsDefault)
-                               ?? existingTemplates.Find(x => x.Code == template.Code);
+                var existing = await notifRwRepo.GetDefaultByCodeAsync(template.Code, CancellationToken.None);
                 if (existing != null)
                 {
-                    var entity = await notifRepo.GetByIdAsync(existing.Id, CancellationToken.None);
-                    if (entity != null)
+                    existing.Name = template.Name;
+                    existing.SubjectTemplate = template.SubjectTemplate;
+                    existing.BodyHtmlTemplate = template.BodyHtmlTemplate;
+                    existing.Description = template.Description;
+                    existing.ModifiedTime = DateTimeOffset.UtcNow;
+                    await notifRwRepo.UpdateAsync(existing, CancellationToken.None);
+                }
+                else
+                {
+                    if (snowflake != null)
                     {
-                        entity.Name = template.Name;
-                        entity.SubjectTemplate = template.SubjectTemplate;
-                        entity.BodyHtmlTemplate = template.BodyHtmlTemplate;
-                        entity.Description = template.Description;
-                        entity.ModifiedTime = DateTimeOffset.UtcNow;
-                        await notifRwRepo.UpdateAsync(entity, CancellationToken.None);
-                        continue;
+                        template.Id = await snowflake.GenerateId(CancellationToken.None);
                     }
+                    template.CreatedTime = DateTimeOffset.UtcNow;
+                    if (template.IsDefault)
+                    {
+                        await notifRwRepo.SetDefaultAsync(template.Id, template.Code, CancellationToken.None);
+                    }
+                    await notifRwRepo.AddAsync(template, CancellationToken.None);
                 }
-
-                if (snowflake != null)
-                {
-                    template.Id = await snowflake.GenerateId(CancellationToken.None);
-                }
-                template.CreatedTime = DateTimeOffset.UtcNow;
-                if (template.IsDefault)
-                {
-                    await notifRwRepo.SetDefaultAsync(template.Id, template.Code, CancellationToken.None);
-                }
-                await notifRwRepo.AddAsync(template, CancellationToken.None);
             }
             await notifRwRepo.SaveChangesAsync(CancellationToken.None);
             app.Logger.LogInformation("Đã đồng bộ 3 mẫu email chuẩn mặc định vào CSDL thành công.");

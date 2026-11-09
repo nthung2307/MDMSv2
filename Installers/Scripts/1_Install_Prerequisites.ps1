@@ -356,20 +356,25 @@ Install-LibreOfficeIfMissing | Out-Null
 Write-Host "`n6. Dang cau hinh Windows Firewall cho he thong MDMSv2..." -ForegroundColor Yellow
 
 function Add-FirewallPortRule {
-    param([string]$RuleName, [int]$Port, [string]$Protocol = "TCP")
+    param(
+        [string]$RuleName,
+        [int]$Port,
+        [string]$Protocol = "TCP",
+        [string[]]$RemoteAddress = @("Any")
+    )
     if (-not (Get-NetFirewallRule -DisplayName $RuleName -ErrorAction SilentlyContinue)) {
-        New-NetFirewallRule -DisplayName $RuleName -Direction Inbound -LocalPort $Port -Protocol $Protocol -Action Allow | Out-Null
-        Write-Host "   -> [PASS] Da mo cong $Port ($Protocol): $RuleName" -ForegroundColor Green
+        New-NetFirewallRule -DisplayName $RuleName -Direction Inbound -LocalPort $Port -Protocol $Protocol -RemoteAddress $RemoteAddress -Action Allow | Out-Null
+        Write-Host "   -> [PASS] Da mo cong $Port ($Protocol, Scope: $($RemoteAddress -join ',')): $RuleName" -ForegroundColor Green
     } else {
         Write-Host "   -> [PASS] Quy tac $RuleName da ton tai (Cong $Port)." -ForegroundColor Gray
     }
 }
 
-Add-FirewallPortRule -RuleName "MDMSv2 - Web Frontend (HTTP)" -Port 80
-Add-FirewallPortRule -RuleName "MDMSv2 - Web Frontend (HTTPS)" -Port 443
-Add-FirewallPortRule -RuleName "MDMSv2 - WebApi Backend" -Port 19089
-Add-FirewallPortRule -RuleName "MDMSv2 - Kepware IoT Gateway REST Server" -Port 39320
-Add-FirewallPortRule -RuleName "MDMSv2 - MySQL Server Database" -Port 3306
+Add-FirewallPortRule -RuleName "MDMSv2 - Web Frontend (HTTP)" -Port 80 -RemoteAddress @("Any")
+Add-FirewallPortRule -RuleName "MDMSv2 - Web Frontend (HTTPS)" -Port 443 -RemoteAddress @("Any")
+Add-FirewallPortRule -RuleName "MDMSv2 - WebApi Backend" -Port 19089 -RemoteAddress @("LocalSubnet", "127.0.0.1")
+Add-FirewallPortRule -RuleName "MDMSv2 - Kepware IoT Gateway REST Server" -Port 39320 -RemoteAddress @("LocalSubnet", "127.0.0.1")
+Add-FirewallPortRule -RuleName "MDMSv2 - MySQL Server Database" -Port 3306 -RemoteAddress @("LocalSubnet", "127.0.0.1")
 
 Write-Host "`n==========================================================" -ForegroundColor Green
 Write-Host " HOAN TAT BUOC 1. TIEP TUC BUOC 2 DE CAI DAT BACKEND SERVICE." -ForegroundColor Green

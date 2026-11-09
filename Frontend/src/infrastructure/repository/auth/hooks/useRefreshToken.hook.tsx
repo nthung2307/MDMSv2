@@ -75,6 +75,7 @@ export const refreshTokenAsync = async (params: RefreshTokenRequest) => {
         const res = (response as SuccessResponse).data;
         if (!res?.success) {
           localStorageService.removeStorage(Constants.API_TOKEN_STORAGE);
+          localStorageService.removeStorage(Constants.API_REFRESH_TOKEN_STORAGE);
           window.location.href = '/';
         }
         break;
@@ -90,6 +91,7 @@ export const refreshTokenAsync = async (params: RefreshTokenRequest) => {
       }
       case 401: {
         localStorageService.removeStorage(Constants.API_TOKEN_STORAGE);
+        localStorageService.removeStorage(Constants.API_REFRESH_TOKEN_STORAGE);
         window.location.href = '/';
         break;
       }

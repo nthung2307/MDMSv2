@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using Nobisoft.Core.Lifetimes;
 using Nobisoft.Core.ValueObjects;
 
@@ -8,4 +8,5 @@ namespace Nobi.Core.Authorization.Interfaces;
 public interface IJwtService : IScopedDependency
 {
     Task<CreateJwtResponse> GenerateJwtAsync(long accountId, ClaimsIdentity claimsIdentity, CancellationToken cancellationToken);
+    ClaimsPrincipal? GetPrincipalFromToken(string token, bool validateLifetime = false);
 }

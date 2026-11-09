@@ -446,7 +446,7 @@ public class EnergyConsumptionReportReadWriteRepository :
                 {
                     col.Item().Text("HỆ THỐNG QUẢN LÝ DỮ LIỆU ĐO ĐẾM MDMS")
                         .FontFamily(Fonts.Arial).FontSize(14).Bold().FontColor(Colors.Blue.Darken2);
-                    col.Item().Text($"{title} - ĐIỂM ĐO: {pointCode} (Hệ số nhân: {point?.MultiplierFactor ?? 1.0})")
+                    col.Item().Text($"{title} - ĐIỂM ĐO: {pointCode} (Hệ số nhân: {point?.MultiplierFactor ?? 1.0m})")
                         .FontFamily(Fonts.Arial).FontSize(12).SemiBold();
                 });
 

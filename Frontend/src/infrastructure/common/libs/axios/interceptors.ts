@@ -106,8 +106,6 @@ const onErrorResponse = async (error: AxiosError | Error | any): Promise<unknown
 
             if (!isRefreshing) {
               isRefreshing = true;
-              // const info: any = jwtDecode(token.idToken);
-              // refreshTokenRequest = refreshTokenRequest ? refreshTokenRequest :
               const result = await refreshTokenAsync(
                 new RefreshTokenRequest({
                   refreshToken: token,
@@ -115,21 +113,36 @@ const onErrorResponse = async (error: AxiosError | Error | any): Promise<unknown
               ).finally(() => {
                 isRefreshing = false;
               });
-              // Add type assertion here
-              if (result?.success) {
+              const newAccessToken =
+                result?.data?.accessToken || result?.accessToken || result?.idToken;
+              if (result?.success && newAccessToken) {
                 if (originalRequest.headers) {
-                  originalRequest.headers.Authorization = `Bearer ${result.data.accessToken}`;
+                  if (typeof originalRequest.headers.set === 'function') {
+                    originalRequest.headers.set('Authorization', `Bearer ${newAccessToken}`);
+                  } else {
+                    originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+                  }
                 }
-                requests.forEach((cb: any) => cb(result.idToken));
+                requests.forEach((cb: (token: string | null) => void) => cb(newAccessToken));
                 requests = [];
                 return axiosInstance(originalRequest);
+              } else {
+                requests.forEach((cb: (token: string | null) => void) => cb(null));
+                requests = [];
               }
             } else {
-              return new Promise((resolve) => {
-                requests.push((newToken: string) => {
-                  // Rename the parameter 'token' to 'newToken'
+              return new Promise((resolve, reject) => {
+                requests.push((newToken: string | null) => {
+                  if (!newToken) {
+                    reject(error);
+                    return;
+                  }
                   if (originalRequest.headers) {
-                    originalRequest.headers.Authorization = `Bearer ${newToken}`; // Update the reference to the renamed parameter
+                    if (typeof originalRequest.headers.set === 'function') {
+                      originalRequest.headers.set('Authorization', `Bearer ${newToken}`);
+                    } else {
+                      originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                    }
                   }
                   resolve(axiosInstance(originalRequest));
                 });
@@ -137,6 +150,8 @@ const onErrorResponse = async (error: AxiosError | Error | any): Promise<unknown
             }
           }
         } catch (_error: any) {
+          requests.forEach((cb: (token: string | null) => void) => cb(null));
+          requests = [];
           if (_error.response && _error.response.data) {
             return Promise.reject(_error.response.data);
           }

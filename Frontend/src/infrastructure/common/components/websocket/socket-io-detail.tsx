@@ -2,6 +2,7 @@ import * as signalR from '@microsoft/signalr';
 import { useEffect, useMemo, ReactNode, Dispatch, SetStateAction } from 'react';
 
 import Constants from '@/core/application/common/constants';
+import LocalStorageService from '@/infrastructure/services/localStorage.service';
 
 interface Props {
   setDataSocket: (data: any) => void | Dispatch<SetStateAction<any>>;
@@ -11,25 +12,33 @@ interface Props {
 
 const SocketDetail = ({ children, setDataSocket, id }: Props) => {
   const baseURL = `${import.meta.env.VITE_APP_SOCKET_URL ?? import.meta.env.VITE_APP_API_URL ?? ''}`;
+  const getAccessToken = () =>
+    new LocalStorageService().readStorage(Constants.API_TOKEN_STORAGE) || '';
 
   // Initialize SignalR connection
   const hubConnection = useMemo(() => {
     return new signalR.HubConnectionBuilder()
-      .withUrl(`${baseURL}/${Constants.socketIoEndpoint.detail}`)
+      .withUrl(`${baseURL}/${Constants.socketIoEndpoint.detail}`, {
+        accessTokenFactory: getAccessToken,
+      })
       .withAutomaticReconnect([0, 2000, 10000, 30000]) // Retry after 2s, 10s, and 30s if connection drops
       .build();
-  }, [id]);
+  }, [baseURL, id]);
 
   const hubConnectionDateTime = useMemo(() => {
     return new signalR.HubConnectionBuilder()
-      .withUrl(`${baseURL}/${Constants.socketIoEndpoint.dateTime}`)
+      .withUrl(`${baseURL}/${Constants.socketIoEndpoint.dateTime}`, {
+        accessTokenFactory: getAccessToken,
+      })
       .withAutomaticReconnect([0, 2000, 10000, 30000]) // Retry after 2s, 10s, and 30s if connection drops
       .build();
-  }, [id]);
+  }, [baseURL, id]);
 
   const hubConnectionSummary = useMemo(() => {
     return new signalR.HubConnectionBuilder()
-      .withUrl(`${baseURL}/${Constants.socketIoEndpoint.summary}`)
+      .withUrl(`${baseURL}/${Constants.socketIoEndpoint.summary}`, {
+        accessTokenFactory: getAccessToken,
+      })
       .withAutomaticReconnect([0, 2000, 10000, 30000])
       .build();
   }, [baseURL]);
@@ -86,7 +95,7 @@ const SocketDetail = ({ children, setDataSocket, id }: Props) => {
       if (id && hubConnection.state === signalR.HubConnectionState.Connected) {
         try {
           await hubConnection.invoke('SubscribeToDetail', id);
-        } catch (e) {}
+        } catch (e) { }
       }
     });
 
@@ -94,7 +103,7 @@ const SocketDetail = ({ children, setDataSocket, id }: Props) => {
       if (id && hubConnectionDateTime.state === signalR.HubConnectionState.Connected) {
         try {
           await hubConnectionDateTime.invoke('SubscribeToDetail', id);
-        } catch (e) {}
+        } catch (e) { }
       }
     });
 
@@ -102,21 +111,17 @@ const SocketDetail = ({ children, setDataSocket, id }: Props) => {
 
     // Cleanup when navigating away: stop connections
     return () => {
-      if (hubConnection.state === signalR.HubConnectionState.Connected) {
-        if (id) {
-          hubConnection.invoke('UnsubscribeFromDetail', id).catch(() => {});
-        }
-        hubConnection.stop().catch(() => {});
+      if (hubConnection.state === signalR.HubConnectionState.Connected && id) {
+        hubConnection.invoke('UnsubscribeFromDetail', id).catch(() => { });
       }
-      if (hubConnectionDateTime.state === signalR.HubConnectionState.Connected) {
-        if (id) {
-          hubConnectionDateTime.invoke('UnsubscribeFromDetail', id).catch(() => {});
-        }
-        hubConnectionDateTime.stop().catch(() => {});
+      hubConnection.stop().catch(() => { });
+
+      if (hubConnectionDateTime.state === signalR.HubConnectionState.Connected && id) {
+        hubConnectionDateTime.invoke('UnsubscribeFromDetail', id).catch(() => { });
       }
-      if (hubConnectionSummary.state === signalR.HubConnectionState.Connected) {
-        hubConnectionSummary.stop().catch(() => {});
-      }
+      hubConnectionDateTime.stop().catch(() => { });
+
+      hubConnectionSummary.stop().catch(() => { });
     };
   }, [hubConnection, hubConnectionDateTime, hubConnectionSummary, id]);
 

@@ -167,7 +167,7 @@ public class UserController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Account.ExportPdf)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
     public async Task<IActionResult> ExportPdfAccountAsync(ExportPdfAndExcelRequest request, CancellationToken cancellationToken)
     {
         try
@@ -184,7 +184,7 @@ public class UserController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Account.ExportCsv)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
     public async Task<IActionResult> ExportCsvAccountsAsync([FromBody] ExportUserCsvRequest? request, CancellationToken cancellationToken)
     {
         try

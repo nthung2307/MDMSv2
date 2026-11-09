@@ -702,7 +702,7 @@ namespace Infrastructure.Repositories.ReadWrite
                         Email2 = email2,
                         Email3 = email3,
                         Status = status ?? EntityStatus.Active,
-                        MultiplierFactor = 1.0,
+                        MultiplierFactor = 1.0m,
                         CreatedBy = currentUserId,
                         CreatedName = currentUserName,
                         CreatedTime = now,

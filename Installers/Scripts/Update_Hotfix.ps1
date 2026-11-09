@@ -29,9 +29,10 @@ Write-Host "====================================================================
 Write-Host "Thoi gian bat dau: $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')" -ForegroundColor Gray
 
 # Xac dinh duong dan nguon
+$parentDir = if ($SourcePackageDir) { Split-Path $SourcePackageDir -Parent } else { $null }
+
 $srcBackend = Join-Path $SourcePackageDir "Backend"
 if (-not (Test-Path $srcBackend)) {
-    $parentDir = Split-Path $SourcePackageDir -Parent
     if ($parentDir) {
         $srcBackend = Join-Path $parentDir "Backend"
     }
@@ -39,7 +40,6 @@ if (-not (Test-Path $srcBackend)) {
 
 $srcFrontend = Join-Path $SourcePackageDir "Frontend"
 if (-not (Test-Path $srcFrontend)) {
-    $parentDir = Split-Path $SourcePackageDir -Parent
     if ($parentDir) {
         $srcFrontend = Join-Path $parentDir "Frontend"
     }
@@ -185,21 +185,11 @@ SET
   ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan = REPLACE(REPLACE(ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, '*', ''), '(Not Topical)', ''),
   ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan = REPLACE(REPLACE(ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, '*', ''), '(Not Topical)', '')
 WHERE CreatedTime >= NOW() - INTERVAL 7 DAY;
-
-ALTER TABLE `GcsTemporary` ADD COLUMN `NewPreviousReading` double DEFAULT NULL;
-ALTER TABLE `GcsTemporary` ADD COLUMN `IsSuspicious` tinyint(1) NOT NULL DEFAULT '0';
-ALTER TABLE `GcsTemporary` ADD COLUMN `SuspiciousReason` varchar(500) DEFAULT NULL;
-ALTER TABLE `gcstemporary` ADD COLUMN `NewPreviousReading` double DEFAULT NULL;
-ALTER TABLE `gcstemporary` ADD COLUMN `IsSuspicious` tinyint(1) NOT NULL DEFAULT '0';
-ALTER TABLE `gcstemporary` ADD COLUMN `SuspiciousReason` varchar(500) DEFAULT NULL;
-ALTER TABLE `StatementPdfTemplates` ADD COLUMN `EngineType` varchar(50) DEFAULT 'EXCEL_LIBREOFFICE';
-ALTER TABLE `StatementPdfTemplates` ADD COLUMN `ExcelTemplateBase64` longtext;
-ALTER TABLE `StatementPdfTemplates` ADD COLUMN `ExcelTemplateFileName` varchar(255) DEFAULT NULL;
 "@
     try {
         $tempSqlFile = Join-Path $env:TEMP "clean_suspected.sql"
-        [System.IO.File]::WriteAllText($tempSqlFile, $cleanSql, [System.Text.Encoding]::UTF8)
-        & $mysqlExe "--host=$dbServer" "--port=$dbPort" "--user=$dbUser" "--password=$dbPassword" "$dbName" "-e" "source $tempSqlFile"
+        [System.IO.File]::WriteAllText($tempSqlFile, "SET NAMES utf8mb4;`n" + $cleanSql, [System.Text.Encoding]::UTF8)
+        & $mysqlExe "--host=$dbServer" "--port=$dbPort" "--user=$dbUser" "--password=$dbPassword" "--default-character-set=utf8mb4" "$dbName" "-e" "SET NAMES utf8mb4; source $tempSqlFile"
         Remove-Item $tempSqlFile -Force -ErrorAction SilentlyContinue
         if ($LASTEXITCODE -eq 0) {
             Write-Host "   -> [OK] Da don dep du lieu cu va dam bao cau truc cac cot moi (GcsTemporary, StatementPdfTemplates)." -ForegroundColor Green
@@ -215,11 +205,11 @@ ALTER TABLE `StatementPdfTemplates` ADD COLUMN `ExcelTemplateFileName` varchar(2
     )
     foreach ($dir in $sqlSearchDirs) {
         if (Test-Path $dir) {
-            $migrationFiles = Get-ChildItem -Path $dir -Filter "*.sql" -File | Where-Object { $_.Name -like "*email*" -or $_.Name -like "*migration*" -or $_.Name -like "*table*" }
+            $migrationFiles = Get-ChildItem -Path $dir -Filter "*.sql" -File | Where-Object { $_.Name -like "*email*" -or $_.Name -like "*migration*" -or $_.Name -like "*table*" -or $_.Name -like "*decimal*" -or $_.Name -like "*font*" -or $_.Name -like "*encoding*" -or $_.Name -match "^\d{8}_" } | Sort-Object Name
             foreach ($sqlFile in $migrationFiles) {
                 Write-Host "   Dang thuc thi script migration CSDL: $($sqlFile.Name)..." -ForegroundColor Yellow
                 try {
-                    & $mysqlExe "--host=$dbServer" "--port=$dbPort" "--user=$dbUser" "--password=$dbPassword" "$dbName" "-e" "source $($sqlFile.FullName)"
+                    & $mysqlExe "--host=$dbServer" "--port=$dbPort" "--user=$dbUser" "--password=$dbPassword" "--default-character-set=utf8mb4" "$dbName" "-e" "SET NAMES utf8mb4; source $($sqlFile.FullName)"
                     if ($LASTEXITCODE -eq 0) {
                         Write-Host "   -> [OK] Thuc thi $($sqlFile.Name) thanh cong!" -ForegroundColor Green
                     } else {
@@ -264,12 +254,12 @@ foreach ($sp in $sofficePaths) {
 
 if (-not $hasLibreOffice) {
     Write-Host "   -> Phat hien chua co LibreOffice. Dang tim bo cai trong Prerequisites..." -ForegroundColor Yellow
-    $possibleDirs = @(
-        (Join-Path $SourcePackageDir "Prerequisites"),
-        (Join-Path $parentDir "Prerequisites"),
-        "C:\MDMSv2\Prerequisites",
-        "$PSScriptRoot\..\Prerequisites"
-    )
+    $possibleDirs = @()
+    if ($SourcePackageDir) { $possibleDirs += (Join-Path $SourcePackageDir "Prerequisites") }
+    if ($parentDir) { $possibleDirs += (Join-Path $parentDir "Prerequisites") }
+    $possibleDirs += "C:\MDMSv2\Prerequisites"
+    $possibleDirs += (Join-Path $PSScriptRoot "..\Prerequisites")
+
     $libreOfficePkg = $null
     foreach ($d in $possibleDirs) {
         if ($d -and (Test-Path $d)) {
@@ -315,8 +305,8 @@ if ($task) {
 
 # 5. Kiem tra lang nghe cong 19089
 Write-Host ""
-Write-Host "[5/5] Dang kiem tra ket noi toi Backend (Cong 19089)..." -ForegroundColor Yellow
-$maxRetries = 20
+Write-Host "[5/5] Dang kiem tra ket noi toi Backend (Cong 19089 - lan dau khoi dong co the mat 30-60s de tao Composite Indexes)..." -ForegroundColor Yellow
+$maxRetries = 45
 $connected = $false
 for ($i = 1; $i -le $maxRetries; $i++) {
     Start-Sleep -Seconds 2

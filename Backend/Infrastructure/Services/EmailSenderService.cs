@@ -217,13 +217,15 @@ public class EmailSenderService
             : "---";
 
         var cosPhiVal = item.CosPhi;
-        if (!cosPhiVal.HasValue && item.ConsumtionSg > 0 && item.ConsumtionVc >= 0)
+        if (!cosPhiVal.HasValue && item.ConsumtionSg > 0m && item.ConsumtionVc >= 0m)
         {
-            var sApp = Math.Sqrt((item.ConsumtionSg * item.ConsumtionSg) + (item.ConsumtionVc * item.ConsumtionVc));
-            if (sApp > 0) cosPhiVal = Math.Round(item.ConsumtionSg / sApp, 2, MidpointRounding.AwayFromZero);
+            var pD = (double)item.ConsumtionSg;
+            var qD = (double)item.ConsumtionVc;
+            var sApp = Math.Sqrt((pD * pD) + (qD * qD));
+            if (sApp > 0) cosPhiVal = Math.Round((decimal)(pD / sApp), 2, MidpointRounding.AwayFromZero);
         }
 
-        var multVal = item.Multiplier > 0 ? item.Multiplier : (item.MeasurementPoint?.MultiplierFactor ?? 1);
+        var multVal = item.Multiplier > 0m ? item.Multiplier : (item.MeasurementPoint?.MultiplierFactor ?? 1.0m);
 
         var activePdfTemplate = _statementPdfTemplateReadOnlyRepository != null
             ? await _statementPdfTemplateReadOnlyRepository.GetDefaultAsync(cancellationToken)

@@ -153,8 +153,10 @@ public class EmailSenderSingleService
                             });
                         });
 
-                        double previousSgSquared = Math.Round(request.PreviousSg, 2) * Math.Round(request.PreviousSg, 2);
-                        double previousVcSquared = Math.Round(request.PreviousVc, 2) * Math.Round(request.PreviousVc, 2);
+                        double prevSgD = (double)Math.Round(request.PreviousSg, 2);
+                        double prevVcD = (double)Math.Round(request.PreviousVc, 2);
+                        double previousSgSquared = prevSgD * prevSgD;
+                        double previousVcSquared = prevVcD * prevVcD;
 
                         double denominator = previousSgSquared + previousVcSquared;
 
@@ -162,13 +164,18 @@ public class EmailSenderSingleService
 
                         if (denominator != 0)
                         {
-                            result = Math.Round(request.PreviousSg, 2) / Math.Sqrt(denominator);
+                            result = prevSgD / Math.Sqrt(denominator);
                         }
+
+                        double currSgD = (double)Math.Round(request.Sg, 2);
+                        double currVcD = (double)Math.Round(request.Vc, 2);
+                        double currDenom = (currSgD * currSgD) + (currVcD * currVcD);
+                        double currResult = currDenom > 0 ? (currSgD / Math.Sqrt(currDenom)) : 0;
 
                         List<string[]> meterReadingsData = new List<string[]>
                         {
                             new string[] { $"Previous meter reading \n(Chỉ số cũ)\nReading date: {request.PreviousDay?.ToString() ?? "....."}/{request.PreviousMonth?.ToString() ?? "....."}/{request.PreviousYear?.ToString() ?? "......."}\n(Ngày ghi)", request.PreviousBt.ToString("N0", CultureInfo.InvariantCulture), request.PreviousCd.ToString("N0", CultureInfo.InvariantCulture), request.PreviousTd.ToString("N0", CultureInfo.InvariantCulture), request.PreviousSg.ToString("N0", CultureInfo.InvariantCulture), request.PreviousVc.ToString("N0", CultureInfo.InvariantCulture), result.ToString("N2", CultureInfo.InvariantCulture), "" },
-                            new string[] { "Current meter reading \n(Chỉ số mới)", request.Bt.ToString("N0", CultureInfo.InvariantCulture), request.Cd.ToString("N0", CultureInfo.InvariantCulture), request.Td.ToString("N0", CultureInfo.InvariantCulture), request.Sg.ToString("N0", CultureInfo.InvariantCulture), request.Vc.ToString("N0", CultureInfo.InvariantCulture), (Math.Round(request.Sg, 2) / double.Sqrt((Math.Round(request.Sg, 2) * Math.Round(request.Sg, 2)) + (Math.Round(request.Vc, 2) * Math.Round(request.Vc, 2)))).ToString("N2", CultureInfo.InvariantCulture), "" },
+                            new string[] { "Current meter reading \n(Chỉ số mới)", request.Bt.ToString("N0", CultureInfo.InvariantCulture), request.Cd.ToString("N0", CultureInfo.InvariantCulture), request.Td.ToString("N0", CultureInfo.InvariantCulture), request.Sg.ToString("N0", CultureInfo.InvariantCulture), request.Vc.ToString("N0", CultureInfo.InvariantCulture), currResult.ToString("N2", CultureInfo.InvariantCulture), "" },
                             new string[] { "Multiplier \n(Hệ số)", request.Multiplier.ToString(CultureInfo.InvariantCulture), request.Multiplier.ToString(CultureInfo.InvariantCulture), request.Multiplier.ToString(CultureInfo.InvariantCulture), request.Multiplier.ToString(CultureInfo.InvariantCulture), request.Multiplier.ToString(CultureInfo.InvariantCulture), "", "" },
                             new string[] { "Actual consumption \n(Số tiêu thụ thực tế)", (Math.Round(request.Multiplier, 2) * (Math.Round(request.Bt, 2) - Math.Round(request.PreviousBt, 2))).ToString("N0", CultureInfo.InvariantCulture), (Math.Round(request.Multiplier, 2) * (Math.Round(request.Cd, 2) - Math.Round(request.PreviousCd, 2))).ToString("N0", CultureInfo.InvariantCulture), (Math.Round(request.Multiplier, 2) * (Math.Round(request.Td, 2) - Math.Round(request.PreviousTd, 2))).ToString("N0", CultureInfo.InvariantCulture), (Math.Round(request.Multiplier, 2) * (Math.Round(request.Sg, 2) - Math.Round(request.PreviousSg, 2))).ToString("N0", CultureInfo.InvariantCulture), (Math.Round(request.Multiplier, 2) * (Math.Round(request.Vc, 2) - Math.Round(request.PreviousVc, 2))).ToString("N0", CultureInfo.InvariantCulture), "", "" }
                         };

@@ -21,17 +21,17 @@ public class FinalizedOutputElectricityDataPoint
     public int? YearPrevious { get; set; }
     public int? DayPrevious { get; set; }
     public int? PeriodNumberPrevious { get; set; }
-    public double? Bt { get; set; }
-    public double? Td { get; set; }
-    public double? Cd { get; set; }
-    public double? Sg { get; set; }
-    public double? Vc { get; set; }
+    public decimal? Bt { get; set; }
+    public decimal? Td { get; set; }
+    public decimal? Cd { get; set; }
+    public decimal? Sg { get; set; }
+    public decimal? Vc { get; set; }
 }
 
 public class PreviousFinalizedOutputElectricityDataPoint
 {
     public int? Period { get; set; }
     public int? Month { get; set; }
-    public double? PreviousSg { get; set; }
-    public double? PreviousVc { get; set; }
+    public decimal? PreviousSg { get; set; }
+    public decimal? PreviousVc { get; set; }
 }

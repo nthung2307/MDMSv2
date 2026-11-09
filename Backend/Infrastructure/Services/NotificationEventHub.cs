@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
 namespace Infrastructure.Services
@@ -6,16 +7,15 @@ namespace Infrastructure.Services
     {
         public override Task OnConnectedAsync()
         {
-            Console.WriteLine($"Client connected to List Hub: {Context.ConnectionId}");
             return base.OnConnectedAsync();
         }
 
-        public override Task OnDisconnectedAsync(Exception exception)
+        public override Task OnDisconnectedAsync(Exception? exception)
         {
-            Console.WriteLine($"Client disconnected from List Hub: {Context.ConnectionId}");
             return base.OnDisconnectedAsync(exception);
         }
 
+        [Authorize]
         public async Task SendAllEvent(object data)
         {
             await Clients.All.SendAsync("ReceiveEvent", data);

@@ -8,6 +8,6 @@ public class CreateMeasurementPointsRequest
     public string? Description { get; set; }
     public long CustomerId { get; set; }
     public long? GcsId { get; set; }
-    public double MultiplierFactor { get; set; }
+    public decimal MultiplierFactor { get; set; } = 1.0m;
     public string Status { get; set; }
 }

@@ -30,16 +30,18 @@ namespace Infrastructure.Repositories.ReadWrite
             _gcsTemporaryEntities = applicationDbContext.Set<GcsTemporaryEntity>();
         }
 
-        public static double? CalculateAverageCosPhi(double? ap, double? aq)
+        public static decimal? CalculateAverageCosPhi(decimal? ap, decimal? aq)
         {
             if (!ap.HasValue && !aq.HasValue) return null;
-            var p = ap ?? 0;
-            var q = Math.Max(0, aq ?? 0);
-            if (p < 0) return null;
-            if (p == 0 && q == 0) return ap.HasValue ? 0.0 : null;
-            var s = Math.Sqrt((p * p) + (q * q));
-            if (s <= 0) return 0.0;
-            return Math.Round(p / s, 2, MidpointRounding.AwayFromZero);
+            var p = ap ?? 0m;
+            var q = Math.Max(0m, aq ?? 0m);
+            if (p < 0m) return null;
+            if (p == 0m && q == 0m) return ap.HasValue ? 0.0m : null;
+            double pD = (double)p;
+            double qD = (double)q;
+            var sD = Math.Sqrt((pD * pD) + (qD * qD));
+            if (sD <= 0) return 0.0m;
+            return Math.Round((decimal)(pD / sD), 2, MidpointRounding.AwayFromZero);
         }
 
         public static void RecalculatePointConsumptionAndCosPhi(IEnumerable<GcsTemporaryEntity> pointRecords)
@@ -56,10 +58,10 @@ namespace Infrastructure.Repositories.ReadWrite
                 else
                 {
                     var effectiveCurr = rec.NewCurrentReading ?? rec.CurrentReading;
-                    var effectivePrev = rec.NewPreviousReading ?? rec.PreviousReading ?? 0;
+                    var effectivePrev = rec.NewPreviousReading ?? rec.PreviousReading ?? 0m;
                     if (effectiveCurr.HasValue)
                     {
-                        rec.Consumption = Math.Round((effectiveCurr.Value - effectivePrev) * rec.MultiplierFactor, 2, MidpointRounding.AwayFromZero);
+                        rec.Consumption = Math.Round((effectiveCurr.Value - effectivePrev) * rec.MultiplierFactor, 4, MidpointRounding.AwayFromZero);
                     }
                     else
                     {
@@ -74,17 +76,17 @@ namespace Infrastructure.Repositories.ReadWrite
             var cdRec = list.FirstOrDefault(x => string.Equals(x.MeterReadingSet, "CD", StringComparison.OrdinalIgnoreCase));
             var tdRec = list.FirstOrDefault(x => string.Equals(x.MeterReadingSet, "TD", StringComparison.OrdinalIgnoreCase));
 
-            double? ap = sgRec?.Consumption;
-            if ((!ap.HasValue || ap.Value <= 0) && (btRec?.Consumption != null || cdRec?.Consumption != null || tdRec?.Consumption != null))
+            decimal? ap = sgRec?.Consumption;
+            if ((!ap.HasValue || ap.Value <= 0m) && (btRec?.Consumption != null || cdRec?.Consumption != null || tdRec?.Consumption != null))
             {
-                var sumTariff = (btRec?.Consumption ?? 0) + (cdRec?.Consumption ?? 0) + (tdRec?.Consumption ?? 0);
-                if (sumTariff > 0 || !ap.HasValue)
+                var sumTariff = (btRec?.Consumption ?? 0m) + (cdRec?.Consumption ?? 0m) + (tdRec?.Consumption ?? 0m);
+                if (sumTariff > 0m || !ap.HasValue)
                 {
                     ap = sumTariff;
                 }
             }
 
-            double? aq = vcRec?.Consumption;
+            decimal? aq = vcRec?.Consumption;
             var cosPhi = CalculateAverageCosPhi(ap, aq);
 
             foreach (var rec in list)
@@ -102,32 +104,69 @@ namespace Infrastructure.Repositories.ReadWrite
                 if (_columnsChecked) return;
                 var alterStatements = new[]
                 {
-                    "ALTER TABLE `GcsTemporary` ADD COLUMN `NewPreviousReading` double DEFAULT NULL;",
+                    "ALTER TABLE `GcsTemporary` ADD COLUMN `NewPreviousReading` decimal(18, 4) DEFAULT NULL;",
                     "ALTER TABLE `GcsTemporary` ADD COLUMN `IsSuspicious` tinyint(1) NOT NULL DEFAULT '0';",
                     "ALTER TABLE `GcsTemporary` ADD COLUMN `SuspiciousReason` varchar(500) DEFAULT NULL;",
-                    "ALTER TABLE `GcsTemporary` ADD COLUMN `CosPhi` double DEFAULT NULL;",
+                    "ALTER TABLE `GcsTemporary` ADD COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
                     "ALTER TABLE `GcsTemporary` ADD COLUMN `PmaxTime` datetime(6) DEFAULT NULL;",
                     "ALTER TABLE `GcsTemporary` ADD COLUMN `IsChange` tinyint(1) NOT NULL DEFAULT '0';",
-                    "ALTER TABLE `gcstemporary` ADD COLUMN `NewPreviousReading` double DEFAULT NULL;",
+                    "ALTER TABLE `gcstemporary` ADD COLUMN `NewPreviousReading` decimal(18, 4) DEFAULT NULL;",
                     "ALTER TABLE `gcstemporary` ADD COLUMN `IsSuspicious` tinyint(1) NOT NULL DEFAULT '0';",
                     "ALTER TABLE `gcstemporary` ADD COLUMN `SuspiciousReason` varchar(500) DEFAULT NULL;",
-                    "ALTER TABLE `gcstemporary` ADD COLUMN `CosPhi` double DEFAULT NULL;",
+                    "ALTER TABLE `gcstemporary` ADD COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
                     "ALTER TABLE `gcstemporary` ADD COLUMN `PmaxTime` datetime(6) DEFAULT NULL;",
                     "ALTER TABLE `gcstemporary` ADD COLUMN `IsChange` tinyint(1) NOT NULL DEFAULT '0';",
-                    "ALTER TABLE `GcsMonthlyDetail` ADD COLUMN `CosPhi` double DEFAULT NULL;",
+                    "ALTER TABLE `GcsMonthlyDetail` ADD COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
                     "ALTER TABLE `GcsMonthlyDetail` ADD COLUMN `ReadingTime` datetime(6) DEFAULT NULL;",
                     "ALTER TABLE `GcsMonthlyDetail` ADD COLUMN `PmaxTime` datetime(6) DEFAULT NULL;",
-                    "ALTER TABLE `gcsmonthlydetail` ADD COLUMN `CosPhi` double DEFAULT NULL;",
+                    "ALTER TABLE `gcsmonthlydetail` ADD COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
                     "ALTER TABLE `gcsmonthlydetail` ADD COLUMN `ReadingTime` datetime(6) DEFAULT NULL;",
                     "ALTER TABLE `gcsmonthlydetail` ADD COLUMN `PmaxTime` datetime(6) DEFAULT NULL;",
-                    "ALTER TABLE `PeriodicEnergyStatement` ADD COLUMN `CosPhi` double DEFAULT NULL;",
+                    "ALTER TABLE `PeriodicEnergyStatement` ADD COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
                     "ALTER TABLE `PeriodicEnergyStatement` ADD COLUMN `PmaxTime` datetime(6) DEFAULT NULL;",
                     "ALTER TABLE `PeriodicEnergyStatement` ADD COLUMN `PreviousPmaxTime` datetime(6) DEFAULT NULL;",
                     "ALTER TABLE `PeriodicEnergyStatement` ADD COLUMN `BillingTimestamp` datetime(6) DEFAULT NULL;",
-                    "ALTER TABLE `periodicenergystatement` ADD COLUMN `CosPhi` double DEFAULT NULL;",
+                    "ALTER TABLE `periodicenergystatement` ADD COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
                     "ALTER TABLE `periodicenergystatement` ADD COLUMN `PmaxTime` datetime(6) DEFAULT NULL;",
                     "ALTER TABLE `periodicenergystatement` ADD COLUMN `PreviousPmaxTime` datetime(6) DEFAULT NULL;",
-                    "ALTER TABLE `periodicenergystatement` ADD COLUMN `BillingTimestamp` datetime(6) DEFAULT NULL;"
+                    "ALTER TABLE `periodicenergystatement` ADD COLUMN `BillingTimestamp` datetime(6) DEFAULT NULL;",
+
+                    // Chuẩn hóa kiểu số liệu đo đếm sang DECIMAL
+                    "ALTER TABLE `gcstemporary` MODIFY COLUMN `PreviousReading` decimal(18, 4) DEFAULT NULL;",
+                    "ALTER TABLE `gcstemporary` MODIFY COLUMN `CurrentReading` decimal(18, 4) DEFAULT NULL;",
+                    "ALTER TABLE `gcstemporary` MODIFY COLUMN `NewCurrentReading` decimal(18, 4) DEFAULT NULL;",
+                    "ALTER TABLE `gcstemporary` MODIFY COLUMN `NewPreviousReading` decimal(18, 4) DEFAULT NULL;",
+                    "ALTER TABLE `gcstemporary` MODIFY COLUMN `MultiplierFactor` decimal(18, 4) NOT NULL DEFAULT '1.0000';",
+                    "ALTER TABLE `gcstemporary` MODIFY COLUMN `Consumption` decimal(18, 4) DEFAULT NULL;",
+                    "ALTER TABLE `gcstemporary` MODIFY COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
+
+                    "ALTER TABLE `gcsmonthlydetail` MODIFY COLUMN `PreviousReading` decimal(18, 4) DEFAULT NULL;",
+                    "ALTER TABLE `gcsmonthlydetail` MODIFY COLUMN `CurrentReading` decimal(18, 4) DEFAULT NULL;",
+                    "ALTER TABLE `gcsmonthlydetail` MODIFY COLUMN `MultiplierFactor` decimal(18, 4) NOT NULL DEFAULT '1.0000';",
+                    "ALTER TABLE `gcsmonthlydetail` MODIFY COLUMN `Consumption` decimal(18, 4) DEFAULT NULL;",
+                    "ALTER TABLE `gcsmonthlydetail` MODIFY COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
+
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `Bt` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `Cd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `Td` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `Sg` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `Vc` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `Pmax` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `PreviousBt` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `PreviousCd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `PreviousTd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `PreviousSg` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `PreviousVc` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `PreviousPmax` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `ConsumtionBt` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `ConsumtionCd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `ConsumtionTd` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `ConsumtionSg` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `ConsumtionVc` decimal(18, 4) NOT NULL DEFAULT '0.0000';",
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `Multiplier` decimal(18, 4) NOT NULL DEFAULT '1.0000';",
+                    "ALTER TABLE `periodicenergystatement` MODIFY COLUMN `CosPhi` decimal(5, 2) DEFAULT NULL;",
+
+                    "ALTER TABLE `measurementpoints` MODIFY COLUMN `MultiplierFactor` decimal(18, 4) NOT NULL DEFAULT '1.0000';"
                 };
 
                 foreach (var sql in alterStatements)
@@ -373,12 +412,16 @@ namespace Infrastructure.Repositories.ReadWrite
                 ws.Cells[currentRow, 3].Value = it.MeterReadingSet;
                 ws.Cells[currentRow, 3].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
 
-                // Col 4: Chỉ số cũ (làm tròn đến hàng đơn vị, không hiển thị số thập phân)
+                // Col 4: Chỉ số cũ (làm tròn đến hàng đơn vị, riêng Pmax làm tròn 2 chữ số thập phân tương tự CosPhi)
                 var oldVal = it.NewPreviousReading ?? it.PreviousReading;
+                bool isPmax = string.Equals(it.MeterReadingSet, "Pmax", StringComparison.OrdinalIgnoreCase);
+                int decimals = isPmax ? 2 : 0;
+                string numFormat = isPmax ? "#,##0.00" : "#,##0";
+
                 if (oldVal.HasValue)
                 {
-                    ws.Cells[currentRow, 4].Value = Math.Round(oldVal.Value, 0);
-                    ws.Cells[currentRow, 4].Style.Numberformat.Format = "#,##0";
+                    ws.Cells[currentRow, 4].Value = Math.Round(oldVal.Value, decimals, MidpointRounding.AwayFromZero);
+                    ws.Cells[currentRow, 4].Style.Numberformat.Format = numFormat;
                 }
                 else
                 {
@@ -390,8 +433,8 @@ namespace Infrastructure.Repositories.ReadWrite
                 var newCell = ws.Cells[currentRow, 5];
                 if (it.NewCurrentReading != null)
                 {
-                    newCell.Value = Math.Round(it.NewCurrentReading.Value, 0);
-                    newCell.Style.Numberformat.Format = "#,##0";
+                    newCell.Value = Math.Round(it.NewCurrentReading.Value, decimals, MidpointRounding.AwayFromZero);
+                    newCell.Style.Numberformat.Format = numFormat;
                     // Confirmed: Normal style (white background)
                 }
                 else if (!it.CurrentReading.HasValue)
@@ -407,8 +450,8 @@ namespace Infrastructure.Repositories.ReadWrite
                 }
                 else if (isSuspicious)
                 {
-                    newCell.Value = Math.Round(it.CurrentReading.Value, 0);
-                    newCell.Style.Numberformat.Format = "#,##0";
+                    newCell.Value = Math.Round(it.CurrentReading.Value, decimals, MidpointRounding.AwayFromZero);
+                    newCell.Style.Numberformat.Format = numFormat;
                     newCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
                     newCell.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(255, 199, 206)); // Light pink #FFC7CE
                     if (newCell.Comment == null)
@@ -418,8 +461,8 @@ namespace Infrastructure.Repositories.ReadWrite
                 }
                 else
                 {
-                    newCell.Value = Math.Round(it.CurrentReading.Value, 0);
-                    newCell.Style.Numberformat.Format = "#,##0";
+                    newCell.Value = Math.Round(it.CurrentReading.Value, decimals, MidpointRounding.AwayFromZero);
+                    newCell.Style.Numberformat.Format = numFormat;
                     // Valid reading: Normal style (white background)
                 }
 
@@ -488,34 +531,34 @@ namespace Infrastructure.Repositories.ReadWrite
             int updatedCount = 0;
             int skippedCount = 0;
 
-            static (bool isValid, double? val, bool hasExclamation, string? error) ValidateAndParseCell(
+            static (bool isValid, decimal? val, bool hasExclamation, string? error) ValidateAndParseCell(
                 object? cellObj, string colName, int row, string? pointCode, string? readingSet)
             {
                 if (cellObj == null) return (true, null, false, null);
+                if (cellObj is decimal dec)
+                {
+                    if (dec < 0m) return (false, null, false, $"Dòng {row}: Ô '{colName}' ({pointCode} - {readingSet}) có giá trị âm ({dec}). Chỉ số công tơ không thể là số âm.");
+                    return (true, dec, false, null);
+                }
                 if (cellObj is double d)
                 {
                     if (d < 0) return (false, null, false, $"Dòng {row}: Ô '{colName}' ({pointCode} - {readingSet}) có giá trị âm ({d}). Chỉ số công tơ không thể là số âm.");
-                    return (true, d, false, null);
+                    return (true, (decimal)d, false, null);
                 }
                 if (cellObj is int i)
                 {
                     if (i < 0) return (false, null, false, $"Dòng {row}: Ô '{colName}' ({pointCode} - {readingSet}) có giá trị âm ({i}). Chỉ số công tơ không thể là số âm.");
-                    return (true, (double)i, false, null);
+                    return (true, (decimal)i, false, null);
                 }
                 if (cellObj is long l)
                 {
                     if (l < 0) return (false, null, false, $"Dòng {row}: Ô '{colName}' ({pointCode} - {readingSet}) có giá trị âm ({l}). Chỉ số công tơ không thể là số âm.");
-                    return (true, (double)l, false, null);
-                }
-                if (cellObj is decimal dec)
-                {
-                    if (dec < 0) return (false, null, false, $"Dòng {row}: Ô '{colName}' ({pointCode} - {readingSet}) có giá trị âm ({dec}). Chỉ số công tơ không thể là số âm.");
-                    return (true, (double)dec, false, null);
+                    return (true, (decimal)l, false, null);
                 }
                 if (cellObj is float f)
                 {
                     if (f < 0) return (false, null, false, $"Dòng {row}: Ô '{colName}' ({pointCode} - {readingSet}) có giá trị âm ({f}). Chỉ số công tơ không thể là số âm.");
-                    return (true, (double)f, false, null);
+                    return (true, (decimal)f, false, null);
                 }
 
                 var str = cellObj.ToString()?.Trim() ?? "";
@@ -531,12 +574,12 @@ namespace Infrastructure.Repositories.ReadWrite
                     clean = clean.Replace(".", "");
                 }
 
-                if (!double.TryParse(clean, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed))
+                if (!decimal.TryParse(clean, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed))
                 {
                     return (false, null, false, $"Dòng {row}: Ô '{colName}' ({pointCode} - {readingSet}) chứa giá trị không hợp lệ '{str}'. Giá trị phải là số thực hoặc số nguyên.");
                 }
 
-                if (parsed < 0)
+                if (parsed < 0m)
                 {
                     return (false, null, false, $"Dòng {row}: Ô '{colName}' ({pointCode} - {readingSet}) có giá trị âm ({parsed}). Chỉ số công tơ không thể là số âm.");
                 }
@@ -619,7 +662,7 @@ namespace Infrastructure.Repositories.ReadWrite
                     if (parsedOld.HasValue)
                     {
                         var originalPrev = entity.PreviousReading;
-                        bool isDiff = !originalPrev.HasValue || Math.Abs(parsedOld.Value - originalPrev.Value) > 0.0001;
+                        bool isDiff = !originalPrev.HasValue || Math.Abs(parsedOld.Value - originalPrev.Value) > 0.0001m;
                         if (isDiff || oldEx)
                         {
                             entity.NewPreviousReading = parsedOld.Value;
@@ -634,12 +677,12 @@ namespace Infrastructure.Repositories.ReadWrite
                     // entity.IsSuspicious == false, và parsedNew bằng đúng entity.CurrentReading:
                     // -> TUYỆT ĐỐI KHÔNG làm gì, giữ nguyên để không bị gán cờ IsChange = true!
                     bool isNormalUnchanged = !entity.IsSuspicious && entity.Quanlity == true && entity.CurrentReading.HasValue
-                        && parsedNew.HasValue && Math.Abs(parsedNew.Value - entity.CurrentReading.Value) <= 0.0001;
+                        && parsedNew.HasValue && Math.Abs(parsedNew.Value - entity.CurrentReading.Value) <= 0.0001m;
 
                     if (!isNormalUnchanged)
                     {
                         // Trường hợp 2.2: Người dùng sửa/cập nhật giá trị mới:
-                        if (parsedNew.HasValue && (!entity.CurrentReading.HasValue || Math.Abs(parsedNew.Value - entity.CurrentReading.Value) > 0.0001 || newEx))
+                        if (parsedNew.HasValue && (!entity.CurrentReading.HasValue || Math.Abs(parsedNew.Value - entity.CurrentReading.Value) > 0.0001m || newEx))
                         {
                             entity.NewCurrentReading = parsedNew.Value;
                             entity.Quanlity = true;
@@ -657,7 +700,7 @@ namespace Infrastructure.Repositories.ReadWrite
                             entity.SuspiciousReason = "Đã xác nhận chỉ số công tơ hợp lệ";
                             entity.IsChange = false;
                             // Không gán NewCurrentReading nếu bằng CurrentReading để tránh coi là sửa tay
-                            if (parsedNew.HasValue && entity.CurrentReading.HasValue && Math.Abs(parsedNew.Value - entity.CurrentReading.Value) <= 0.0001)
+                            if (parsedNew.HasValue && entity.CurrentReading.HasValue && Math.Abs(parsedNew.Value - entity.CurrentReading.Value) <= 0.0001m)
                             {
                                 entity.NewCurrentReading = null;
                             }

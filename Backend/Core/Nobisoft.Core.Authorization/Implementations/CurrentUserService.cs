@@ -38,9 +38,8 @@ public class CurrentUserService : ICurrentUserService
             var jwt = GetJwtToken();
             if (jwt != null && !jwt.IsMissing())
             {
-                var handler = new JwtSecurityTokenHandler();
-                var jsonToken = handler.ReadToken(jwt) as JwtSecurityToken;
-                var idClaim = jsonToken?.Claims.FirstOrDefault(c => c.Type == JwtClaimTypes.Id)?.Value;
+                var principal = _jwtService.GetPrincipalFromToken(jwt, validateLifetime: false);
+                var idClaim = principal?.Claims.FirstOrDefault(c => c.Type == JwtClaimTypes.Id)?.Value;
 
                 if (long.TryParse(idClaim, out var userId) && userId != 0)
                 {
@@ -70,9 +69,8 @@ public class CurrentUserService : ICurrentUserService
             var jwt = GetJwtToken();
             if (jwt != null && !jwt.IsMissing())
             {
-                var handler = new JwtSecurityTokenHandler();
-                var jsonToken = handler.ReadToken(jwt) as JwtSecurityToken;
-                var userNameClaim = jsonToken?.Claims.FirstOrDefault(c => c.Type == JwtClaimTypes.UserName)?.Value;
+                var principal = _jwtService.GetPrincipalFromToken(jwt, validateLifetime: false);
+                var userNameClaim = principal?.Claims.FirstOrDefault(c => c.Type == JwtClaimTypes.UserName)?.Value;
 
                 if (!string.IsNullOrEmpty(userNameClaim))
                 {

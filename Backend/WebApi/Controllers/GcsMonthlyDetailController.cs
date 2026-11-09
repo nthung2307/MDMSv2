@@ -67,7 +67,7 @@ public class GcsMonthlyDetailController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.GcsMonthlyDetail.ExportPdf)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
     public async Task<IActionResult> ExportPdfAccountAsync(long gcsCutOffId, CancellationToken cancellationToken)
     {
         try
@@ -84,7 +84,7 @@ public class GcsMonthlyDetailController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.GcsMonthlyDetail.ExportCsv)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
     public async Task<IActionResult> ExportCsvGcsMonthlyDetailAsync(long gcsCutOffId, CancellationToken cancellationToken)
     {
         try

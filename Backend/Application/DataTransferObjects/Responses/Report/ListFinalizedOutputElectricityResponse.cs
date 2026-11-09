@@ -11,9 +11,9 @@ public class ListFinalizedOutputElectricityResponse
     public int? Month { get; set; }
     public int? Year { get; set; }
     public int? PeriodNumber { get; set; }
-    public double? Bt { get; set; }
-    public double? Td { get; set; }
-    public double? Cd { get; set; }
-    public double? Sg { get; set; }
-    public double? Vc { get; set; }
+    public decimal? Bt { get; set; }
+    public decimal? Td { get; set; }
+    public decimal? Cd { get; set; }
+    public decimal? Sg { get; set; }
+    public decimal? Vc { get; set; }
 }

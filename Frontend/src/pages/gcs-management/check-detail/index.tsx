@@ -126,8 +126,18 @@ const GCSCheckDetail = () => {
       description: item.measurementPoint.description ?? 'N/A',
       customer: item.measurementPoint.customer.fullName ?? 'N/A',
       meterReadingSet: item.meterReadingSet ?? 'N/A',
-      previousReading: item.previousReading !== null && item.previousReading !== undefined ? Math.round(Number(item.previousReading)) : '',
-      currentReading: item.currentReading !== null && item.currentReading !== undefined ? Math.round(Number(item.currentReading)) : '',
+      previousReading:
+        item.previousReading !== null && item.previousReading !== undefined
+          ? (item.meterReadingSet === 'Pmax'
+              ? Number(item.previousReading).toFixed(2)
+              : Math.round(Number(item.previousReading)))
+          : '',
+      currentReading:
+        item.currentReading !== null && item.currentReading !== undefined
+          ? (item.meterReadingSet === 'Pmax'
+              ? Number(item.currentReading).toFixed(2)
+              : Math.round(Number(item.currentReading)))
+          : '',
       multiplierFactor: item.multiplierFactor !== null && item.multiplierFactor !== undefined ? Math.round(Number(item.multiplierFactor)) : '',
       consumption: item.consumption !== null && item.consumption !== undefined ? Math.round(Number(item.consumption)) : (item.meterReadingSet === 'Pmax' ? 'N/A' : ''),
       isChange: item.isChange,

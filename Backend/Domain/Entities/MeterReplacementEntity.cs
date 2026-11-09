@@ -13,23 +13,23 @@ public class MeterReplacementEntity : IEntity<long>
     
     // Chỉ số công tơ tháo
     public string OldMeterSerial { get; set; } = string.Empty;
-    public double OldMeterMultiplier { get; set; } = 1.0;
-    public double OldBt { get; set; }
-    public double OldCd { get; set; }
-    public double OldTd { get; set; }
-    public double OldSg { get; set; }
-    public double OldVc { get; set; }
-    public double OldPmax { get; set; }
+    public decimal OldMeterMultiplier { get; set; } = 1.0m;
+    public decimal OldBt { get; set; }
+    public decimal OldCd { get; set; }
+    public decimal OldTd { get; set; }
+    public decimal OldSg { get; set; }
+    public decimal OldVc { get; set; }
+    public decimal OldPmax { get; set; }
     
     // Chỉ số công tơ treo mới
     public string NewMeterSerial { get; set; } = string.Empty;
-    public double NewMeterMultiplier { get; set; } = 1.0;
-    public double NewBt { get; set; }
-    public double NewCd { get; set; }
-    public double NewTd { get; set; }
-    public double NewSg { get; set; }
-    public double NewVc { get; set; }
-    public double NewPmax { get; set; }
+    public decimal NewMeterMultiplier { get; set; } = 1.0m;
+    public decimal NewBt { get; set; }
+    public decimal NewCd { get; set; }
+    public decimal NewTd { get; set; }
+    public decimal NewSg { get; set; }
+    public decimal NewVc { get; set; }
+    public decimal NewPmax { get; set; }
     
     public string? DocumentUrl { get; set; } // Ảnh scan hoặc PDF biên bản treo tháo hiện trường
     public string Status { get; set; } = "APPROVED"; // DRAFT, APPROVED, CANCELLED

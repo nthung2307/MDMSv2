@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "test": "node --test src/tests/meteringAndHelpers.test.mjs",
     "prepare": "echo no-op",
     "dev": "vite --port 3000 --mode development ",
     "prod": "vite --port 3000 --mode production ",

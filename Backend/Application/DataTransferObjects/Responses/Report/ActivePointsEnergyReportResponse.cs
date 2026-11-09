@@ -8,7 +8,7 @@ public class ActivePointsEnergyReportResponse
     public long CustomerId { get; set; }
     public string CustomerCode { get; set; } = string.Empty;
     public string CustomerName { get; set; } = string.Empty;
-    public double MultiplierFactor { get; set; }
+    public decimal MultiplierFactor { get; set; }
     public DateTimeOffset? CreatedTime { get; set; }
 
     // Kênh Giao (Export)

@@ -10,11 +10,11 @@ public class GcsMonthlyDetailEntity : IEntity<long>
     public long MeasurementPointId { get; set; }
     public MeasurementPointsEntity MeasurementPoint { get; set; }
     public string MeterReadingSet { get; set; }
-    public double? PreviousReading { get; set; }
-    public double? CurrentReading { get; set; }
-    public double MultiplierFactor { get; set; }
-    public double? Consumption { get; set; }
-    public double? CosPhi { get; set; }
+    public decimal? PreviousReading { get; set; }
+    public decimal? CurrentReading { get; set; }
+    public decimal MultiplierFactor { get; set; } = 1.0m;
+    public decimal? Consumption { get; set; }
+    public decimal? CosPhi { get; set; }
     public DateTimeOffset? ReadingTime { get; set; }
     public DateTimeOffset? PmaxTime { get; set; }
     public bool IsChange { get; set; }

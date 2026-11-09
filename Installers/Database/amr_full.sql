@@ -1379,19 +1379,19 @@ VALUES
 
 -- Khoi tao mau phieu bao PDF mac dinh cho bang statementpdftemplates
 INSERT IGNORE INTO `amr`.`statementpdftemplates` 
-(`Id`, `Code`, `Name`, `HeaderTitle`, `SubHeaderTitle`, `CompanyName`, `CompanyAddress`, `ContactPhone`, `PaperSize`, `DisplayColumnsJson`, `FooterNotes`, `RequireDualSignatures`, `IsDefault`, `IsActive`, `CreatedTime`)
+(`Id`, `Code`, `Name`, `HeaderTitle`, `SubHeaderTitle`, `CompanyName`, `CompanyAddress`, `ContactPhone`, `PaperSize`, `EngineType`, `DisplayColumnsJson`, `FooterNotes`, `RequireDualSignatures`, `IsDefault`, `IsActive`, `CreatedTime`)
 VALUES
 (1, 'A5_VSIP_STANDARD', 'Mẫu phiếu báo A5 Ngang - Chuẩn VSIP Hải Phòng', 
- 'PHIẾU BÁO CHỈ SỐ ĐIỆN NĂNG', 'DÀNH CHO KHÁCH HÀNG SỬ DỤNG ĐIỆN', 
- 'CÔNG TY TNHH VSIP HẢI PHÒNG', 'Khu Đô thị, Công nghiệp và Dịch vụ VSIP Hải Phòng, Thủy Nguyên, Hải Phòng', '(0225) 3959 888', 
- 'A5_LANDSCAPE', '[\"BT\",\"CD\",\"TD\",\"SG\",\"VC\",\"PMAX\",\"COSPHI\"]', 
- 'Ghi chú: Phiếu báo chỉ số điện năng này là cơ sở để phát hành hóa đơn tiền điện hàng tháng. Mọi thắc mắc xin vui lòng liên hệ Phòng Cơ Điện trong vòng 24 giờ kể từ khi nhận được phiếu báo.', 
+ 'MONTHLY POWER METER READING', 'PHIẾU GHI CHỈ SỐ ĐIỆN HÀNG THÁNG', 
+ 'VSIP HAI PHONG CO., LTD', 'VSIP Hai Phong Administration Office, VSIP Hai Phong Township, Industrial & Service Park\nHoa Binh Ward, Hai Phong City, Vietnam', 'Tel: 84-225-3959868   Fax: 84-225-3959886', 
+ 'A5_LANDSCAPE', 'QUEST_PDF', '{"columns":["BT","CD","TD","SG","VC","COSPHI","REMARKS","PMAX","MULTIPLIER"],"documentCode":"M&E-1/01 PR04","copyLabel":"(M&E Copy – Liên cho Phòng Cơ Điện)","partyAName":"Party A (VSIP Hai Phong Co., Ltd)\\nBên A (Công ty TNHH VSIP Hải Phòng)","partyBName":"Party B (Tenant)\\nBên B (Khách hàng)","headerLeftMode":"LOGO","headerCenterMode":"LOGO","headerRightMode":"DECOR","footerLeftMode":"LOGO","footerCenterMode":"LOGO","footerRightMode":"LOGO"}', 
+ 'Quý khách vui lòng kiểm tra và phản hồi số liệu trong vòng 03 ngày làm việc kể từ ngày nhận phiếu báo.', 
  1, 1, 1, NOW()),
 
 (2, 'A4_PORTRAIT_STANDARD', 'Mẫu phiếu báo A4 Đứng - Chuẩn Kế toán & Lưu trữ', 
- 'PHIẾU XÁC NHẬN CHỈ SỐ ĐO ĐẾM ĐIỆN NĂNG', 'KỲ GIAO NHẬN ĐIỆN THÁNG', 
- 'CÔNG TY TNHH VSIP HẢI PHÒNG', 'Khu Đô thị, Công nghiệp và Dịch vụ VSIP Hải Phòng, Thủy Nguyên, Hải Phòng', '(0225) 3959 888', 
- 'A4_PORTRAIT', '[\"BT\",\"CD\",\"TD\",\"SG\",\"VC\",\"PMAX\",\"COSPHI\"]', 
- 'Ghi chú: Phiếu báo có giá trị xác nhận chỉ số đo đếm thực tế giữa bên giao điện và bên nhận điện.', 
+ 'MONTHLY POWER METER READING', 'PHIẾU GHI CHỈ SỐ ĐIỆN HÀNG THÁNG', 
+ 'VSIP HAI PHONG CO., LTD', 'VSIP Hai Phong Administration Office, VSIP Hai Phong Township, Industrial & Service Park\nHoa Binh Ward, Hai Phong City, Vietnam', 'Tel: 84-225-3959868   Fax: 84-225-3959886', 
+ 'A4_PORTRAIT', 'QUEST_PDF', '{"columns":["BT","CD","TD","SG","VC","COSPHI","REMARKS","PMAX","MULTIPLIER"],"documentCode":"M&E-1/01 PR04","copyLabel":"(M&E Copy – Liên cho Phòng Cơ Điện)","partyAName":"Party A (VSIP Hai Phong Co., Ltd)\\nBên A (Công ty TNHH VSIP Hải Phòng)","partyBName":"Party B (Tenant)\\nBên B (Khách hàng)","headerLeftMode":"LOGO","headerCenterMode":"LOGO","headerRightMode":"DECOR","footerLeftMode":"LOGO","footerCenterMode":"LOGO","footerRightMode":"LOGO"}', 
+ 'Phiếu báo này được kết xuất tự động từ hệ thống đo đếm từ xa AMR/MDMS. Mọi yêu cầu đối soát số liệu kỹ thuật xin liên hệ Bộ phận Vận hành Đo đếm.', 
  1, 0, 1, NOW());
 

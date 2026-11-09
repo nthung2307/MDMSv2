@@ -14,7 +14,6 @@ import Constants from '@/core/application/common/constants';
 import { DataResponse } from '@/core/application/dto/common/responses/successResponse';
 import { GetListMeasurementPointMonitoringRequest } from '@/core/application/dto/measurement-point-monitoring/requests/GetListMeasurementPointMonitoringRequest';
 import DialogCommon from '@/infrastructure/common/components/popup/dialogCommon.tsx';
-import SocketCommon from '@/infrastructure/common/components/websocket/socket-common.tsx';
 import { setRecoilStateAsync } from '@/infrastructure/common/libs/recoil-outside/recoil.service.tsx';
 import useGetCountAlertHook from '@/infrastructure/repository/measurement-point/hooks/useGetCountAlert.hook';
 import useGetListMeasurementPointAlertHook from '@/infrastructure/repository/measurement-point-monitoring/hooks/useGetListMeasurementPointAlert.hook';
@@ -35,7 +34,6 @@ const Header = (props: Props) => {
   const localStorageService = new LocalStorageService();
   const [getListMeasurementPointAlert] = useGetListMeasurementPointAlertHook();
   const [isShowDialog, setIsShowDialog] = useState<boolean>(false);
-  const [dataSocket, setDataSocket] = useState(null);
   const [dataAlert, setDataAlert] = useState<any[]>([]);
   const [countAlert, setCountAlert] = useState(0);
   const [getCountAlert] = useGetCountAlertHook();
@@ -125,6 +123,7 @@ const Header = (props: Props) => {
 
   const handleLogout = async () => {
     localStorageService.removeStorage(Constants.API_TOKEN_STORAGE);
+    localStorageService.removeStorage(Constants.API_REFRESH_TOKEN_STORAGE);
     navigate(ROUTE_PATH.LOGIN);
   };
 
@@ -159,18 +158,10 @@ const Header = (props: Props) => {
 
   useEffect(() => {
     if (role !== Constants.Role.Customer.value) {
-      if (dataSocket !== null && dataSocket !== undefined) {
-        const nextCount = Number(dataSocket);
-        if (!Number.isNaN(nextCount)) {
-          setCountAlert(nextCount);
-          setRecoilStateAsync(CountState, nextCount);
-        }
-        setDataSocket(null);
-      }
       getCountAlertAsync();
       getListMeasurementPointAlertAsync();
     }
-  }, [dataSocket, alertState]);
+  }, [alertState]);
 
   useEffect(() => {
     if (typeof countState === 'number') {
@@ -185,16 +176,12 @@ const Header = (props: Props) => {
     if (role === Constants.Role.Customer.value) return;
     const interval = setInterval(() => {
       getListMeasurementPointAlertAsync();
-    }, 15000);
+    }, 60000);
     return () => clearInterval(interval);
   }, [role]);
 
   return (
-    <SocketCommon
-      setDataSocket={setDataSocket}
-      endPoint={Constants.socketIoEndpoint.event}
-      status={Constants.socketIoStatus.CountAlert}
-    >
+    <>
       <Layout.Header className='flex justify-between mx-0 px-[30px] border-b-2 border-firebrick shadow-md z-30'>
         <div className='flex items-center'>
           <div className='flex items-end gap-2'>
@@ -261,7 +248,7 @@ const Header = (props: Props) => {
           </div>
         </div>
       </DialogCommon>
-    </SocketCommon>
+    </>
   );
 };
 

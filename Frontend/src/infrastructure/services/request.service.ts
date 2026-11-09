@@ -57,8 +57,23 @@ export default class RequestService implements IRequestService {
   }
 
   private extractErrorMessage(e: any): string {
-    if (e.response?.data?.errors?.length && e.response.data.errors[0]?.error) {
-      return e.response.data.errors[0].error;
+    if (e.response?.data?.errors) {
+      const errs = e.response.data.errors;
+      if (Array.isArray(errs) && errs.length && errs[0]?.error) {
+        return errs[0].error;
+      }
+      if (typeof errs === 'object') {
+        const values = Object.values(errs);
+        if (values.length > 0) {
+          const firstVal: any = values[0];
+          if (Array.isArray(firstVal) && firstVal.length > 0) {
+            return String(firstVal[0]);
+          }
+          if (typeof firstVal === 'string') {
+            return firstVal;
+          }
+        }
+      }
     }
     if (e.response?.data?.message) {
       return Array.isArray(e.response.data.message)
@@ -122,7 +137,7 @@ export default class RequestService implements IRequestService {
       } else {
         this.loggerService.error(`[ERROR] ${e}`);
       }
-      if (e.response.status === 500) {
+      if (e.response?.status === 500) {
         return new Failure500Response({
           ...e,
           message: this.extractErrorMessage(e),

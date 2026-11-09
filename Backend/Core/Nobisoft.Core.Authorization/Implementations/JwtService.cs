@@ -82,4 +82,40 @@ public class JwtService : IJwtService
             throw;
         }
     }
+
+    public ClaimsPrincipal? GetPrincipalFromToken(string token, bool validateLifetime = false)
+    {
+        if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(_jwtOptions.SymmetricSecurityKey))
+            return null;
+
+        try
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.UTF8.GetBytes(_jwtOptions.SymmetricSecurityKey);
+            var validationParameters = new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(key),
+                ValidateIssuer = !string.IsNullOrWhiteSpace(_jwtOptions.Issuer),
+                ValidIssuer = _jwtOptions.Issuer,
+                ValidateAudience = !string.IsNullOrWhiteSpace(_jwtOptions.Audience),
+                ValidAudience = _jwtOptions.Audience,
+                ValidateLifetime = validateLifetime,
+                ClockSkew = TimeSpan.FromMinutes(1)
+            };
+
+            var principal = tokenHandler.ValidateToken(token, validationParameters, out var securityToken);
+            if (securityToken is not JwtSecurityToken jwtSecurityToken ||
+                !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
+            {
+                return null;
+            }
+
+            return principal;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }

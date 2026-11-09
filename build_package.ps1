@@ -13,10 +13,15 @@
 [CmdletBinding()]
 param (
     [string]$Configuration = "Release",
-    [string]$OutputDir = "$PSScriptRoot\Publish\MDMSv2_InstallPackage"
+    [string]$OutputDir = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+$scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
+if ([string]::IsNullOrWhiteSpace($OutputDir)) {
+    $OutputDir = Join-Path $scriptDir "Publish\MDMSv2_InstallPackage"
+}
 
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "   BAT DAU DONG GOI BO CAI DAT MDMSv2 CHO WINDOWS SERVER  " -ForegroundColor Cyan
@@ -38,7 +43,7 @@ New-Item -ItemType Directory -Path "$OutputDir\Prerequisites" -Force | Out-Null
 
 # 2. Build & Publish Backend (.NET 8 WebApi Self-Contained win-x64)
 Write-Host "`n[2/5] Dang bien dich va publish Backend (.NET 8 WebApi win-x64)..." -ForegroundColor Green
-$backendProj = "$PSScriptRoot\Backend\WebApi\WebApi.csproj"
+$backendProj = "$scriptDir\Backend\WebApi\WebApi.csproj"
 $backendOutput = "$OutputDir\Backend"
 
 # Self-contained giup may ao Windows Server khong bat buoc phai cai truoc .NET 8 SDK
@@ -46,6 +51,9 @@ dotnet publish $backendProj `
     -c $Configuration `
     -r win-x64 `
     --self-contained true `
+    -m:1 `
+    /nr:false `
+    /p:UseSharedCompilation=false `
     /p:PublishSingleFile=false `
     /p:DebugType=None `
     -o $backendOutput
@@ -95,7 +103,7 @@ Set-Content -Path "$backendOutput\appsettings.Production.json" -Value $localConf
 
 # 3. Build Frontend (React 18 + Vite)
 Write-Host "`n[3/5] Dang bien dich Frontend (React 18 + Vite)..." -ForegroundColor Green
-$frontendDir = "$PSScriptRoot\Frontend"
+$frontendDir = "$scriptDir\Frontend"
 $frontendDist = "$frontendDir\dist"
 
 Push-Location $frontendDir
@@ -196,20 +204,26 @@ Set-Content -Path "$OutputDir\Frontend\web.config" -Value $webConfigContent -Enc
 
 # 4. Sao chep Database Scripts, MySQL, Kepware, Prerequisites & Setup Scripts
 Write-Host "`n[4/5] Dang chuan bi scripts cai dat, co so du lieu va thu muc bo cai..." -ForegroundColor Green
-if (Test-Path "$PSScriptRoot\Installers") {
-    Copy-Item -Path "$PSScriptRoot\Installers\Scripts\*" -Destination "$OutputDir\Scripts" -Recurse -Force
-    Copy-Item -Path "$PSScriptRoot\Installers\Database\*" -Destination "$OutputDir\Database" -Recurse -Force
-    Copy-Item -Path "$PSScriptRoot\Installers\Kepware\*" -Destination "$OutputDir\Kepware" -Recurse -Force
-    Copy-Item -Path "$PSScriptRoot\Installers\MySQL\*" -Destination "$OutputDir\MySQL" -Recurse -Force
+if (Test-Path "$scriptDir\Installers") {
+    Copy-Item -Path "$scriptDir\Installers\Scripts\*" -Destination "$OutputDir\Scripts" -Recurse -Force
+    Copy-Item -Path "$scriptDir\Installers\Database\*" -Destination "$OutputDir\Database" -Recurse -Force
+    Get-ChildItem -Path "$scriptDir\Installers\Kepware" -Exclude "Activated", "Readme.txt" | ForEach-Object {
+        Copy-Item -Path $_.FullName -Destination "$OutputDir\Kepware" -Recurse -Force
+    }
+    Copy-Item -Path "$scriptDir\Installers\MySQL\*" -Destination "$OutputDir\MySQL" -Recurse -Force
     
-    if (Test-Path "$PSScriptRoot\Installers\Prerequisites") {
-        Copy-Item -Path "$PSScriptRoot\Installers\Prerequisites\*" -Destination "$OutputDir\Prerequisites" -Recurse -Force
+    if (Test-Path "$scriptDir\Installers\Prerequisites") {
+        Copy-Item -Path "$scriptDir\Installers\Prerequisites\*" -Destination "$OutputDir\Prerequisites" -Recurse -Force
     }
 
-    # Dat kich ban Wizard tong the SetupMDMS.ps1 ngay tai thu muc goc cua goi cai dat
-    $masterWizard = "$PSScriptRoot\Installers\Scripts\SetupMDMS.ps1"
+    # Dat kich ban Wizard tong the SetupMDMS.ps1 va Update_Hotfix.ps1 ngay tai thu muc goc cua goi cai dat
+    $masterWizard = "$scriptDir\Installers\Scripts\SetupMDMS.ps1"
     if (Test-Path $masterWizard) {
         Copy-Item -Path $masterWizard -Destination "$OutputDir\SetupMDMS.ps1" -Force
+    }
+    $hotfixWizard = "$scriptDir\Installers\Scripts\Update_Hotfix.ps1"
+    if (Test-Path $hotfixWizard) {
+        Copy-Item -Path $hotfixWizard -Destination "$OutputDir\Update_Hotfix.ps1" -Force
     }
 }
 

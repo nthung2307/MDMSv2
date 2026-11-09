@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
 namespace Infrastructure.Services
@@ -6,13 +7,11 @@ namespace Infrastructure.Services
     {
         public override Task OnConnectedAsync()
         {
-            Console.WriteLine($"Client connected to Detail Hub: {Context.ConnectionId}");
             return base.OnConnectedAsync();
         }
 
-        public override Task OnDisconnectedAsync(Exception exception)
+        public override Task OnDisconnectedAsync(Exception? exception)
         {
-            Console.WriteLine($"Client disconnected from Detail Hub: {Context.ConnectionId}");
             return base.OnDisconnectedAsync(exception);
         }
 
@@ -26,6 +25,7 @@ namespace Infrastructure.Services
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, itemId);
         }
 
+        [Authorize]
         public async Task SendUpdateToDetail(string itemId, object data)
         {
             await Clients.Group(itemId).SendAsync("ReceiveDetailUpdate", data);

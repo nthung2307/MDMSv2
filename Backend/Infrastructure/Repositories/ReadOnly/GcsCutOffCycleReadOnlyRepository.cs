@@ -73,16 +73,38 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
             .Where(x => x.GcsId == request.GcsId)
             .PaginateWithAndAsync<GcsCutoffCycleEntity, GcsCutOffCycleResponse>(request, _mapper, cancellationToken);
 
-        // For each cycle in the result, fetch and attach the previous cycle info
+        var allCyclesForGcs = result.Data.Count > 0
+            ? await _gcsCutoffCycleEntities
+                .AsNoTracking()
+                .Where(x => x.GcsId == request.GcsId)
+                .ToListAsync(cancellationToken)
+            : new List<GcsCutoffCycleEntity>();
+
+        // For each cycle in the result, attach the previous cycle info resolved in memory (preventing N+1 queries)
         foreach (var cycle in result.Data)
         {
-            var previousCycle = await GetPreviousGcsCutOffCycle(
-                request.GcsId,
-                cycle.Year,
-                cycle.Month,
-                cycle.PeriodNumber,
-                cancellationToken
-            );
+            GcsCutoffCycleEntity? previousCycle;
+            if (cycle.PeriodNumber > 1)
+            {
+                previousCycle = allCyclesForGcs.FirstOrDefault(x =>
+                    x.Year == cycle.Year &&
+                    x.Month == cycle.Month &&
+                    x.PeriodNumber == cycle.PeriodNumber - 1);
+            }
+            else
+            {
+                var previousMonth = cycle.Month - 1;
+                var previousYear = cycle.Year;
+                if (previousMonth == 0)
+                {
+                    previousMonth = 12;
+                    previousYear--;
+                }
+                previousCycle = allCyclesForGcs
+                    .Where(x => x.Year == previousYear && x.Month == previousMonth)
+                    .OrderByDescending(x => x.PeriodNumber)
+                    .FirstOrDefault();
+            }
 
             if (previousCycle != null)
             {
@@ -382,15 +404,25 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
                 var measurementPointIds = gcsWithMeasurementPoints.Select(x => x.Id).ToList();
                 if (measurementPointIds.Count > 0)
                 {
-                    var dbMonitoringRecords = await DbContext.Set<MeasurementPointMonitoringEntity>()
+                    var latestMonitoringIds = await DbContext.Set<MeasurementPointMonitoringEntity>()
                         .AsNoTracking()
                         .Where(x => measurementPointIds.Contains(x.MeasurementPointsId) && x.TagNameDescription != null && relevantDescriptions.Contains(x.TagNameDescription))
-                        .OrderByDescending(x => x.CreatedTime)
+                        .GroupBy(x => new { x.MeasurementPointsId, x.TagNameDescription })
+                        .Select(g => g.Max(x => x.Id))
                         .ToListAsync(cancellationToken);
 
-                    latestMonitoringMap = dbMonitoringRecords
-                        .GroupBy(x => (x.MeasurementPointsId, x.TagNameDescription!))
-                        .ToDictionary(g => g.Key, g => g.First());
+                    if (latestMonitoringIds.Count > 0)
+                    {
+                        var dbMonitoringRecords = await DbContext.Set<MeasurementPointMonitoringEntity>()
+                            .AsNoTracking()
+                            .Where(x => latestMonitoringIds.Contains(x.Id))
+                            .ToListAsync(cancellationToken);
+
+                        latestMonitoringMap = dbMonitoringRecords
+                            .Where(x => x.TagNameDescription != null)
+                            .GroupBy(x => (x.MeasurementPointsId, x.TagNameDescription!))
+                            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.CreatedTime).ThenByDescending(r => r.Id).First());
+                    }
 
                     // Query thời điểm chốt gần nhất và thời điểm Pmax kỳ trước từ MeasurementPointMonitoringByDateTimeEntity
                     var dateTimeTags = new List<string>
@@ -409,11 +441,20 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
                         ListDataMeasurementPoint.GiayPmaxKyTruoc
                     };
 
-                    var dbDateTimeRecords = await DbContext.Set<MeasurementPointMonitoringByDateTimeEntity>()
+                    var latestDateTimeIds = await DbContext.Set<MeasurementPointMonitoringByDateTimeEntity>()
                         .AsNoTracking()
                         .Where(x => measurementPointIds.Contains(x.MeasurementPointId) && x.TagNameDescription != null && dateTimeTags.Contains(x.TagNameDescription))
-                        .OrderByDescending(x => x.CreatedTime)
+                        .GroupBy(x => new { x.MeasurementPointId, x.TagNameDescription })
+                        .Select(g => g.Max(x => x.Id))
                         .ToListAsync(cancellationToken);
+
+                    var dbDateTimeRecords = latestDateTimeIds.Count > 0
+                        ? await DbContext.Set<MeasurementPointMonitoringByDateTimeEntity>()
+                            .AsNoTracking()
+                            .Where(x => latestDateTimeIds.Contains(x.Id))
+                            .OrderByDescending(x => x.CreatedTime)
+                            .ToListAsync(cancellationToken)
+                        : new List<MeasurementPointMonitoringByDateTimeEntity>();
 
                     var groupedDateByPoint = dbDateTimeRecords
                         .GroupBy(x => x.MeasurementPointId)
@@ -499,14 +540,14 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
                 foreach (var readingType in meterReadingSetMapping)
                 {
                     var isPmax = readingType.Key == "PMAX_KY_TRUOC";
-                    double? currentVal = null;
+                    decimal? currentVal = null;
                     DateTimeOffset? readingTime = null;
                     bool? quality = null;
 
                     // Lấy số liệu từ bộ chỉ số chốt chiều giao do Kepware IoT Client gửi đến (MeasurementPointMonitoringEntity)
                     if (latestMonitoringMap.TryGetValue((measurementPoint.Id, readingType.Key), out var dbRec) && dbRec != null)
                     {
-                        if (!string.IsNullOrWhiteSpace(dbRec.Value) && double.TryParse(dbRec.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedVal))
+                        if (!string.IsNullOrWhiteSpace(dbRec.Value) && decimal.TryParse(dbRec.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedVal))
                         {
                             currentVal = parsedVal;
                             quality = dbRec.Quanlity ?? true;
@@ -523,7 +564,7 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
 
                     // Resolve previous cycle reading and period info
                     var existingDetail = monthlyDetailsWithPoints.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && x.MeterReadingSet == readingType.Value);
-                    double? previousReading = null;
+                    decimal? previousReading = null;
                     int? prevDay = null;
                     int? prevMonth = null;
                     int? prevYear = null;
@@ -540,7 +581,7 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
                     else if (measurementPoint.IsNewChange)
                     {
                         var oldGcsReading = listCurrentReading.FirstOrDefault(x => x.MeasurementPointId == measurementPoint.Id && readingType.Value == x.MeterReadingSet);
-                        previousReading = oldGcsReading?.CurrentReading ?? 0;
+                        previousReading = oldGcsReading?.CurrentReading ?? 0m;
                         prevDay = oldGcsReading?.CurrentDay;
                         prevMonth = oldGcsReading?.CurrentMonth;
                         prevYear = oldGcsReading?.CurrentYear;
@@ -548,7 +589,7 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
                     }
                     else
                     {
-                        previousReading = 0;
+                        previousReading = 0m;
                         prevDay = maxCycle?.Day;
                         prevMonth = maxCycle?.Month;
                         prevYear = maxCycle?.Year;
@@ -556,14 +597,19 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
                     }
 
                     // Calculate final current reading and consumption
-                    double? finalCurrentReading = currentVal.HasValue
-                        ? (isPmax ? Math.Round(currentVal.Value, 3, MidpointRounding.AwayFromZero) : currentVal.Value)
+                    decimal? finalCurrentReading = currentVal.HasValue
+                        ? (isPmax ? Math.Round(currentVal.Value, 2, MidpointRounding.AwayFromZero) : currentVal.Value)
                         : null;
 
-                    double? consumption = null;
+                    if (isPmax && previousReading.HasValue)
+                    {
+                        previousReading = Math.Round(previousReading.Value, 2, MidpointRounding.AwayFromZero);
+                    }
+
+                    decimal? consumption = null;
                     if (!isPmax && finalCurrentReading.HasValue)
                     {
-                        consumption = (finalCurrentReading.Value - (previousReading ?? 0)) * measurementPoint.MultiplierFactor;
+                        consumption = (finalCurrentReading.Value - (previousReading ?? 0m)) * measurementPoint.MultiplierFactor;
                     }
 
                     // Anomaly & Suspicious reading detection
@@ -599,24 +645,24 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
                                 isSuspicious = true;
                                 suspiciousReason = $"Sản lượng âm ({consumption.Value:N2}) - chỉ số mới nhỏ hơn chỉ số cũ";
                             }
-                            else if (consumption.Value == 0 && (readingType.Value == "BT" || readingType.Value == "SG") && (existingDetail?.Consumption ?? 0) > 100)
+                            else if (consumption.Value == 0 && (readingType.Value == "BT" || readingType.Value == "SG") && (existingDetail?.Consumption ?? 0m) > 100m)
                             {
                                 isSuspicious = true;
                                 suspiciousReason = $"Sản lượng bằng 0 bất thường (kỳ trước tiêu thụ {existingDetail?.Consumption:N2} kWh)";
                             }
-                            else if (existingDetail?.Consumption != null && existingDetail.Consumption.Value >= 100)
+                            else if (existingDetail?.Consumption != null && existingDetail.Consumption.Value >= 100m)
                             {
                                 var prevCons = existingDetail.Consumption.Value;
                                 var ratio = consumption.Value / prevCons;
-                                if (ratio < 0.2)
+                                if (ratio < 0.2m)
                                 {
-                                    var percent = ((consumption.Value - prevCons) / prevCons) * 100.0;
+                                    var percent = ((consumption.Value - prevCons) / prevCons) * 100.0m;
                                     isSuspicious = true;
                                     suspiciousReason = $"Sản lượng giảm đột biến ({percent:0.0}% so với kỳ trước: {consumption.Value:N2} vs {prevCons:N2} kWh)";
                                 }
-                                else if (ratio > 3.0)
+                                else if (ratio > 3.0m)
                                 {
-                                    var percent = ((consumption.Value - prevCons) / prevCons) * 100.0;
+                                    var percent = ((consumption.Value - prevCons) / prevCons) * 100.0m;
                                     isSuspicious = true;
                                     suspiciousReason = $"Sản lượng tăng đột biến ({percent:+0.0}% so với kỳ trước: {consumption.Value:N2} vs {prevCons:N2} kWh)";
                                 }
@@ -638,10 +684,10 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
                         {
                             // Bảo toàn số liệu đã được người dùng nhập tay hoặc Import từ Excel khi công tơ chưa có chỉ số chốt mới khác biệt
                             var effCurr = unreliableEntry.NewCurrentReading ?? unreliableEntry.CurrentReading;
-                            var effPrev = unreliableEntry.NewPreviousReading ?? unreliableEntry.PreviousReading ?? previousReading ?? 0;
+                            var effPrev = unreliableEntry.NewPreviousReading ?? unreliableEntry.PreviousReading ?? previousReading ?? 0m;
                             unreliableEntry.Consumption = isPmax || !effCurr.HasValue
                                 ? null
-                                : Math.Round((effCurr.Value - effPrev) * measurementPoint.MultiplierFactor, 2, MidpointRounding.AwayFromZero);
+                                : Math.Round((effCurr.Value - effPrev) * measurementPoint.MultiplierFactor, 4, MidpointRounding.AwayFromZero);
                             unreliableEntry.Quanlity = true;
                             unreliableEntry.IsSuspicious = false;
                         }
@@ -693,11 +739,11 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
                 var tdCons = pointEntitiesToUpsert.FirstOrDefault(x => x.Entity.MeterReadingSet == "TD").Entity?.Consumption;
                 var vcCons = pointEntitiesToUpsert.FirstOrDefault(x => x.Entity.MeterReadingSet == "VC").Entity?.Consumption;
 
-                double? effectiveAp = sgCons;
-                if ((!effectiveAp.HasValue || effectiveAp.Value <= 0) && (btCons.HasValue || cdCons.HasValue || tdCons.HasValue))
+                decimal? effectiveAp = sgCons;
+                if ((!effectiveAp.HasValue || effectiveAp.Value <= 0m) && (btCons.HasValue || cdCons.HasValue || tdCons.HasValue))
                 {
-                    var sum = (btCons ?? 0) + (cdCons ?? 0) + (tdCons ?? 0);
-                    if (sum > 0) effectiveAp = sum;
+                    var sum = (btCons ?? 0m) + (cdCons ?? 0m) + (tdCons ?? 0m);
+                    if (sum > 0m) effectiveAp = sum;
                 }
 
                 var avgCosPhi = Infrastructure.Repositories.ReadWrite.GcsTemporaryReadWriteRepository.CalculateAverageCosPhi(effectiveAp, vcCons);

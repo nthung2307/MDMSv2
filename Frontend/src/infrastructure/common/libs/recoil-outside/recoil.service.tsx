@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable no-async-promise-executor */
 /* eslint-disable react-refresh/only-export-components */
+import { useEffect } from 'react';
 import { useRecoilCallback } from 'recoil';
 import { Subject } from 'rxjs';
 
@@ -18,16 +19,16 @@ const returnRecoil = new Subject();
  */
 export const setRecoilStateAsync = (recoilState: any, stateValue: any) => {
   return new Promise(async (resolve, _reject) => {
-    setRecoil.next({ recoilObj: recoilState, value: stateValue });
-
-    finishSetRecoil.subscribe({
+    const subscription = finishSetRecoil.subscribe({
       next: (value) => {
         // @ts-ignore
         if (recoilState === value.recoilObj) {
+          subscription.unsubscribe();
           setTimeout(() => resolve(recoilState), 10);
         }
       },
     });
+    setRecoil.next({ recoilObj: recoilState, value: stateValue });
   });
 };
 /**
@@ -37,16 +38,17 @@ export const setRecoilStateAsync = (recoilState: any, stateValue: any) => {
  */
 export const getRecoilStateAsync = (recoilState: any) => {
   return new Promise(async (resolve, _reject) => {
-    getRecoil.next(recoilState);
-    returnRecoil.subscribe({
+    const subscription = returnRecoil.subscribe({
       next: (value) => {
         // @ts-ignore
         if (recoilState === value.recoilObj) {
+          subscription.unsubscribe();
           // @ts-ignore
           resolve(value.value);
         }
       },
     });
+    getRecoil.next(recoilState);
   });
 };
 
@@ -72,17 +74,24 @@ export default function RecoilOutsideComponent() {
     []
   );
 
-  setRecoil.subscribe({
-    next: (value) => {
-      setStore(value);
-    },
-  });
+  useEffect(() => {
+    const setSub = setRecoil.subscribe({
+      next: (value) => {
+        setStore(value);
+      },
+    });
 
-  getRecoil.subscribe({
-    next: (recoilObj) => {
-      getStore(recoilObj);
-    },
-  });
+    const getSub = getRecoil.subscribe({
+      next: (recoilObj) => {
+        getStore(recoilObj);
+      },
+    });
+
+    return () => {
+      setSub.unsubscribe();
+      getSub.unsubscribe();
+    };
+  }, [setStore, getStore]);
 
   return null;
 }

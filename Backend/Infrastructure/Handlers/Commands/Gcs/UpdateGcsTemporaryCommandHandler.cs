@@ -61,16 +61,16 @@ public class UpdateGcsTemporaryCommandHandler : IUpdateGcsTemporaryCommandHandle
                     var isPMax = item.MeterReadingSet == "Pmax";
                     if (newCurrentReading.HasValue)
                     {
-                        item.NewCurrentReading = newCurrentReading;
+                        item.NewCurrentReading = isPMax ? Math.Round(newCurrentReading.Value, 2, MidpointRounding.AwayFromZero) : newCurrentReading;
                     }
 
                     if (newPreviousReading.HasValue)
                     {
-                        item.NewPreviousReading = newPreviousReading;
+                        item.NewPreviousReading = isPMax ? Math.Round(newPreviousReading.Value, 2, MidpointRounding.AwayFromZero) : newPreviousReading;
                     }
 
-                    var currentReadingValue = item.NewCurrentReading ?? item.CurrentReading ?? 0;
-                    var previousReadingValue = item.NewPreviousReading ?? item.PreviousReading ?? 0;
+                    var currentReadingValue = item.NewCurrentReading ?? item.CurrentReading ?? 0m;
+                    var previousReadingValue = item.NewPreviousReading ?? item.PreviousReading ?? 0m;
 
                     if (isPMax)
                     {
@@ -80,8 +80,8 @@ public class UpdateGcsTemporaryCommandHandler : IUpdateGcsTemporaryCommandHandle
                     }
                     else
                     {
-                        item.Consumption = (currentReadingValue - previousReadingValue) * item.MultiplierFactor;
-                        if (item.Consumption < 0)
+                        item.Consumption = Math.Round((currentReadingValue - previousReadingValue) * item.MultiplierFactor, 4, MidpointRounding.AwayFromZero);
+                        if (item.Consumption < 0m)
                         {
                             item.IsSuspicious = true;
                             item.SuspiciousReason = "Sản lượng âm (Chỉ số mới nhỏ hơn chỉ số cũ)";
@@ -100,8 +100,8 @@ public class UpdateGcsTemporaryCommandHandler : IUpdateGcsTemporaryCommandHandle
                     }
                     else
                     {
-                        bool isDifferentFromMeter = (newCurrentReading.HasValue && item.CurrentReading.HasValue && Math.Abs(newCurrentReading.Value - item.CurrentReading.Value) > 0.0001)
-                                                 || (newPreviousReading.HasValue && item.PreviousReading.HasValue && Math.Abs(newPreviousReading.Value - item.PreviousReading.Value) > 0.0001);
+                        bool isDifferentFromMeter = (newCurrentReading.HasValue && item.CurrentReading.HasValue && Math.Abs(newCurrentReading.Value - item.CurrentReading.Value) > 0.0001m)
+                                                 || (newPreviousReading.HasValue && item.PreviousReading.HasValue && Math.Abs(newPreviousReading.Value - item.PreviousReading.Value) > 0.0001m);
                         item.IsChange = isDifferentFromMeter;
                     }
 

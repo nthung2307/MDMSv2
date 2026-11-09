@@ -19,22 +19,20 @@ namespace Nobisoft.Core.Logger.Implementations
 
         public void LogFatal(Exception exception, string message, [CallerMemberName] string caller = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0, params object[] args)
         {
-            using (GlobalLogContext.Lock())
+            using (LogContext.PushProperty("CallerMemberName", caller))
+            using (LogContext.PushProperty("CallerFilePath", callerFilePath))
+            using (LogContext.PushProperty("CallerLineNumber", callerLineNumber))
             {
-                GlobalLogContext.PushProperty("CallerMemberName", caller, true);
-                GlobalLogContext.PushProperty("CallerFilePath", callerFilePath, true);
-                GlobalLogContext.PushProperty("CallerLineNumber", callerLineNumber, true);
                 Log.Fatal(exception, message, args);
             }
         }
 
         public void LogFatal(string message, [CallerMemberName] string caller = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0, params object[] args)
         {
-            using (GlobalLogContext.Lock())
+            using (LogContext.PushProperty("CallerMemberName", caller))
+            using (LogContext.PushProperty("CallerFilePath", callerFilePath))
+            using (LogContext.PushProperty("CallerLineNumber", callerLineNumber))
             {
-                GlobalLogContext.PushProperty("CallerMemberName", caller, true);
-                GlobalLogContext.PushProperty("CallerFilePath", callerFilePath, true);
-                GlobalLogContext.PushProperty("CallerLineNumber", callerLineNumber, true);
                 Log.Fatal(message, args);
             }
         }
@@ -44,11 +42,10 @@ namespace Nobisoft.Core.Logger.Implementations
         {
             if (_logger.IsEnabled(LogLevel.Debug))
             {
-                using (GlobalLogContext.Lock())
+                using (LogContext.PushProperty("CallerMemberName", caller))
+                using (LogContext.PushProperty("CallerFilePath", callerFilePath))
+                using (LogContext.PushProperty("CallerLineNumber", callerLineNumber))
                 {
-                    GlobalLogContext.PushProperty("CallerMemberName", caller, true);
-                    GlobalLogContext.PushProperty("CallerFilePath", callerFilePath, true);
-                    GlobalLogContext.PushProperty("CallerLineNumber", callerLineNumber, true);
                     Log.Debug(exception, message, args);
                 }
             }
@@ -58,11 +55,10 @@ namespace Nobisoft.Core.Logger.Implementations
         {
             if (_logger.IsEnabled(LogLevel.Debug))
             {
-                using (GlobalLogContext.Lock())
+                using (LogContext.PushProperty("CallerMemberName", caller))
+                using (LogContext.PushProperty("CallerFilePath", callerFilePath))
+                using (LogContext.PushProperty("CallerLineNumber", callerLineNumber))
                 {
-                    GlobalLogContext.PushProperty("CallerMemberName", caller, true);
-                    GlobalLogContext.PushProperty("CallerFilePath", callerFilePath, true);
-                    GlobalLogContext.PushProperty("CallerLineNumber", callerLineNumber, true);
                     Log.Debug(message, args);
                 }
             }
@@ -71,22 +67,20 @@ namespace Nobisoft.Core.Logger.Implementations
 
         public void LogError(Exception exception, string message, [CallerMemberName] string caller = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0, params object[] args)
         {
-            using (GlobalLogContext.Lock())
+            using (LogContext.PushProperty("CallerMemberName", caller))
+            using (LogContext.PushProperty("CallerFilePath", callerFilePath))
+            using (LogContext.PushProperty("CallerLineNumber", callerLineNumber))
             {
-                GlobalLogContext.PushProperty("CallerMemberName", caller, true);
-                GlobalLogContext.PushProperty("CallerFilePath", callerFilePath, true);
-                GlobalLogContext.PushProperty("CallerLineNumber", callerLineNumber, true);
                 Log.Error(exception, message, args);
             }
         }
 
         public void LogError(string message, [CallerMemberName] string caller = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0, params object[] args)
         {
-            using (GlobalLogContext.Lock())
+            using (LogContext.PushProperty("CallerMemberName", caller))
+            using (LogContext.PushProperty("CallerFilePath", callerFilePath))
+            using (LogContext.PushProperty("CallerLineNumber", callerLineNumber))
             {
-                GlobalLogContext.PushProperty("CallerMemberName", caller, true);
-                GlobalLogContext.PushProperty("CallerFilePath", callerFilePath, true);
-                GlobalLogContext.PushProperty("CallerLineNumber", callerLineNumber, true);
                 Log.Error(message, args);
             }
         }
@@ -94,22 +88,20 @@ namespace Nobisoft.Core.Logger.Implementations
 
         public void LogInformation(Exception exception, string message, [CallerMemberName] string caller = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0, params object[] args)
         {
-            using (GlobalLogContext.Lock())
+            using (LogContext.PushProperty("CallerMemberName", caller))
+            using (LogContext.PushProperty("CallerFilePath", callerFilePath))
+            using (LogContext.PushProperty("CallerLineNumber", callerLineNumber))
             {
-                GlobalLogContext.PushProperty("CallerMemberName", caller, true);
-                GlobalLogContext.PushProperty("CallerFilePath", callerFilePath, true);
-                GlobalLogContext.PushProperty("CallerLineNumber", callerLineNumber, true);
                 Log.Information(exception, message, args);
             }
         }
 
         public void LogInformation(string message, [CallerMemberName] string caller = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0, params object[] args)
         {
-            using (GlobalLogContext.Lock())
+            using (LogContext.PushProperty("CallerMemberName", caller))
+            using (LogContext.PushProperty("CallerFilePath", callerFilePath))
+            using (LogContext.PushProperty("CallerLineNumber", callerLineNumber))
             {
-                GlobalLogContext.PushProperty("CallerMemberName", caller, true);
-                GlobalLogContext.PushProperty("CallerFilePath", callerFilePath, true);
-                GlobalLogContext.PushProperty("CallerLineNumber", callerLineNumber, true);
                 Log.Information(message, args);
             }
         }
@@ -117,22 +109,20 @@ namespace Nobisoft.Core.Logger.Implementations
 
         public void LogWarning(Exception exception, string message, [CallerMemberName] string caller = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0, params object[] args)
         {
-            using (GlobalLogContext.Lock())
+            using (LogContext.PushProperty("CallerMemberName", caller))
+            using (LogContext.PushProperty("CallerFilePath", callerFilePath))
+            using (LogContext.PushProperty("CallerLineNumber", callerLineNumber))
             {
-                GlobalLogContext.PushProperty("CallerMemberName", caller, true);
-                GlobalLogContext.PushProperty("CallerFilePath", callerFilePath, true);
-                GlobalLogContext.PushProperty("CallerLineNumber", callerLineNumber, true);
                 Log.Warning(exception, message, args);
             }
         }
 
         public void LogWarning(string message, [CallerMemberName] string caller = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0, params object[] args)
         {
-            using (GlobalLogContext.Lock())
+            using (LogContext.PushProperty("CallerMemberName", caller))
+            using (LogContext.PushProperty("CallerFilePath", callerFilePath))
+            using (LogContext.PushProperty("CallerLineNumber", callerLineNumber))
             {
-                GlobalLogContext.PushProperty("CallerMemberName", caller, true);
-                GlobalLogContext.PushProperty("CallerFilePath", callerFilePath, true);
-                GlobalLogContext.PushProperty("CallerLineNumber", callerLineNumber, true);
                 Log.Warning(message, args);
             }
         }

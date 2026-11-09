@@ -148,7 +148,7 @@ public class MeasurementPointMonitoringController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.MeasurementPointMonitoring.ExportPdfMeasurementPointMonitoring)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportPdfMeasurementPointMonitoringAsync(CancellationToken cancellationToken)
     {
         try
@@ -165,7 +165,7 @@ public class MeasurementPointMonitoringController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.MeasurementPointMonitoring.ExportCsvMeasurementPointMonitoring)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportCsvMeasurementPointMonitoringAsync(CancellationToken cancellationToken)
     {
         try
@@ -185,7 +185,7 @@ public class MeasurementPointMonitoringController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.MeasurementPointMonitoring.ExportPdfMeasurementPointAlert)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportPdfAlertAsync(CancellationToken cancellationToken)
     {
         try
@@ -202,7 +202,7 @@ public class MeasurementPointMonitoringController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.MeasurementPointMonitoring.ExportCsvMeasurementPointAlert)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportCsvMeasurementPointMonitoringAlertAsync(CancellationToken cancellationToken)
     {
         try
@@ -222,7 +222,7 @@ public class MeasurementPointMonitoringController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.MeasurementPointMonitoring.ExportPdfMeasurementPointEvent)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportPdfEventAsync(CancellationToken cancellationToken)
     {
         try
@@ -239,7 +239,7 @@ public class MeasurementPointMonitoringController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.MeasurementPointMonitoring.ExportCsvMeasurementPointEvent)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportCsvMeasurementPointMonitoringEventAsync(CancellationToken cancellationToken)
     {
         try

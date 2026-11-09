@@ -53,15 +53,24 @@ namespace Infrastructure.Repositories.ReadWrite
             if (measurementPointIds.Count == 0)
                 return new Dictionary<(long, string), MeasurementPointMonitoringByDateTimeEntity>();
 
-            var records = await _measurementPointMonitoringByDateTimeEntities
+            var latestIds = await _measurementPointMonitoringByDateTimeEntities
+                .AsNoTracking()
                 .Where(x => measurementPointIds.Contains(x.MeasurementPointId) && x.TagNameDescription != null)
-                .OrderByDescending(x => x.CreatedTime)
-                .ThenByDescending(x => x.Id)
+                .GroupBy(x => new { x.MeasurementPointId, x.TagNameDescription })
+                .Select(g => g.Max(x => x.Id))
+                .ToListAsync(cancellationToken);
+
+            if (latestIds.Count == 0)
+                return new Dictionary<(long, string), MeasurementPointMonitoringByDateTimeEntity>();
+
+            var records = await _measurementPointMonitoringByDateTimeEntities
+                .Where(x => latestIds.Contains(x.Id))
                 .ToListAsync(cancellationToken);
 
             return records
+                .Where(x => x.TagNameDescription != null)
                 .GroupBy(x => (x.MeasurementPointId, x.TagNameDescription!))
-                .ToDictionary(g => g.Key, g => g.First());
+                .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.CreatedTime).ThenByDescending(r => r.Id).First());
         }
     }
 }

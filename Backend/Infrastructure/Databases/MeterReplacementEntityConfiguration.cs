@@ -12,6 +12,22 @@ public class MeterReplacementEntityConfiguration : IEntityTypeConfiguration<Mete
         builder.HasKey(r => r.Id);
         builder.Property(r => r.Id).ValueGeneratedNever();
 
+        builder.Property(r => r.OldMeterMultiplier).HasPrecision(18, 4).HasDefaultValue(1.0m);
+        builder.Property(r => r.OldBt).HasPrecision(18, 4);
+        builder.Property(r => r.OldCd).HasPrecision(18, 4);
+        builder.Property(r => r.OldTd).HasPrecision(18, 4);
+        builder.Property(r => r.OldSg).HasPrecision(18, 4);
+        builder.Property(r => r.OldVc).HasPrecision(18, 4);
+        builder.Property(r => r.OldPmax).HasPrecision(18, 4);
+
+        builder.Property(r => r.NewMeterMultiplier).HasPrecision(18, 4).HasDefaultValue(1.0m);
+        builder.Property(r => r.NewBt).HasPrecision(18, 4);
+        builder.Property(r => r.NewCd).HasPrecision(18, 4);
+        builder.Property(r => r.NewTd).HasPrecision(18, 4);
+        builder.Property(r => r.NewSg).HasPrecision(18, 4);
+        builder.Property(r => r.NewVc).HasPrecision(18, 4);
+        builder.Property(r => r.NewPmax).HasPrecision(18, 4);
+
         builder.Property(r => r.Reason).HasMaxLength(500);
         builder.Property(r => r.OldMeterSerial).IsRequired().HasMaxLength(100);
         builder.Property(r => r.NewMeterSerial).IsRequired().HasMaxLength(100);

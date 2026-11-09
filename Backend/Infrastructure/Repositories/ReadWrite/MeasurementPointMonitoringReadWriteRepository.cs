@@ -19,7 +19,7 @@ namespace Infrastructure.Repositories.ReadWrite
         public async Task<List<MeasurementPointMonitoringEntity>> GetListMeasurementPointMonitoringAsync(CancellationToken cancellationToken)
         {
             return await _measurementPointMonitoringEntities
-                .Where(x => x.CreatedTime.Value.Day == DateTime.Now.AddDays(-2).Day)
+                .Where(x => x.CreatedTime != null && x.CreatedTime <= DateTimeOffset.UtcNow.AddDays(-2))
                 .ToListAsync(cancellationToken);
         }
 
@@ -31,17 +31,26 @@ namespace Infrastructure.Repositories.ReadWrite
             if (measurementPointIds.Count == 0 || frozenTagDescriptions.Count == 0)
                 return new Dictionary<(long, string), MeasurementPointMonitoringEntity>();
 
-            var records = await _measurementPointMonitoringEntities
+            var latestIds = await _measurementPointMonitoringEntities
+                .AsNoTracking()
                 .Where(x => measurementPointIds.Contains(x.MeasurementPointsId)
                             && x.TagNameDescription != null
                             && frozenTagDescriptions.Contains(x.TagNameDescription))
-                .OrderByDescending(x => x.CreatedTime)
-                .ThenByDescending(x => x.Id)
+                .GroupBy(x => new { x.MeasurementPointsId, x.TagNameDescription })
+                .Select(g => g.Max(x => x.Id))
+                .ToListAsync(cancellationToken);
+
+            if (latestIds.Count == 0)
+                return new Dictionary<(long, string), MeasurementPointMonitoringEntity>();
+
+            var records = await _measurementPointMonitoringEntities
+                .Where(x => latestIds.Contains(x.Id))
                 .ToListAsync(cancellationToken);
 
             return records
+                .Where(x => x.TagNameDescription != null)
                 .GroupBy(x => (x.MeasurementPointsId, x.TagNameDescription!))
-                .ToDictionary(g => g.Key, g => g.First());
+                .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.CreatedTime).ThenByDescending(r => r.Id).First());
         }
     }
 }

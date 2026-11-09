@@ -34,7 +34,7 @@ public class EnergyConsumptionReportReadOnlyRepository :
         var point = await _pointSet.AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == request.MeasurementPointId && p.CustomerId == request.CustomerId, cancellationToken);
 
-        var multiplier = (point != null && point.MultiplierFactor > 0) ? point.MultiplierFactor : 1.0;
+        var multiplier = (point != null && point.MultiplierFactor > 0) ? (double)point.MultiplierFactor : 1.0;
 
         return request.CycleType?.ToUpperInvariant() switch
         {

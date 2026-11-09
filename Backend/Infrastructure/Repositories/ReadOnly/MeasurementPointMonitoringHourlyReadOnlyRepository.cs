@@ -579,29 +579,29 @@ public class MeasurementPointMonitoringHourlyReadOnlyRepository : RestfulReposit
                         x.ChiSoTichLuyDienNangTacDungAPBieuGioBT == null ? 
                             0 : 
                             double.Parse(x.ChiSoTichLuyDienNangTacDungAPBieuGioBT, CultureInfo.InvariantCulture), 
-                        2)).ToString(),
+                        2)).ToString(CultureInfo.InvariantCulture),
                     ChiSoTichLuyDienNangTacDungAPBieuGioCD = x.Sum(x => Math.Round(
                         x.ChiSoTichLuyDienNangTacDungAPBieuGioCD == null ? 
                             0 : 
                             double.Parse(x.ChiSoTichLuyDienNangTacDungAPBieuGioCD, CultureInfo.InvariantCulture), 
-                        2)).ToString(),
+                        2)).ToString(CultureInfo.InvariantCulture),
                     ChiSoTichLuyDienNangTacDungAPBieuGioTD = x.Sum(x => Math.Round(
                         x.ChiSoTichLuyDienNangTacDungAPBieuGioTD == null ? 
                             0 : 
                             double.Parse(x.ChiSoTichLuyDienNangTacDungAPBieuGioTD, CultureInfo.InvariantCulture), 
-                        2)).ToString(),
+                        2)).ToString(CultureInfo.InvariantCulture),
                     ChiSoTichLuyDienNangTacDungAPTong = x.Sum(x => Math.Round(
                         x.ChiSoTichLuyDienNangTacDungAPTong == null ? 
                             0 : 
                             double.Parse(x.ChiSoTichLuyDienNangTacDungAPTong, CultureInfo.InvariantCulture), 
-                        2)).ToString(),
+                        2)).ToString(CultureInfo.InvariantCulture),
                 })
                 .ToList();
             var dailyDataPrevious = previousDate
                 .AsNoTracking()
                 .AsEnumerable()
                 .GroupBy(x => new { Day = x.CreatedTime.Value.AddHours(7).Day, x.MeasurementPointId })
-                .Where(g => g.Count() >= 30)
+                // .Where(g => g.Count() >= 24)
                 .Select(x => new MeasurementPointMonitoringHourlyEntity
                 {
                     Id = x.Key.MeasurementPointId,
@@ -610,22 +610,22 @@ public class MeasurementPointMonitoringHourlyReadOnlyRepository : RestfulReposit
                         x.ChiSoTichLuyDienNangTacDungAPBieuGioBT == null ? 
                             0 : 
                             double.Parse(x.ChiSoTichLuyDienNangTacDungAPBieuGioBT, CultureInfo.InvariantCulture), 
-                        2)).ToString(),
+                        2)).ToString(CultureInfo.InvariantCulture),
                     ChiSoTichLuyDienNangTacDungAPBieuGioCD = x.Sum(x => Math.Round(
                         x.ChiSoTichLuyDienNangTacDungAPBieuGioCD == null ? 
                             0 : 
                             double.Parse(x.ChiSoTichLuyDienNangTacDungAPBieuGioCD, CultureInfo.InvariantCulture), 
-                        2)).ToString(),
+                        2)).ToString(CultureInfo.InvariantCulture),
                     ChiSoTichLuyDienNangTacDungAPBieuGioTD = x.Sum(x => Math.Round(
                         x.ChiSoTichLuyDienNangTacDungAPBieuGioTD == null ? 
                             0 : 
                             double.Parse(x.ChiSoTichLuyDienNangTacDungAPBieuGioTD, CultureInfo.InvariantCulture), 
-                        2)).ToString(),
+                        2)).ToString(CultureInfo.InvariantCulture),
                     ChiSoTichLuyDienNangTacDungAPTong = x.Sum(x => Math.Round(
                         x.ChiSoTichLuyDienNangTacDungAPTong == null ? 
                             0 : 
                             double.Parse(x.ChiSoTichLuyDienNangTacDungAPTong, CultureInfo.InvariantCulture), 
-                        2)).ToString(),
+                        2)).ToString(CultureInfo.InvariantCulture),
                 })
                 .ToList();
             response.CurrentPeriodData = CreateConsumtionOutputPeriodData(dailyData, "Monthly", currentTime.Year, currentTime.Month);
@@ -648,22 +648,22 @@ public class MeasurementPointMonitoringHourlyReadOnlyRepository : RestfulReposit
                         x.ChiSoTichLuyDienNangTacDungAPBieuGioBT == null ? 
                             0 : 
                             double.Parse(x.ChiSoTichLuyDienNangTacDungAPBieuGioBT, CultureInfo.InvariantCulture), 
-                        2)).ToString(),
+                        2)).ToString(CultureInfo.InvariantCulture),
                     ChiSoTichLuyDienNangTacDungAPBieuGioCD = x.Sum(x => Math.Round(
                         x.ChiSoTichLuyDienNangTacDungAPBieuGioCD == null ? 
                             0 : 
                             double.Parse(x.ChiSoTichLuyDienNangTacDungAPBieuGioCD, CultureInfo.InvariantCulture), 
-                        2)).ToString(),
+                        2)).ToString(CultureInfo.InvariantCulture),
                     ChiSoTichLuyDienNangTacDungAPBieuGioTD = x.Sum(x => Math.Round(
                         x.ChiSoTichLuyDienNangTacDungAPBieuGioTD == null ? 
                             0 : 
                             double.Parse(x.ChiSoTichLuyDienNangTacDungAPBieuGioTD, CultureInfo.InvariantCulture), 
-                        2)).ToString(),
+                        2)).ToString(CultureInfo.InvariantCulture),
                     ChiSoTichLuyDienNangTacDungAPTong = x.Sum(x => Math.Round(
                         x.ChiSoTichLuyDienNangTacDungAPTong == null ? 
                             0 : 
                             double.Parse(x.ChiSoTichLuyDienNangTacDungAPTong, CultureInfo.InvariantCulture), 
-                        2)).ToString(),
+                        2)).ToString(CultureInfo.InvariantCulture),
                 })
                 .ToList();
             var dailyDataPrevious = previousDate
@@ -678,22 +678,22 @@ public class MeasurementPointMonitoringHourlyReadOnlyRepository : RestfulReposit
                         x.ChiSoTichLuyDienNangTacDungAPBieuGioBT == null ? 
                             0 : 
                             double.Parse(x.ChiSoTichLuyDienNangTacDungAPBieuGioBT, CultureInfo.InvariantCulture), 
-                        2)).ToString(),
+                        2)).ToString(CultureInfo.InvariantCulture),
                     ChiSoTichLuyDienNangTacDungAPBieuGioCD = x.Sum(x => Math.Round(
                         x.ChiSoTichLuyDienNangTacDungAPBieuGioCD == null ? 
                             0 : 
                             double.Parse(x.ChiSoTichLuyDienNangTacDungAPBieuGioCD, CultureInfo.InvariantCulture), 
-                        2)).ToString(),
+                        2)).ToString(CultureInfo.InvariantCulture),
                     ChiSoTichLuyDienNangTacDungAPBieuGioTD = x.Sum(x => Math.Round(
                         x.ChiSoTichLuyDienNangTacDungAPBieuGioTD == null ? 
                             0 : 
                             double.Parse(x.ChiSoTichLuyDienNangTacDungAPBieuGioTD, CultureInfo.InvariantCulture), 
-                        2)).ToString(),
+                        2)).ToString(CultureInfo.InvariantCulture),
                     ChiSoTichLuyDienNangTacDungAPTong = x.Sum(x => Math.Round(
                         x.ChiSoTichLuyDienNangTacDungAPTong == null ? 
                             0 : 
                             double.Parse(x.ChiSoTichLuyDienNangTacDungAPTong, CultureInfo.InvariantCulture), 
-                        2)).ToString(),
+                        2)).ToString(CultureInfo.InvariantCulture),
                 })
                 .ToList();
             response.CurrentPeriodData = CreateConsumtionOutputPeriodData(dailyData, "Yearly", currentTime.Year, currentTime.Month);

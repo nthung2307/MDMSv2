@@ -20,7 +20,7 @@ public class MeasurementPointsEntity : IEntity<long>
     public long? OldGcsId { get; set; }
     public bool IsNewChange { get; set; }
     public string Status { get; set; }
-    public double MultiplierFactor { get; set; }
+    public decimal MultiplierFactor { get; set; } = 1.0m;
     public DateTimeOffset? CreatedTime { get; set; }
     public long? CreatedBy { get; set; }
     public string? CreatedName { get; set; }

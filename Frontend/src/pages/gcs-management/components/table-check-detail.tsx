@@ -55,10 +55,13 @@ const TableCheckDetail = (props: Props) => {
       title: 'Chỉ số cũ',
       dataIndex: 'previousReading',
       width: 130,
-      render: (value) => {
+      render: (value, record) => {
+        const isPmax = record.meterReadingSet === 'Pmax';
         return (
           <span className='whitespace-nowrap'>
-            {value === null || value === undefined ? '-' : formatNumberWithCommas(value)}
+            {value === null || value === undefined
+              ? '-'
+              : formatNumberWithCommas(value, isPmax ? 2 : undefined)}
           </span>
         );
       },
@@ -71,11 +74,14 @@ const TableCheckDetail = (props: Props) => {
         const timeTooltip = record.readingTime
           ? `Thời điểm chốt: ${convertDateTime(record.readingTime, 'dd/mm/yyyy hh:mi:ss')}`
           : undefined;
+        const isPmax = record.meterReadingSet === 'Pmax';
         return (
           <Tooltip title={timeTooltip}>
             <div className='flex items-center gap-2 whitespace-nowrap'>
               <span>
-                {value === null || value === undefined ? '-' : formatNumberWithCommas(value)}
+                {value === null || value === undefined
+                  ? '-'
+                  : formatNumberWithCommas(value, isPmax ? 2 : undefined)}
               </span>
               {record.isChange && <img src={EditedIc} alt='Đã hiệu chỉnh' className='w-5' />}
             </div>

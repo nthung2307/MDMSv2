@@ -119,7 +119,7 @@ public class PeriodicEnergyStatementReadOnlyRepository : RestfulRepository<Perio
         };
     }
 
-    private async Task<Dictionary<long, (double prevPMax, double prev2PMax)>> GetPreviousPeriodPMax(
+    private async Task<Dictionary<long, (decimal prevPMax, decimal prev2PMax)>> GetPreviousPeriodPMax(
         long gcsId,
         List<long> measurementPointId,
         int currentYear,
@@ -136,7 +136,7 @@ public class PeriodicEnergyStatementReadOnlyRepository : RestfulRepository<Perio
         List<PeriodicEnergyStatementEntity>? prevPeriods = null;
         List<PeriodicEnergyStatementEntity>? prev2Periods = null;
 
-        Dictionary<long, (double prevPMax, double prev2PMax)> result = new();
+        Dictionary<long, (decimal prevPMax, decimal prev2PMax)> result = new();
 
         prevMonth = currentMonth;
         prevYear = currentYear;
@@ -198,16 +198,23 @@ public class PeriodicEnergyStatementReadOnlyRepository : RestfulRepository<Perio
 
     public async Task<int> GetMaxSerialNumberPeriodicEnergyStatementAsync(CancellationToken cancellationToken)
     {
-        bool hasRecords = await _periodicEnergyStatementEntities
+        var serialNumbers = await _periodicEnergyStatementEntities
             .AsNoTracking()
-            .AnyAsync(cancellationToken);
+            .Where(x => x.SerialNumber != null)
+            .Select(x => x.SerialNumber)
+            .ToListAsync(cancellationToken);
 
-        if (!hasRecords)
+        if (serialNumbers.Count == 0)
             return 0;
 
-        return _periodicEnergyStatementEntities
-            .AsNoTracking()
-            .AsEnumerable()
-            .Max(x => int.Parse(x.SerialNumber));
+        int maxSerial = 0;
+        foreach (var serial in serialNumbers)
+        {
+            if (int.TryParse(serial, out var parsed) && parsed > maxSerial)
+            {
+                maxSerial = parsed;
+            }
+        }
+        return maxSerial;
     }
 }

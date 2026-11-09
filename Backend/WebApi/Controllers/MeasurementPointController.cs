@@ -190,7 +190,7 @@ public class MeasurementPointController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.MeasurementPoints.ExportPdf)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
     public async Task<IActionResult> ExportPdfAccountAsync(ExportPdfAndExcelRequest request, CancellationToken cancellationToken)
     {
         try
@@ -207,7 +207,7 @@ public class MeasurementPointController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.MeasurementPoints.ExportCsv)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
     public async Task<IActionResult> ExportCsvMeasurementPointAsync([FromBody] ExportMeasurementPointsCsvRequest? request, CancellationToken cancellationToken)
     {
         try

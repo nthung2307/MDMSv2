@@ -215,7 +215,7 @@ public class GcsController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Gcs.ExportPdf)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
     public async Task<IActionResult> ExportPdfGcsAsync(ExportPdfAndExcelRequest request, CancellationToken cancellationToken)
     {
         try
@@ -232,7 +232,7 @@ public class GcsController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Gcs.ExportCsv)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
     public async Task<IActionResult> ExportCsvGcsAsync(CancellationToken cancellationToken)
     {
         try
@@ -252,7 +252,7 @@ public class GcsController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Gcs.FinalExportPdf)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
     public async Task<IActionResult> ExportPdfFinalAsync(ExportPdfAndExcelGcsFinalRequest request, CancellationToken cancellationToken)
     {
         try
@@ -269,7 +269,7 @@ public class GcsController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Gcs.FinalExportCsv)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
     public async Task<IActionResult> ExportCsvGcsFinalAsync(ExportPdfAndExcelGcsFinalRequest request, CancellationToken cancellationToken)
     {
         try

@@ -45,7 +45,7 @@ export const DEFAULT_LAYOUT_CONFIG: StatementLayoutConfig = {
   showTaxCode: false,
   documentCode: 'M&E-1/01 PR04',
   copyLabel: '(M&E Copy – Liên cho Phòng Cơ Điện)',
-  partyAName: 'Party A (VSIP Hai Phong Co., Ltd.)\nBên A (Công ty TNHH VSIP Hải Phòng)',
+  partyAName: 'Party A (VSIP Hai Phong Co., Ltd)\nBên A (Công ty TNHH VSIP Hải Phòng)',
   partyBName: 'Party B (Tenant)\nBên B (Khách hàng)',
   headerLeftMode: 'LOGO',
   headerCenterMode: 'LOGO',
@@ -278,26 +278,36 @@ const TemplateNotice = (props: Props) => {
 
   const localPmaxTime = formatTimestampToLocal(record?.pmaxTime, 'datetime') || '---';
 
+  const isGarbled = (s?: string) =>
+    !s ? false : s.includes('├') || s.includes('ß') || s.includes('─') || s.includes('║') || s.includes('¥');
+
+  const compNameRaw = companyName || activeTemplate.companyName;
   const compName =
-    companyName || activeTemplate.companyName || 'VSIP HAI PHONG CO.,LTD';
+    compNameRaw && !isGarbled(compNameRaw) ? compNameRaw : 'VSIP HAI PHONG CO., LTD';
+
+  const compAddrRaw = companyAddress !== undefined ? companyAddress : activeTemplate.companyAddress;
   const compAddr =
-    companyAddress !== undefined
-      ? companyAddress
-      : activeTemplate.companyAddress !== undefined
-      ? activeTemplate.companyAddress
-      : 'VSIP Hai Phong Administration Office, VSIP Hai Phong Township, Industrial & Service Park, Hoa Bình Ward, Hai Phong City, Vietnam';
+    compAddrRaw !== undefined && !isGarbled(compAddrRaw)
+      ? compAddrRaw
+      : 'VSIP Hai Phong Administration Office, VSIP Hai Phong Township, Industrial & Service Park\nHoa Binh Ward, Hai Phong City, Vietnam';
+
+  const compPhoneRaw = contactPhone !== undefined ? contactPhone : activeTemplate.contactPhone;
   const compPhone =
-    contactPhone !== undefined
-      ? contactPhone
-      : activeTemplate.contactPhone !== undefined
-      ? activeTemplate.contactPhone
+    compPhoneRaw !== undefined && !isGarbled(compPhoneRaw)
+      ? compPhoneRaw
       : 'Tel: 84-225-3959868   Fax: 84-225-3959886';
 
-  const headerTitle = activeTemplate.headerTitle || 'MONTHLY POWER METER READING';
+  const headerTitleRaw = activeTemplate.headerTitle;
+  const headerTitle =
+    headerTitleRaw && !isGarbled(headerTitleRaw)
+      ? headerTitleRaw
+      : 'MONTHLY POWER METER READING';
+
+  const subHeaderTitleRaw = activeTemplate.subHeaderTitle;
   const subHeaderTitle =
-    activeTemplate.subHeaderTitle !== undefined
-      ? activeTemplate.subHeaderTitle
-      : '(PHIẾU CHỈ SỐ ĐIỆN HÀNG THÁNG)';
+    subHeaderTitleRaw !== undefined && !isGarbled(subHeaderTitleRaw)
+      ? subHeaderTitleRaw
+      : 'PHIẾU GHI CHỈ SỐ ĐIỆN HÀNG THÁNG';
   const copyLabel =
     layout.copyLabel !== undefined ? layout.copyLabel : '(M&E Copy – Liên cho Phòng Cơ Điện)';
   const documentCode = layout.documentCode !== undefined ? layout.documentCode : 'M&E-1/01 PR04';
@@ -506,7 +516,7 @@ const TemplateNotice = (props: Props) => {
   const rightLogoSrc = formatBase64Src(logos.headerRightLogo);
 
   const partyALines = (
-    layout.partyAName || 'Party A (VSIP Hai Phong Co., Ltd.)\nBên A (Công ty TNHH VSIP Hải Phòng)'
+    layout.partyAName || 'Party A (VSIP Hai Phong Co., Ltd)\nBên A (Công ty TNHH VSIP Hải Phòng)'
   ).split('\n');
   const partyBLines = (
     layout.partyBName || 'Party B (Tenant)\nBên B (Khách hàng)'
@@ -650,7 +660,7 @@ const TemplateNotice = (props: Props) => {
         <div>
           {enabledCols.has('PMAX') && (
             <div className='my-0.5 ml-[10px] text-[11px] leading-[15px] font-bold text-gray-800'>
-              * Công suất cực đại Pmax: {displayNumber(record?.pmax)} kW, ghi nhận hồi:{' '}
+              * Công suất cực đại Pmax: {formatNumberWithCommas(record?.pmax, 2)} kW, ghi nhận hồi:{' '}
               {localPmaxTime}
             </div>
           )}
@@ -673,7 +683,7 @@ const TemplateNotice = (props: Props) => {
                     ))}
                   </div>
                   <div>
-                    <p>Name and Signature:</p>
+                    <p>Name and Signature</p>
                     <p>(Ký và ghi rõ họ tên)</p>
                   </div>
                 </div>
@@ -689,7 +699,7 @@ const TemplateNotice = (props: Props) => {
                     ))}
                   </div>
                   <div>
-                    <p>Name and Signature:</p>
+                    <p>Name and Signature</p>
                     <p>(Ký và ghi rõ họ tên)</p>
                   </div>
                 </div>
@@ -708,7 +718,7 @@ const TemplateNotice = (props: Props) => {
                     ))}
                   </div>
                   <div>
-                    <p>Name and Signature:</p>
+                    <p>Name and Signature</p>
                     <p>(Ký và ghi rõ họ tên)</p>
                   </div>
                 </div>

@@ -209,7 +209,7 @@ public class ReportController : ControllerBase
     
     [HttpPost]
     [Route(Common.Url.Default.Report.ExportCsvHalfHourFinalizedEnergy)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportCsvHalfHourEnergyReportAsync(HalfHourFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
     {
         try
@@ -226,7 +226,7 @@ public class ReportController : ControllerBase
     
     [HttpPost]
     [Route(Common.Url.Default.Report.ExportPdfHalfHourFinalizedEnergy)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportPdfHalfHourEnergyReportAsync(HalfHourFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
     {
         try
@@ -266,7 +266,7 @@ public class ReportController : ControllerBase
     
     [HttpPost]
     [Route(Common.Url.Default.Report.ExportCsvDailyFinalizedEnergy)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportCsvDailyEnergyReportAsync(DailyFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
     {
         try
@@ -283,7 +283,7 @@ public class ReportController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Report.ExportPdfDailyFinalizedEnergy)]
-    // [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportPdfDailyEnergyReportAsync(DailyFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
     {
         try
@@ -300,6 +300,7 @@ public class ReportController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Report.ExportExcelHalfHourFinalizedEnergy)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportExcelHalfHourEnergyReportAsync(HalfHourFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
     {
         try
@@ -316,6 +317,7 @@ public class ReportController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Report.ExportExcelDailyFinalizedEnergy)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportExcelDailyEnergyReportAsync(DailyFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
     {
         try
@@ -356,6 +358,7 @@ public class ReportController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Report.ExportCsvYearlyFinalizedEnergy)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportCsvYearlyEnergyReportAsync(YearlyFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
     {
         try
@@ -372,6 +375,7 @@ public class ReportController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Report.ExportExcelYearlyFinalizedEnergy)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportExcelYearlyEnergyReportAsync(YearlyFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
     {
         try
@@ -388,6 +392,7 @@ public class ReportController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Report.ExportPdfYearlyFinalizedEnergy)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportPdfYearlyEnergyReportAsync(YearlyFinalizedEnergyReportRequest request, CancellationToken cancellationToken)
     {
         try
@@ -452,6 +457,7 @@ public class ReportController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Report.ExportCsvOperatingParameter)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportCsvOperatingParameterAsync(OperatingParameterReportRequest request, CancellationToken cancellationToken)
     {
         try
@@ -468,6 +474,7 @@ public class ReportController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Report.ExportExcelOperatingParameter)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportExcelOperatingParameterAsync(OperatingParameterReportRequest request, CancellationToken cancellationToken)
     {
         try
@@ -484,6 +491,7 @@ public class ReportController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Report.ExportPdfOperatingParameter)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportPdfOperatingParameterAsync(OperatingParameterReportRequest request, CancellationToken cancellationToken)
     {
         try
@@ -525,6 +533,7 @@ public class ReportController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Report.ExportCsvEnergyConsumption)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportCsvEnergyConsumptionAsync(EnergyConsumptionReportRequest request, CancellationToken cancellationToken)
     {
         try
@@ -541,6 +550,7 @@ public class ReportController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Report.ExportExcelEnergyConsumption)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportExcelEnergyConsumptionAsync(EnergyConsumptionReportRequest request, CancellationToken cancellationToken)
     {
         try
@@ -557,6 +567,7 @@ public class ReportController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Report.ExportPdfEnergyConsumption)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportPdfEnergyConsumptionAsync(EnergyConsumptionReportRequest request, CancellationToken cancellationToken)
     {
         try
@@ -598,6 +609,7 @@ public class ReportController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Report.ExportCsvActivePointsEnergy)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportCsvActivePointsEnergyAsync(
         ActivePointsEnergyReportRequest request, CancellationToken cancellationToken)
     {
@@ -615,6 +627,7 @@ public class ReportController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Report.ExportExcelActivePointsEnergy)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportExcelActivePointsEnergyAsync(
         ActivePointsEnergyReportRequest request, CancellationToken cancellationToken)
     {
@@ -632,6 +645,7 @@ public class ReportController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.Report.ExportPdfActivePointsEnergy)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
     public async Task<IActionResult> ExportPdfActivePointsEnergyAsync(
         ActivePointsEnergyReportRequest request, CancellationToken cancellationToken)
     {

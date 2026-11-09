@@ -73,7 +73,7 @@ namespace Infrastructure.Repositories.ReadWrite
             return entities;
         }
 
-        private async Task<Dictionary<long, (double prevPMax, double prev2PMax)>> GetPreviousPeriodPMax(
+        private async Task<Dictionary<long, (decimal prevPMax, decimal prev2PMax)>> GetPreviousPeriodPMax(
             long gcsId,
             List<long> measurementPointId,
             int currentYear,
@@ -90,7 +90,7 @@ namespace Infrastructure.Repositories.ReadWrite
             List<PeriodicEnergyStatementEntity>? prevPeriods = null;
             List<PeriodicEnergyStatementEntity>? prev2Periods = null;
 
-            Dictionary<long, (double prevPMax, double prev2PMax)> result = new();
+            Dictionary<long, (decimal prevPMax, decimal prev2PMax)> result = new();
 
             prevMonth = currentMonth;
             prevYear = currentYear;

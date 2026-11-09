@@ -52,7 +52,7 @@ public class EmailConfigController : ControllerBase
 
     [HttpGet]
     [Route(Common.Url.Default.EmailConfig.GetActive)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin])]
     public async Task<RequestResult<SystemEmailConfigResponse>> GetActiveEmailConfigAsync(CancellationToken cancellationToken)
     {
         try
@@ -128,7 +128,7 @@ public class EmailConfigController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.EmailConfig.Update)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin])]
     public async Task<RequestResult<SystemEmailConfigResponse>> UpdateEmailConfigAsync(
         [FromBody] UpdateSystemEmailConfigRequest request,
         CancellationToken cancellationToken)
@@ -153,12 +153,14 @@ public class EmailConfigController : ControllerBase
             existingConfig.SenderEmail = request.SenderEmail?.Trim() ?? string.Empty;
             existingConfig.SenderDisplayName = request.SenderDisplayName?.Trim() ?? string.Empty;
 
+            var cryptoKey = _configuration["JwtConfigurations:SymmetricSecurityKey"];
+
             // Microsoft Graph
             existingConfig.TenantId = request.TenantId?.Trim();
             existingConfig.ClientId = request.ClientId?.Trim();
             if (!string.IsNullOrWhiteSpace(request.ClientSecret))
             {
-                existingConfig.EncryptedClientSecret = request.ClientSecret.Trim();
+                existingConfig.EncryptedClientSecret = EmailSecretCryptoHelper.Encrypt(request.ClientSecret.Trim(), cryptoKey);
             }
 
             // Custom SMTP / Gmail
@@ -169,7 +171,7 @@ public class EmailConfigController : ControllerBase
             existingConfig.SmtpUsername = request.SmtpUsername?.Trim();
             if (!string.IsNullOrWhiteSpace(request.SmtpPassword))
             {
-                existingConfig.EncryptedSmtpPassword = request.SmtpPassword.Trim();
+                existingConfig.EncryptedSmtpPassword = EmailSecretCryptoHelper.Encrypt(request.SmtpPassword.Trim(), cryptoKey);
             }
 
             existingConfig.IsActive = request.IsActive;
@@ -225,7 +227,7 @@ public class EmailConfigController : ControllerBase
 
     [HttpPost]
     [Route(Common.Url.Default.EmailConfig.TestConnection)]
-    [Permissions(Roles = [DefaultRoles.SuperAdmin])]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin])]
     public async Task<RequestResult<bool>> TestEmailConnectionAsync(
         [FromBody] TestEmailConfigRequest request,
         CancellationToken cancellationToken)
@@ -254,17 +256,9 @@ public class EmailConfigController : ControllerBase
                 _logger.LogWarning(ex, "Không thể đọc cấu hình email từ CSDL khi kiểm tra kết nối.");
             }
 
-            if (_emailProviderFactory is EmailProviderFactory concreteFactory)
-            {
-                var provider = concreteFactory.CreateProviderFromTestRequest(request, existingConfig);
-                var isSuccess = await provider.TestConnectionAsync(request.TestRecipientEmail.Trim(), cancellationToken);
-                return RequestResult<bool>.Succeed(isSuccess);
-            }
-
-            // Fallback nếu không ép kiểu được
-            var activeProvider = await _emailProviderFactory.GetActiveProviderAsync(cancellationToken);
-            var result = await activeProvider.TestConnectionAsync(request.TestRecipientEmail.Trim(), cancellationToken);
-            return RequestResult<bool>.Succeed(result);
+            var provider = _emailProviderFactory.CreateProviderFromTestRequest(request, existingConfig);
+            var isSuccess = await provider.TestConnectionAsync(request.TestRecipientEmail.Trim(), cancellationToken);
+            return RequestResult<bool>.Succeed(isSuccess);
         }
         catch (Exception ex)
         {

@@ -73,6 +73,9 @@ Installers/MySQL/*.msi
 Installers/MySQL/*.exe
 Installers/Kepware/*.exe
 Installers/Kepware/*.msi
+Installers/Kepware/Activated/
+Installers/Kepware/Activated/**
+Installers/Kepware/Readme.txt
 Installers/Prerequisites/*.msi
 
 # Đảm bảo không bỏ sót scripts và tài liệu trong Installers
