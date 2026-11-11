@@ -5,6 +5,7 @@ using Application.DataTransferObjects.Responses.MeasurementPoints;
 using Application.Handlers.Commands.MeasurementPoints;
 using Application.Repositories.ReadOnly;
 using Application.Repositories.ReadWrite;
+using Application.Services;
 using Domain.Entities;
 using Nobisoft.Core.Authorization.Interfaces;
 using Nobisoft.Core.Constants;
@@ -20,14 +21,16 @@ public class AddMeasurementPointsCommandHandler : ICreateMeasurementPointsComman
     private readonly ICurrentUserService _currentUserService;
     private readonly IMeasurementPointsReadWriteRepository _measurementPointsReadWriteRepository;
     private readonly IMeasurementPointsReadOnlyRepository _measurementPointsReadOnlyRepository;
+    private readonly ITagRoutingCacheService _tagRoutingCacheService;
 
-    public AddMeasurementPointsCommandHandler(ISnowflakeIdService snowflakeIdService, ILoggerService loggerService, ICurrentUserService currentUserService, IMeasurementPointsReadWriteRepository measurementPointsReadWriteRepository, IMeasurementPointsReadOnlyRepository measurementPointsReadOnlyRepository)
+    public AddMeasurementPointsCommandHandler(ISnowflakeIdService snowflakeIdService, ILoggerService loggerService, ICurrentUserService currentUserService, IMeasurementPointsReadWriteRepository measurementPointsReadWriteRepository, IMeasurementPointsReadOnlyRepository measurementPointsReadOnlyRepository, ITagRoutingCacheService tagRoutingCacheService)
     {
         _snowflakeIdService = snowflakeIdService;
         _loggerService = loggerService;
         _currentUserService = currentUserService;
         _measurementPointsReadWriteRepository = measurementPointsReadWriteRepository;
         _measurementPointsReadOnlyRepository = measurementPointsReadOnlyRepository;
+        _tagRoutingCacheService = tagRoutingCacheService;
     }
 
     public async Task<RequestResult<MeasurementPointResponse>> Handle(CreateMeasurementPointsCommands request, CancellationToken cancellationToken)
@@ -109,6 +112,7 @@ public class AddMeasurementPointsCommandHandler : ICreateMeasurementPointsComman
 
             await _measurementPointsReadWriteRepository.AddAsync(response, cancellationToken);
             await _measurementPointsReadWriteRepository.SaveChangesAsync(cancellationToken);
+            _tagRoutingCacheService.Invalidate();
             return RequestResult<MeasurementPointResponse>.Succeed(new MeasurementPointResponse());
         } catch (Exception e)
         {

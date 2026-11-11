@@ -385,18 +385,8 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
             if (maxCycle != null)
                 monthlyDetailsWithPoints = await _gcsMonthlyDetailReadOnlyRepository.GetGcsMonthlyDetailAsync(maxCycle.Month, maxCycle.Year, maxCycle.Id, cancellationToken);
 
-            var relevantDescriptions = new List<string>
-            {
-                "CHI_SO_CHOT_DIEN_NANG_AP_GIO_BT",
-                "CHI_SO_CHOT_DIEN_NANG_AP_GIO_CD",
-                "CHI_SO_CHOT_DIEN_NANG_AP_GIO_TD",
-                "CHI_SO_CHOT_DIEN_NANG_AP_TONG",
-                "CHI_SO_CHOT_DIEN_NANG_AQ_TONG",
-                "PMAX_KY_TRUOC",
-            };
-
-            // Query số liệu chỉ số chốt chiều giao do Kepware IoT REST API Client gửi đến (lưu trong MeasurementPointMonitoringEntity)
-            var latestMonitoringMap = new Dictionary<(long, string), MeasurementPointMonitoringEntity>();
+            // Query Snapshot hiện hành (1 dòng / Điểm đo) thay cho các bảng EAV cũ
+            var snapshotMap = new Dictionary<long, MeasurementPointCurrentSnapshotEntity>();
             var latestCutoffTimeMap = new Dictionary<long, DateTimeOffset>();
             var latestPmaxTimeMap = new Dictionary<long, DateTimeOffset>();
             try
@@ -404,123 +394,30 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
                 var measurementPointIds = gcsWithMeasurementPoints.Select(x => x.Id).ToList();
                 if (measurementPointIds.Count > 0)
                 {
-                    var latestMonitoringIds = await DbContext.Set<MeasurementPointMonitoringEntity>()
+                    var snapshots = await DbContext.Set<MeasurementPointCurrentSnapshotEntity>()
                         .AsNoTracking()
-                        .Where(x => measurementPointIds.Contains(x.MeasurementPointsId) && x.TagNameDescription != null && relevantDescriptions.Contains(x.TagNameDescription))
-                        .GroupBy(x => new { x.MeasurementPointsId, x.TagNameDescription })
-                        .Select(g => g.Max(x => x.Id))
+                        .Where(x => measurementPointIds.Contains(x.MeasurementPointId))
                         .ToListAsync(cancellationToken);
 
-                    if (latestMonitoringIds.Count > 0)
+                    foreach (var snap in snapshots)
                     {
-                        var dbMonitoringRecords = await DbContext.Set<MeasurementPointMonitoringEntity>()
-                            .AsNoTracking()
-                            .Where(x => latestMonitoringIds.Contains(x.Id))
-                            .ToListAsync(cancellationToken);
+                        snapshotMap[snap.MeasurementPointId] = snap;
 
-                        latestMonitoringMap = dbMonitoringRecords
-                            .Where(x => x.TagNameDescription != null)
-                            .GroupBy(x => (x.MeasurementPointsId, x.TagNameDescription!))
-                            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.CreatedTime).ThenByDescending(r => r.Id).First());
-                    }
-
-                    // Query thời điểm chốt gần nhất và thời điểm Pmax kỳ trước từ MeasurementPointMonitoringByDateTimeEntity
-                    var dateTimeTags = new List<string>
-                    {
-                        ListDataMeasurementPoint.NamChotGanNhat,
-                        ListDataMeasurementPoint.ThangChotGanNhat,
-                        ListDataMeasurementPoint.NgayChotGanNhat,
-                        ListDataMeasurementPoint.GioChotGanNhat,
-                        ListDataMeasurementPoint.PhutChotGanNhat,
-                        ListDataMeasurementPoint.GiayChotGanNhat,
-                        ListDataMeasurementPoint.NamPmaxKyTruoc,
-                        ListDataMeasurementPoint.ThangPmaxKyTruoc,
-                        ListDataMeasurementPoint.NgayPmaxKyTruoc,
-                        ListDataMeasurementPoint.GioPmaxKyTruoc,
-                        ListDataMeasurementPoint.PhutPmaxKyTruoc,
-                        ListDataMeasurementPoint.GiayPmaxKyTruoc
-                    };
-
-                    var latestDateTimeIds = await DbContext.Set<MeasurementPointMonitoringByDateTimeEntity>()
-                        .AsNoTracking()
-                        .Where(x => measurementPointIds.Contains(x.MeasurementPointId) && x.TagNameDescription != null && dateTimeTags.Contains(x.TagNameDescription))
-                        .GroupBy(x => new { x.MeasurementPointId, x.TagNameDescription })
-                        .Select(g => g.Max(x => x.Id))
-                        .ToListAsync(cancellationToken);
-
-                    var dbDateTimeRecords = latestDateTimeIds.Count > 0
-                        ? await DbContext.Set<MeasurementPointMonitoringByDateTimeEntity>()
-                            .AsNoTracking()
-                            .Where(x => latestDateTimeIds.Contains(x.Id))
-                            .OrderByDescending(x => x.CreatedTime)
-                            .ToListAsync(cancellationToken)
-                        : new List<MeasurementPointMonitoringByDateTimeEntity>();
-
-                    var groupedDateByPoint = dbDateTimeRecords
-                        .GroupBy(x => x.MeasurementPointId)
-                        .ToDictionary(g => g.Key, g => g.GroupBy(d => d.TagNameDescription!).ToDictionary(sub => sub.Key, sub => sub.First().Value));
-
-                    foreach (var kvp in groupedDateByPoint)
-                    {
-                        var ptId = kvp.Key;
-                        var tags = kvp.Value;
-                        try
+                        if (TryBuildOffsetTime(snap.ClosingYear, snap.ClosingMonth, snap.ClosingDay, snap.ClosingHour, snap.ClosingMinute, snap.ClosingSecond, out var cutoffDt))
                         {
-                            if (tags.TryGetValue(ListDataMeasurementPoint.NamChotGanNhat, out var sYear) &&
-                                tags.TryGetValue(ListDataMeasurementPoint.ThangChotGanNhat, out var sMonth) &&
-                                tags.TryGetValue(ListDataMeasurementPoint.NgayChotGanNhat, out var sDay) &&
-                                int.TryParse(sYear, out var yr) && int.TryParse(sMonth, out var mo) && int.TryParse(sDay, out var da) &&
-                                yr >= 2000 && yr <= 2100 && mo >= 1 && mo <= 12 && da >= 1 && da <= 31)
-                            {
-                                int hr = 0, mi = 0, se = 0;
-                                if (tags.TryGetValue(ListDataMeasurementPoint.GioChotGanNhat, out var sHour) && int.TryParse(sHour, out var parsedHr)) hr = parsedHr;
-                                if (tags.TryGetValue(ListDataMeasurementPoint.PhutChotGanNhat, out var sMin) && int.TryParse(sMin, out var parsedMi)) mi = parsedMi;
-                                if (tags.TryGetValue(ListDataMeasurementPoint.GiayChotGanNhat, out var sSec) && int.TryParse(sSec, out var parsedSe)) se = parsedSe;
-
-                                if (hr < 0 || hr > 23) hr = 0;
-                                if (mi < 0 || mi > 59) mi = 0;
-                                if (se < 0 || se > 59) se = 0;
-
-                                var cutoffDt = new DateTimeOffset(yr, mo, Math.Min(da, DateTime.DaysInMonth(yr, mo)), hr, mi, se, TimeSpan.FromHours(7));
-                                latestCutoffTimeMap[ptId] = cutoffDt;
-                            }
-                        }
-                        catch
-                        {
-                            // Bỏ qua lỗi parse ngày nếu format bất thường
+                            latestCutoffTimeMap[snap.MeasurementPointId] = cutoffDt;
                         }
 
-                        try
+                        if (TryBuildOffsetTime(snap.PmaxPrevYear, snap.PmaxPrevMonth, snap.PmaxPrevDay, snap.PmaxPrevHour, snap.PmaxPrevMinute, snap.PmaxPrevSecond, out var pmaxDt))
                         {
-                            if (tags.TryGetValue(ListDataMeasurementPoint.NamPmaxKyTruoc, out var pYear) &&
-                                tags.TryGetValue(ListDataMeasurementPoint.ThangPmaxKyTruoc, out var pMonth) &&
-                                tags.TryGetValue(ListDataMeasurementPoint.NgayPmaxKyTruoc, out var pDay) &&
-                                int.TryParse(pYear, out var pyr) && int.TryParse(pMonth, out var pmo) && int.TryParse(pDay, out var pda) &&
-                                pyr >= 2000 && pyr <= 2100 && pmo >= 1 && pmo <= 12 && pda >= 1 && pda <= 31)
-                            {
-                                int phr = 0, pmi = 0, pse = 0;
-                                if (tags.TryGetValue(ListDataMeasurementPoint.GioPmaxKyTruoc, out var pHour) && int.TryParse(pHour, out var parsedPhr)) phr = parsedPhr;
-                                if (tags.TryGetValue(ListDataMeasurementPoint.PhutPmaxKyTruoc, out var pMin) && int.TryParse(pMin, out var parsedPmi)) pmi = parsedPmi;
-                                if (tags.TryGetValue(ListDataMeasurementPoint.GiayPmaxKyTruoc, out var pSec) && int.TryParse(pSec, out var parsedPse)) pse = parsedPse;
-
-                                if (phr < 0 || phr > 23) phr = 0;
-                                if (pmi < 0 || pmi > 59) pmi = 0;
-                                if (pse < 0 || pse > 59) pse = 0;
-
-                                var pmaxDt = new DateTimeOffset(pyr, pmo, Math.Min(pda, DateTime.DaysInMonth(pyr, pmo)), phr, pmi, pse, TimeSpan.FromHours(7));
-                                latestPmaxTimeMap[ptId] = pmaxDt;
-                            }
-                        }
-                        catch
-                        {
-                            // Bỏ qua lỗi parse thời điểm Pmax
+                            latestPmaxTimeMap[snap.MeasurementPointId] = pmaxDt;
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[GcsCutOff] dbMonitoringRecords query error: {ex.Message}");
+                Console.WriteLine($"[GcsCutOff] snapshot query error: {ex.Message}");
             }
 
             var meterReadingSetMapping = new Dictionary<string, string>
@@ -544,21 +441,27 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
                     DateTimeOffset? readingTime = null;
                     bool? quality = null;
 
-                    // Lấy số liệu từ bộ chỉ số chốt chiều giao do Kepware IoT Client gửi đến (MeasurementPointMonitoringEntity)
-                    if (latestMonitoringMap.TryGetValue((measurementPoint.Id, readingType.Key), out var dbRec) && dbRec != null)
+                    // Lấy số liệu chốt chiều giao từ MeasurementPointCurrentSnapshots
+                    if (snapshotMap.TryGetValue(measurementPoint.Id, out var snap))
                     {
-                        if (!string.IsNullOrWhiteSpace(dbRec.Value) && decimal.TryParse(dbRec.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedVal))
+                        (decimal? val, bool? q, DateTimeOffset? updatedAt) = readingType.Key switch
                         {
-                            currentVal = parsedVal;
-                            quality = dbRec.Quanlity ?? true;
-                            if (latestCutoffTimeMap.TryGetValue(measurementPoint.Id, out var parsedCutoffTime))
-                            {
-                                readingTime = parsedCutoffTime;
-                            }
-                            else
-                            {
-                                readingTime = dbRec.CreatedTime;
-                            }
+                            "CHI_SO_CHOT_DIEN_NANG_AP_GIO_BT" => (snap.ChiSoChotDienNangAPGioBT, snap.ChiSoChotDienNangAPGioBTQuality, snap.ChiSoChotDienNangAPGioBTUpdatedAt),
+                            "CHI_SO_CHOT_DIEN_NANG_AP_GIO_CD" => (snap.ChiSoChotDienNangAPGioCD, snap.ChiSoChotDienNangAPGioCDQuality, snap.ChiSoChotDienNangAPGioCDUpdatedAt),
+                            "CHI_SO_CHOT_DIEN_NANG_AP_GIO_TD" => (snap.ChiSoChotDienNangAPGioTD, snap.ChiSoChotDienNangAPGioTDQuality, snap.ChiSoChotDienNangAPGioTDUpdatedAt),
+                            "CHI_SO_CHOT_DIEN_NANG_AP_TONG" => (snap.ChiSoChotDienNangAPTong, snap.ChiSoChotDienNangAPTongQuality, snap.ChiSoChotDienNangAPTongUpdatedAt),
+                            "CHI_SO_CHOT_DIEN_NANG_AQ_TONG" => (snap.ChiSoChotDienNangAQTong, snap.ChiSoChotDienNangAQTongQuality, snap.ChiSoChotDienNangAQTongUpdatedAt),
+                            "PMAX_KY_TRUOC" => (snap.PmaxKyTruoc, snap.PmaxKyTruocQuality, snap.PmaxKyTruocUpdatedAt),
+                            _ => (null, null, null)
+                        };
+
+                        if (val.HasValue)
+                        {
+                            currentVal = val.Value;
+                            quality = q ?? true;
+                            readingTime = latestCutoffTimeMap.TryGetValue(measurementPoint.Id, out var parsedCutoffTime)
+                                ? parsedCutoffTime
+                                : updatedAt;
                         }
                     }
 
@@ -857,5 +760,28 @@ public class GcsCutOffCycleReadOnlyRepository: RestfulRepository<GcsCutoffCycleE
         return await _gcsCutoffCycleEntities.AsNoTracking()
             .Where(x => x.GcsId == request.GcsId && x.Month == request.Month && x.Year == request.Year && x.PeriodNumber == request.PeriodNumber && x.IsSendingMail)
             .AnyAsync(cancellationToken);
+    }
+
+    private static bool TryBuildOffsetTime(
+        short? year,
+        short? month,
+        short? day,
+        short? hour,
+        short? minute,
+        short? second,
+        out DateTimeOffset result)
+    {
+        result = default;
+        if (!year.HasValue || !month.HasValue || !day.HasValue) return false;
+        var yr = year.Value;
+        var mo = month.Value;
+        var da = day.Value;
+        if (yr < 2000 || yr > 2100 || mo < 1 || mo > 12 || da < 1 || da > 31) return false;
+
+        var hr = hour.HasValue && hour.Value >= 0 && hour.Value <= 23 ? hour.Value : 0;
+        var mi = minute.HasValue && minute.Value >= 0 && minute.Value <= 59 ? minute.Value : 0;
+        var se = second.HasValue && second.Value >= 0 && second.Value <= 59 ? second.Value : 0;
+        result = new DateTimeOffset(yr, mo, Math.Min((int)da, DateTime.DaysInMonth(yr, mo)), hr, mi, se, TimeSpan.FromHours(7));
+        return true;
     }
 }

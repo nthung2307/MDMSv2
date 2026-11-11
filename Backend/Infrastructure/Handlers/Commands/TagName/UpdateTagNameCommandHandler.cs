@@ -1,9 +1,10 @@
-﻿using Application.Commands.TagName;
+using Application.Commands.TagName;
 using Application.Common.Responses.Common.Responses;
 using Application.Common.ValueObjects;
 using Application.DataTransferObjects.Responses.TagName;
 using Application.Handlers.Commands.TagName;
 using Application.Repositories.ReadWrite;
+using Application.Services;
 using Nobisoft.Core.Authorization.Interfaces;
 using Nobisoft.Core.Logger.Interfaces;
 
@@ -14,12 +15,14 @@ public class UpdateTagNameCommandHandler : IUpdateTagNameCommandHandler
     private readonly ICurrentUserService _currentUserService;
     private readonly ILoggerService _loggerService;
     private readonly ITagNameReadWriteRepository _tagNameReadWriteRepository;
+    private readonly ITagRoutingCacheService _tagRoutingCacheService;
 
-    public UpdateTagNameCommandHandler(ICurrentUserService currentUserService, ILoggerService loggerService, ITagNameReadWriteRepository tagNameReadWriteRepository)
+    public UpdateTagNameCommandHandler(ICurrentUserService currentUserService, ILoggerService loggerService, ITagNameReadWriteRepository tagNameReadWriteRepository, ITagRoutingCacheService tagRoutingCacheService)
     {
         _currentUserService = currentUserService;
         _loggerService = loggerService;
         _tagNameReadWriteRepository = tagNameReadWriteRepository;
+        _tagRoutingCacheService = tagRoutingCacheService;
     }
 
     public async Task<RequestResult<TagNameResponse>> Handle(UpdateTagNameCommand command, CancellationToken cancellationToken)
@@ -55,6 +58,7 @@ public class UpdateTagNameCommandHandler : IUpdateTagNameCommandHandler
             }
 
             await _tagNameReadWriteRepository.SaveChangesAsync(cancellationToken);
+            _tagRoutingCacheService.Invalidate();
             return RequestResult<TagNameResponse>.Succeed(new TagNameResponse());
         } catch (Exception ex)
         {

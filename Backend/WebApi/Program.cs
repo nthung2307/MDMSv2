@@ -54,6 +54,13 @@ builder.Services.AddAutoMapper(typeof(InfrastructureModule).Assembly);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHttpClient();
 builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<Application.Services.ITagRoutingCacheService, Infrastructure.Services.TagRoutingCacheService>();
+builder.Services.AddSingleton<Infrastructure.Services.BufferedTelemetryIngestionService>();
+builder.Services.AddSingleton<Application.Services.IBufferedTelemetryIngestionService>(sp =>
+    sp.GetRequiredService<Infrastructure.Services.BufferedTelemetryIngestionService>());
+builder.Services.AddHostedService(sp =>
+    sp.GetRequiredService<Infrastructure.Services.BufferedTelemetryIngestionService>());
+builder.Services.AddScoped<Application.Services.IPartitionManagementService, Infrastructure.Services.PartitionManagementService>();
 builder.Services.AddScoped<Application.Services.IEmailProviderFactory, Infrastructure.Services.EmailProviders.EmailProviderFactory>();
 builder.Services.AddScoped<Application.Services.INotificationTemplateService, Infrastructure.Services.Templates.NotificationTemplateService>();
 builder.Services.AddScoped<Application.Services.IStatementPdfGenerator, Infrastructure.Services.Templates.StatementPdfGenerator>();
@@ -402,10 +409,16 @@ app.UseHealthChecks("/health", new HealthCheckOptions
 
 app.UseHttpsRedirection();
 app.UseHangfireDashboard("/dashboard");
+RecurringJob.RemoveIfExists("GroupDataPerMeter");
+RecurringJob.RemoveIfExists("ArchiveDataMeasurementPointMonitoring");
 RecurringJob.AddOrUpdate<BackgroundJobService>(
-    "GroupDataPerMeter",
-    job => job.GroupDataPerMeter(CancellationToken.None),
-    "10 * * * *"
+    "MaintainTimeSeriesPartitions",
+    job => job.MaintainTimeSeriesPartitions(CancellationToken.None),
+    "0 1 * * *",
+    new RecurringJobOptions()
+    {
+        TimeZone = TimeZoneInfo.Local
+    }
 );
 RecurringJob.AddOrUpdate<BackgroundJobService>(
     "GenerateEnergyReportDaily",
@@ -431,12 +444,6 @@ RecurringJob.AddOrUpdate<BackgroundJobService>(
     job => job.CleanupOldEvents(CancellationToken.None),
     "0 2 * * *"
 );
-//
-// RecurringJob.AddOrUpdate<BackgroundJobArchiveDataService>(
-//     "ArchiveDataMeasurementPointMonitoring",
-//     job => job.ArchiveDataMeasurementPointMonitoring(CancellationToken.None),
-//     "30 0 * * *"
-// );
 
 app.UseCors("AllowAllDomains");
 app.UseMiddleware<HeaderTrackingMiddleware>();
@@ -460,24 +467,15 @@ CREATE TABLE IF NOT EXISTS `MeasurementPointHalfHourOperatingReports` (
   `MeasurementPointId` bigint NOT NULL,
   `CreatedTime` datetime(6) DEFAULT NULL,
   `DienApPhaA` double DEFAULT NULL,
-  `DienApPhaAUnit` longtext,
   `DienApPhaB` double DEFAULT NULL,
-  `DienApPhaBUnit` longtext,
   `DienApPhaC` double DEFAULT NULL,
-  `DienApPhaCUnit` longtext,
   `DongDienPhaA` double DEFAULT NULL,
-  `DongDienPhaAUnit` longtext,
   `DongDienPhaB` double DEFAULT NULL,
-  `DongDienPhaBUnit` longtext,
   `DongDienPhaC` double DEFAULT NULL,
-  `DongDienPhaCUnit` longtext,
   `CongSuatTacDungTong3Pha` double DEFAULT NULL,
-  `CongSuatTacDungTong3PhaUnit` longtext,
   `CongSuatPhanKhangTong3Pha` double DEFAULT NULL,
-  `CongSuatPhanKhangTong3PhaUnit` longtext,
   `HeSoCongSuatPF` double DEFAULT NULL,
   `TanSoHeThong` double DEFAULT NULL,
-  `TanSoHeThongUnit` longtext,
   PRIMARY KEY (`Id`),
   KEY `IX_MeasurementPointHalfHourOperatingReports_MeasurementPointId` (`MeasurementPointId`),
   KEY `IX_MeasurementPointHalfHourOperatingReports_CreatedTime` (`CreatedTime`)
@@ -751,18 +749,13 @@ CREATE TABLE IF NOT EXISTS `MeterReplacements` (
 
     var compositeIndexSqls = new[]
     {
-        "CREATE INDEX `IX_MPMonitoring_PointId_CreatedTime` ON `MeasurementPointMonitoring` (`MeasurementPointsId`, `CreatedTime`);",
-        "CREATE INDEX `IX_MPMonitoring_PointId_CreatedTime` ON `measurementpointmonitoring` (`MeasurementPointsId`, `CreatedTime`);",
-        "CREATE INDEX `IX_MPMonitoring_PointId_Tag_CreatedTime` ON `MeasurementPointMonitoring` (`MeasurementPointsId`, `TagNameId`, `CreatedTime`);",
-        "CREATE INDEX `IX_MPMonitoring_PointId_Tag_CreatedTime` ON `measurementpointmonitoring` (`MeasurementPointsId`, `TagNameId`, `CreatedTime`);",
-        "CREATE INDEX `IX_MPMonitoringDT_PointId_CreatedTime` ON `MeasurementPointMonitoringByDateTime` (`MeasurementPointId`, `CreatedTime`);",
-        "CREATE INDEX `IX_MPMonitoringDT_PointId_CreatedTime` ON `measurementpointmonitoringbydatetime` (`MeasurementPointId`, `CreatedTime`);",
-        "CREATE INDEX `IX_MPMonitoringHourly_PointId_CreatedTime` ON `MeasurementPointMonitoringHourly` (`MeasurementPointId`, `CreatedTime`);",
-        "CREATE INDEX `IX_MPMonitoringHourly_PointId_CreatedTime` ON `measurementpointmonitoringhourly` (`MeasurementPointId`, `CreatedTime`);",
         "CREATE INDEX `IX_MPHalfHourEnergy_PointId_CreatedTime` ON `MeasurementPointHalfHourEnergyReports` (`MeasurementPointId`, `CreatedTime`);",
         "CREATE INDEX `IX_MPHalfHourEnergy_PointId_CreatedTime` ON `measurementpointhalfhourenergyreports` (`MeasurementPointId`, `CreatedTime`);",
         "CREATE INDEX `IX_MPDailyEnergy_PointId_CreatedTime` ON `MeasurementPointDailyEnergyReports` (`MeasurementPointId`, `CreatedTime`);",
         "CREATE INDEX `IX_MPDailyEnergy_PointId_CreatedTime` ON `measurementpointdailyenergyreports` (`MeasurementPointId`, `CreatedTime`);",
+        "CREATE INDEX `IX_MPHalfHourOperating_PointId_CreatedTime` ON `MeasurementPointHalfHourOperatingReports` (`MeasurementPointId`, `CreatedTime`);",
+        "CREATE INDEX `IX_MPEvents_PointId_CreatedTime` ON `MeasurementPointEvents` (`MeasurementPointId`, `CreatedTime`);",
+        "CREATE INDEX `IX_MPAlerts_PointId_CreatedTime` ON `MeasurementPointAlerts` (`MeasurementPointId`, `CreatedTime`);",
         "CREATE INDEX `IX_GcsTemporary_Gcs_Cycle` ON `GcsTemporary` (`GcsId`, `Year`, `Month`, `PeriodNumber`);",
         "CREATE INDEX `IX_GcsTemporary_Gcs_Cycle` ON `gcstemporary` (`GcsId`, `Year`, `Month`, `PeriodNumber`);",
         "CREATE INDEX `IX_GcsMonthlyDetail_Cycle_Point` ON `GcsMonthlyDetail` (`GcsCutoffCycleId`, `MeasurementPointId`);",
@@ -776,6 +769,180 @@ CREATE TABLE IF NOT EXISTS `MeterReplacements` (
     {
         try { await db.Database.ExecuteSqlRawAsync(indexSql); } catch { }
     }
+
+    // Ensure Phase 1 Wide-Table Snapshot, Partitioned TimeSeries & Schema Additions exist on clean startups
+    var phase1StartupDdlSqls = new[]
+    {
+        @"CREATE TABLE IF NOT EXISTS `MeasurementPointCurrentSnapshots` (
+            `Id` bigint NOT NULL,
+            `MeasurementPointId` bigint NOT NULL,
+            `LastTelemetryAt` datetime(6) DEFAULT NULL,
+            `LastStatusAt` datetime(6) DEFAULT NULL,
+            `LastDateTimeAt` datetime(6) DEFAULT NULL,
+            `UpdatedAt` datetime(6) NOT NULL,
+            `DongDienPhaA` decimal(18,4) DEFAULT NULL, `DongDienPhaAUnit` varchar(32) DEFAULT NULL, `DongDienPhaAQuality` tinyint(1) DEFAULT NULL, `DongDienPhaAUpdatedAt` datetime(6) DEFAULT NULL,
+            `DongDienPhaB` decimal(18,4) DEFAULT NULL, `DongDienPhaBUnit` varchar(32) DEFAULT NULL, `DongDienPhaBQuality` tinyint(1) DEFAULT NULL, `DongDienPhaBUpdatedAt` datetime(6) DEFAULT NULL,
+            `DongDienPhaC` decimal(18,4) DEFAULT NULL, `DongDienPhaCUnit` varchar(32) DEFAULT NULL, `DongDienPhaCQuality` tinyint(1) DEFAULT NULL, `DongDienPhaCUpdatedAt` datetime(6) DEFAULT NULL,
+            `DienApPhaA` decimal(18,4) DEFAULT NULL, `DienApPhaAUnit` varchar(32) DEFAULT NULL, `DienApPhaAQuality` tinyint(1) DEFAULT NULL, `DienApPhaAUpdatedAt` datetime(6) DEFAULT NULL,
+            `DienApPhaB` decimal(18,4) DEFAULT NULL, `DienApPhaBUnit` varchar(32) DEFAULT NULL, `DienApPhaBQuality` tinyint(1) DEFAULT NULL, `DienApPhaBUpdatedAt` datetime(6) DEFAULT NULL,
+            `DienApPhaC` decimal(18,4) DEFAULT NULL, `DienApPhaCUnit` varchar(32) DEFAULT NULL, `DienApPhaCQuality` tinyint(1) DEFAULT NULL, `DienApPhaCUpdatedAt` datetime(6) DEFAULT NULL,
+            `CongSuatTacDungPhaA` decimal(18,4) DEFAULT NULL, `CongSuatTacDungPhaAUnit` varchar(32) DEFAULT NULL, `CongSuatTacDungPhaAQuality` tinyint(1) DEFAULT NULL, `CongSuatTacDungPhaAUpdatedAt` datetime(6) DEFAULT NULL,
+            `CongSuatTacDungPhaB` decimal(18,4) DEFAULT NULL, `CongSuatTacDungPhaBUnit` varchar(32) DEFAULT NULL, `CongSuatTacDungPhaBQuality` tinyint(1) DEFAULT NULL, `CongSuatTacDungPhaBUpdatedAt` datetime(6) DEFAULT NULL,
+            `CongSuatTacDungPhaC` decimal(18,4) DEFAULT NULL, `CongSuatTacDungPhaCUnit` varchar(32) DEFAULT NULL, `CongSuatTacDungPhaCQuality` tinyint(1) DEFAULT NULL, `CongSuatTacDungPhaCUpdatedAt` datetime(6) DEFAULT NULL,
+            `CongSuatTacDungTong3Pha` decimal(18,4) DEFAULT NULL, `CongSuatTacDungTong3PhaUnit` varchar(32) DEFAULT NULL, `CongSuatTacDungTong3PhaQuality` tinyint(1) DEFAULT NULL, `CongSuatTacDungTong3PhaUpdatedAt` datetime(6) DEFAULT NULL,
+            `CongSuatPhanKhangPhaA` decimal(18,4) DEFAULT NULL, `CongSuatPhanKhangPhaAUnit` varchar(32) DEFAULT NULL, `CongSuatPhanKhangPhaAQuality` tinyint(1) DEFAULT NULL, `CongSuatPhanKhangPhaAUpdatedAt` datetime(6) DEFAULT NULL,
+            `CongSuatPhanKhangPhaB` decimal(18,4) DEFAULT NULL, `CongSuatPhanKhangPhaBUnit` varchar(32) DEFAULT NULL, `CongSuatPhanKhangPhaBQuality` tinyint(1) DEFAULT NULL, `CongSuatPhanKhangPhaBUpdatedAt` datetime(6) DEFAULT NULL,
+            `CongSuatPhanKhangPhaC` decimal(18,4) DEFAULT NULL, `CongSuatPhanKhangPhaCUnit` varchar(32) DEFAULT NULL, `CongSuatPhanKhangPhaCQuality` tinyint(1) DEFAULT NULL, `CongSuatPhanKhangPhaCUpdatedAt` datetime(6) DEFAULT NULL,
+            `CongSuatPhanKhangTong3Pha` decimal(18,4) DEFAULT NULL, `CongSuatPhanKhangTong3PhaUnit` varchar(32) DEFAULT NULL, `CongSuatPhanKhangTong3PhaQuality` tinyint(1) DEFAULT NULL, `CongSuatPhanKhangTong3PhaUpdatedAt` datetime(6) DEFAULT NULL,
+            `HeSoCongSuatPFPhaA` decimal(18,4) DEFAULT NULL, `HeSoCongSuatPFPhaAQuality` tinyint(1) DEFAULT NULL, `HeSoCongSuatPFPhaAUpdatedAt` datetime(6) DEFAULT NULL,
+            `HeSoCongSuatPFPhaB` decimal(18,4) DEFAULT NULL, `HeSoCongSuatPFPhaBQuality` tinyint(1) DEFAULT NULL, `HeSoCongSuatPFPhaBUpdatedAt` datetime(6) DEFAULT NULL,
+            `HeSoCongSuatPFPhaC` decimal(18,4) DEFAULT NULL, `HeSoCongSuatPFPhaCQuality` tinyint(1) DEFAULT NULL, `HeSoCongSuatPFPhaCUpdatedAt` datetime(6) DEFAULT NULL,
+            `HeSoCongSuatPFTrungBinh3Pha` decimal(18,4) DEFAULT NULL, `HeSoCongSuatPFTrungBinh3PhaQuality` tinyint(1) DEFAULT NULL, `HeSoCongSuatPFTrungBinh3PhaUpdatedAt` datetime(6) DEFAULT NULL,
+            `TanSoHeThong` decimal(18,4) DEFAULT NULL, `TanSoHeThongUnit` varchar(32) DEFAULT NULL, `TanSoHeThongQuality` tinyint(1) DEFAULT NULL, `TanSoHeThongUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoTichLuyDienNangTacDungAPBieuGioBT` decimal(18,4) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPBieuGioBTUnit` varchar(32) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPBieuGioBTQuality` tinyint(1) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPBieuGioBTUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoTichLuyDienNangTacDungAPBieuGioCD` decimal(18,4) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPBieuGioCDUnit` varchar(32) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPBieuGioCDQuality` tinyint(1) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPBieuGioCDUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoTichLuyDienNangTacDungAPBieuGioTD` decimal(18,4) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPBieuGioTDUnit` varchar(32) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPBieuGioTDQuality` tinyint(1) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPBieuGioTDUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoTichLuyDienNangTacDungAPTong` decimal(18,4) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPTongUnit` varchar(32) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPTongQuality` tinyint(1) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPTongUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoTichLuyDienNangPhanKhangAQTong` decimal(18,4) DEFAULT NULL, `ChiSoTichLuyDienNangPhanKhangAQTongUnit` varchar(32) DEFAULT NULL, `ChiSoTichLuyDienNangPhanKhangAQTongQuality` tinyint(1) DEFAULT NULL, `ChiSoTichLuyDienNangPhanKhangAQTongUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoTichLuyDienNangTacDungAPBieuGioBTChieuNhan` decimal(18,4) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPBieuGioBTChieuNhanUnit` varchar(32) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPBieuGioBTChieuNhanQuality` tinyint(1) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPBieuGioBTChieuNhanUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoTichLuyDienNangTacDungAPBieuGioCDChieuNhan` decimal(18,4) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPBieuGioCDChieuNhanUnit` varchar(32) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPBieuGioCDChieuNhanQuality` tinyint(1) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPBieuGioCDChieuNhanUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoTichLuyDienNangTacDungAPBieuGioTDChieuNhan` decimal(18,4) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPBieuGioTDChieuNhanUnit` varchar(32) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPBieuGioTDChieuNhanQuality` tinyint(1) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPBieuGioTDChieuNhanUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoTichLuyDienNangTacDungAPTongChieuNhan` decimal(18,4) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPTongChieuNhanUnit` varchar(32) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPTongChieuNhanQuality` tinyint(1) DEFAULT NULL, `ChiSoTichLuyDienNangTacDungAPTongChieuNhanUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoTichLuyDienNangPhanKhangAQTongChieuNhan` decimal(18,4) DEFAULT NULL, `ChiSoTichLuyDienNangPhanKhangAQTongChieuNhanUnit` varchar(32) DEFAULT NULL, `ChiSoTichLuyDienNangPhanKhangAQTongChieuNhanQuality` tinyint(1) DEFAULT NULL, `ChiSoTichLuyDienNangPhanKhangAQTongChieuNhanUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoChotDienNangAPGioBT` decimal(18,4) DEFAULT NULL, `ChiSoChotDienNangAPGioBTUnit` varchar(32) DEFAULT NULL, `ChiSoChotDienNangAPGioBTQuality` tinyint(1) DEFAULT NULL, `ChiSoChotDienNangAPGioBTUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoChotDienNangAPGioCD` decimal(18,4) DEFAULT NULL, `ChiSoChotDienNangAPGioCDUnit` varchar(32) DEFAULT NULL, `ChiSoChotDienNangAPGioCDQuality` tinyint(1) DEFAULT NULL, `ChiSoChotDienNangAPGioCDUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoChotDienNangAPGioTD` decimal(18,4) DEFAULT NULL, `ChiSoChotDienNangAPGioTDUnit` varchar(32) DEFAULT NULL, `ChiSoChotDienNangAPGioTDQuality` tinyint(1) DEFAULT NULL, `ChiSoChotDienNangAPGioTDUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoChotDienNangAPTong` decimal(18,4) DEFAULT NULL, `ChiSoChotDienNangAPTongUnit` varchar(32) DEFAULT NULL, `ChiSoChotDienNangAPTongQuality` tinyint(1) DEFAULT NULL, `ChiSoChotDienNangAPTongUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoChotDienNangAQTong` decimal(18,4) DEFAULT NULL, `ChiSoChotDienNangAQTongUnit` varchar(32) DEFAULT NULL, `ChiSoChotDienNangAQTongQuality` tinyint(1) DEFAULT NULL, `ChiSoChotDienNangAQTongUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoChotDienNangAPGioBTChieuNhan` decimal(18,4) DEFAULT NULL, `ChiSoChotDienNangAPGioBTChieuNhanUnit` varchar(32) DEFAULT NULL, `ChiSoChotDienNangAPGioBTChieuNhanQuality` tinyint(1) DEFAULT NULL, `ChiSoChotDienNangAPGioBTChieuNhanUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoChotDienNangAPGioCDChieuNhan` decimal(18,4) DEFAULT NULL, `ChiSoChotDienNangAPGioCDChieuNhanUnit` varchar(32) DEFAULT NULL, `ChiSoChotDienNangAPGioCDChieuNhanQuality` tinyint(1) DEFAULT NULL, `ChiSoChotDienNangAPGioCDChieuNhanUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoChotDienNangAPGioTDChieuNhan` decimal(18,4) DEFAULT NULL, `ChiSoChotDienNangAPGioTDChieuNhanUnit` varchar(32) DEFAULT NULL, `ChiSoChotDienNangAPGioTDChieuNhanQuality` tinyint(1) DEFAULT NULL, `ChiSoChotDienNangAPGioTDChieuNhanUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoChotDienNangAPTongChieuNhan` decimal(18,4) DEFAULT NULL, `ChiSoChotDienNangAPTongChieuNhanUnit` varchar(32) DEFAULT NULL, `ChiSoChotDienNangAPTongChieuNhanQuality` tinyint(1) DEFAULT NULL, `ChiSoChotDienNangAPTongChieuNhanUpdatedAt` datetime(6) DEFAULT NULL,
+            `ChiSoChotDienNangAQTongChieuNhan` decimal(18,4) DEFAULT NULL, `ChiSoChotDienNangAQTongChieuNhanUnit` varchar(32) DEFAULT NULL, `ChiSoChotDienNangAQTongChieuNhanQuality` tinyint(1) DEFAULT NULL, `ChiSoChotDienNangAQTongChieuNhanUpdatedAt` datetime(6) DEFAULT NULL,
+            `PmaxKyHienTai` decimal(18,4) DEFAULT NULL, `PmaxKyHienTaiUnit` varchar(32) DEFAULT NULL, `PmaxKyHienTaiQuality` tinyint(1) DEFAULT NULL, `PmaxKyHienTaiUpdatedAt` datetime(6) DEFAULT NULL,
+            `PmaxKyTruoc` decimal(18,4) DEFAULT NULL, `PmaxKyTruocUnit` varchar(32) DEFAULT NULL, `PmaxKyTruocQuality` tinyint(1) DEFAULT NULL, `PmaxKyTruocUpdatedAt` datetime(6) DEFAULT NULL,
+            `MatKetNoi` tinyint(1) DEFAULT NULL, `MatKetNoiQuality` tinyint(1) DEFAULT NULL, `MatKetNoiUpdatedAt` datetime(6) DEFAULT NULL,
+            `CanhBao01` tinyint(1) DEFAULT NULL, `CanhBao01Quality` tinyint(1) DEFAULT NULL, `CanhBao01UpdatedAt` datetime(6) DEFAULT NULL,
+            `CanhBao02` tinyint(1) DEFAULT NULL, `CanhBao02Quality` tinyint(1) DEFAULT NULL, `CanhBao02UpdatedAt` datetime(6) DEFAULT NULL,
+            `CanhBao03` tinyint(1) DEFAULT NULL, `CanhBao03Quality` tinyint(1) DEFAULT NULL, `CanhBao03UpdatedAt` datetime(6) DEFAULT NULL,
+            `CanhBao04` tinyint(1) DEFAULT NULL, `CanhBao04Quality` tinyint(1) DEFAULT NULL, `CanhBao04UpdatedAt` datetime(6) DEFAULT NULL,
+            `CanhBao05` tinyint(1) DEFAULT NULL, `CanhBao05Quality` tinyint(1) DEFAULT NULL, `CanhBao05UpdatedAt` datetime(6) DEFAULT NULL,
+            `CanhBao06` tinyint(1) DEFAULT NULL, `CanhBao06Quality` tinyint(1) DEFAULT NULL, `CanhBao06UpdatedAt` datetime(6) DEFAULT NULL,
+            `CanhBao07` tinyint(1) DEFAULT NULL, `CanhBao07Quality` tinyint(1) DEFAULT NULL, `CanhBao07UpdatedAt` datetime(6) DEFAULT NULL,
+            `CanhBao08` tinyint(1) DEFAULT NULL, `CanhBao08Quality` tinyint(1) DEFAULT NULL, `CanhBao08UpdatedAt` datetime(6) DEFAULT NULL,
+            `CanhBao09` tinyint(1) DEFAULT NULL, `CanhBao09Quality` tinyint(1) DEFAULT NULL, `CanhBao09UpdatedAt` datetime(6) DEFAULT NULL,
+            `CanhBao10` tinyint(1) DEFAULT NULL, `CanhBao10Quality` tinyint(1) DEFAULT NULL, `CanhBao10UpdatedAt` datetime(6) DEFAULT NULL,
+            `MeterYear` smallint DEFAULT NULL, `MeterYearQuality` tinyint(1) DEFAULT NULL,
+            `MeterMonth` smallint DEFAULT NULL, `MeterMonthQuality` tinyint(1) DEFAULT NULL,
+            `MeterDay` smallint DEFAULT NULL, `MeterDayQuality` tinyint(1) DEFAULT NULL,
+            `MeterHour` smallint DEFAULT NULL, `MeterHourQuality` tinyint(1) DEFAULT NULL,
+            `MeterMinute` smallint DEFAULT NULL, `MeterMinuteQuality` tinyint(1) DEFAULT NULL,
+            `MeterSecond` smallint DEFAULT NULL, `MeterSecondQuality` tinyint(1) DEFAULT NULL,
+            `ClosingYear` smallint DEFAULT NULL, `ClosingYearQuality` tinyint(1) DEFAULT NULL,
+            `ClosingMonth` smallint DEFAULT NULL, `ClosingMonthQuality` tinyint(1) DEFAULT NULL,
+            `ClosingDay` smallint DEFAULT NULL, `ClosingDayQuality` tinyint(1) DEFAULT NULL,
+            `ClosingHour` smallint DEFAULT NULL, `ClosingHourQuality` tinyint(1) DEFAULT NULL,
+            `ClosingMinute` smallint DEFAULT NULL, `ClosingMinuteQuality` tinyint(1) DEFAULT NULL,
+            `ClosingSecond` smallint DEFAULT NULL, `ClosingSecondQuality` tinyint(1) DEFAULT NULL,
+            `PmaxCurrentYear` smallint DEFAULT NULL, `PmaxCurrentYearQuality` tinyint(1) DEFAULT NULL,
+            `PmaxCurrentMonth` smallint DEFAULT NULL, `PmaxCurrentMonthQuality` tinyint(1) DEFAULT NULL,
+            `PmaxCurrentDay` smallint DEFAULT NULL, `PmaxCurrentDayQuality` tinyint(1) DEFAULT NULL,
+            `PmaxCurrentHour` smallint DEFAULT NULL, `PmaxCurrentHourQuality` tinyint(1) DEFAULT NULL,
+            `PmaxCurrentMinute` smallint DEFAULT NULL, `PmaxCurrentMinuteQuality` tinyint(1) DEFAULT NULL,
+            `PmaxCurrentSecond` smallint DEFAULT NULL, `PmaxCurrentSecondQuality` tinyint(1) DEFAULT NULL,
+            `PmaxPrevYear` smallint DEFAULT NULL, `PmaxPrevYearQuality` tinyint(1) DEFAULT NULL,
+            `PmaxPrevMonth` smallint DEFAULT NULL, `PmaxPrevMonthQuality` tinyint(1) DEFAULT NULL,
+            `PmaxPrevDay` smallint DEFAULT NULL, `PmaxPrevDayQuality` tinyint(1) DEFAULT NULL,
+            `PmaxPrevHour` smallint DEFAULT NULL, `PmaxPrevHourQuality` tinyint(1) DEFAULT NULL,
+            `PmaxPrevMinute` smallint DEFAULT NULL, `PmaxPrevMinuteQuality` tinyint(1) DEFAULT NULL,
+            `PmaxPrevSecond` smallint DEFAULT NULL, `PmaxPrevSecondQuality` tinyint(1) DEFAULT NULL,
+            PRIMARY KEY (`Id`),
+            UNIQUE KEY `IX_MeasurementPointCurrentSnapshots_MeasurementPointId` (`MeasurementPointId`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+        @"CREATE TABLE IF NOT EXISTS `MeasurementPointTimeSeries` (
+            `Id` bigint NOT NULL,
+            `MeasurementPointId` bigint NOT NULL,
+            `PartitionYm` int NOT NULL,
+            `RecordedAt` datetime(6) NOT NULL,
+            `IngestedAt` datetime(6) NOT NULL,
+            `QualityFlag` tinyint(1) NOT NULL DEFAULT '1',
+            `SourcePacketType` tinyint unsigned NOT NULL DEFAULT '1',
+            `DongDienPhaA` decimal(18,4) DEFAULT NULL,
+            `DongDienPhaB` decimal(18,4) DEFAULT NULL,
+            `DongDienPhaC` decimal(18,4) DEFAULT NULL,
+            `DienApPhaA` decimal(18,4) DEFAULT NULL,
+            `DienApPhaB` decimal(18,4) DEFAULT NULL,
+            `DienApPhaC` decimal(18,4) DEFAULT NULL,
+            `CongSuatTacDungPhaA` decimal(18,4) DEFAULT NULL,
+            `CongSuatTacDungPhaB` decimal(18,4) DEFAULT NULL,
+            `CongSuatTacDungPhaC` decimal(18,4) DEFAULT NULL,
+            `CongSuatTacDungTong3Pha` decimal(18,4) DEFAULT NULL,
+            `CongSuatPhanKhangPhaA` decimal(18,4) DEFAULT NULL,
+            `CongSuatPhanKhangPhaB` decimal(18,4) DEFAULT NULL,
+            `CongSuatPhanKhangPhaC` decimal(18,4) DEFAULT NULL,
+            `CongSuatPhanKhangTong3Pha` decimal(18,4) DEFAULT NULL,
+            `HeSoCongSuatPFPhaA` decimal(18,4) DEFAULT NULL,
+            `HeSoCongSuatPFPhaB` decimal(18,4) DEFAULT NULL,
+            `HeSoCongSuatPFPhaC` decimal(18,4) DEFAULT NULL,
+            `HeSoCongSuatPFTrungBinh3Pha` decimal(18,4) DEFAULT NULL,
+            `TanSoHeThong` decimal(18,4) DEFAULT NULL,
+            `ChiSoTichLuyDienNangTacDungAPBieuGioBT` decimal(18,4) DEFAULT NULL,
+            `ChiSoTichLuyDienNangTacDungAPBieuGioCD` decimal(18,4) DEFAULT NULL,
+            `ChiSoTichLuyDienNangTacDungAPBieuGioTD` decimal(18,4) DEFAULT NULL,
+            `ChiSoTichLuyDienNangTacDungAPTong` decimal(18,4) DEFAULT NULL,
+            `ChiSoTichLuyDienNangPhanKhangAQTong` decimal(18,4) DEFAULT NULL,
+            `ChiSoTichLuyDienNangTacDungAPBieuGioBTChieuNhan` decimal(18,4) DEFAULT NULL,
+            `ChiSoTichLuyDienNangTacDungAPBieuGioCDChieuNhan` decimal(18,4) DEFAULT NULL,
+            `ChiSoTichLuyDienNangTacDungAPBieuGioTDChieuNhan` decimal(18,4) DEFAULT NULL,
+            `ChiSoTichLuyDienNangTacDungAPTongChieuNhan` decimal(18,4) DEFAULT NULL,
+            `ChiSoTichLuyDienNangPhanKhangAQTongChieuNhan` decimal(18,4) DEFAULT NULL,
+            `ChiSoChotDienNangAPGioBT` decimal(18,4) DEFAULT NULL,
+            `ChiSoChotDienNangAPGioCD` decimal(18,4) DEFAULT NULL,
+            `ChiSoChotDienNangAPGioTD` decimal(18,4) DEFAULT NULL,
+            `ChiSoChotDienNangAPTong` decimal(18,4) DEFAULT NULL,
+            `ChiSoChotDienNangAQTong` decimal(18,4) DEFAULT NULL,
+            `ChiSoChotDienNangAPGioBTChieuNhan` decimal(18,4) DEFAULT NULL,
+            `ChiSoChotDienNangAPGioCDChieuNhan` decimal(18,4) DEFAULT NULL,
+            `ChiSoChotDienNangAPGioTDChieuNhan` decimal(18,4) DEFAULT NULL,
+            `ChiSoChotDienNangAPTongChieuNhan` decimal(18,4) DEFAULT NULL,
+            `ChiSoChotDienNangAQTongChieuNhan` decimal(18,4) DEFAULT NULL,
+            `PmaxKyHienTai` decimal(18,4) DEFAULT NULL,
+            `PmaxKyTruoc` decimal(18,4) DEFAULT NULL,
+            PRIMARY KEY (`MeasurementPointId`, `PartitionYm`, `RecordedAt`, `Id`),
+            KEY `IX_MeasurementPointTimeSeries_MeasurementPointId_RecordedAt` (`MeasurementPointId`, `RecordedAt`),
+            KEY `IX_MeasurementPointTimeSeries_RecordedAt` (`RecordedAt`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        PARTITION BY RANGE (`PartitionYm`) (
+            PARTITION `p_max` VALUES LESS THAN MAXVALUE
+        );",
+        "ALTER TABLE `MeasurementPointEvents` ADD COLUMN `ParameterCode` varchar(64) DEFAULT NULL;",
+        "ALTER TABLE `MeasurementPointEvents` MODIFY COLUMN `TagNameId` bigint DEFAULT NULL;",
+        "ALTER TABLE `MeasurementPointAlerts` ADD COLUMN `ParameterCode` varchar(64) DEFAULT NULL;",
+        "ALTER TABLE `MeasurementPointAlerts` MODIFY COLUMN `TagNameId` bigint DEFAULT NULL;",
+        "ALTER TABLE `MeasurementPointHalfHourOperatingReports` DROP COLUMN `DienApPhaAUnit`;",
+        "ALTER TABLE `MeasurementPointHalfHourOperatingReports` DROP COLUMN `DienApPhaBUnit`;",
+        "ALTER TABLE `MeasurementPointHalfHourOperatingReports` DROP COLUMN `DienApPhaCUnit`;",
+        "ALTER TABLE `MeasurementPointHalfHourOperatingReports` DROP COLUMN `DongDienPhaAUnit`;",
+        "ALTER TABLE `MeasurementPointHalfHourOperatingReports` DROP COLUMN `DongDienPhaBUnit`;",
+        "ALTER TABLE `MeasurementPointHalfHourOperatingReports` DROP COLUMN `DongDienPhaCUnit`;",
+        "ALTER TABLE `MeasurementPointHalfHourOperatingReports` DROP COLUMN `CongSuatTacDungTong3PhaUnit`;",
+        "ALTER TABLE `MeasurementPointHalfHourOperatingReports` DROP COLUMN `CongSuatPhanKhangTong3PhaUnit`;",
+        "ALTER TABLE `MeasurementPointHalfHourOperatingReports` DROP COLUMN `TanSoHeThongUnit`;"
+    };
+    foreach (var sql in phase1StartupDdlSqls)
+    {
+        try { await db.Database.ExecuteSqlRawAsync(sql); } catch { }
+    }
+    try
+    {
+        using var partitionScope = app.Services.CreateScope();
+        var partitionSvc = partitionScope.ServiceProvider.GetService<Application.Services.IPartitionManagementService>();
+        if (partitionSvc != null)
+        {
+            await partitionSvc.EnsureAndCleanupPartitionsAsync(monthsAhead: 3, retentionMonths: 12);
+        }
+    }
+    catch { }
     app.Logger.LogInformation("Đã kiểm tra và đảm bảo các bảng Email Config, Metering mới và Composite Indexes tồn tại.");
 
     var fixEncodingSqls = new[]

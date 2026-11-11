@@ -1,11 +1,10 @@
 using Application.DataTransferObjects.Requests.Report;
 using Application.DataTransferObjects.Responses.Report;
-using Domain.Entities;
-using Nobisoft.Core.Database.Repository;
+using Nobisoft.Core.Lifetimes;
 
 namespace Application.Repositories.ReadOnly;
 
-public interface IMeasurementPointMonitoringHourlyReadOnlyRepository : IRepository<MeasurementPointMonitoringHourlyEntity>
+public interface IMeasurementPointMonitoringHourlyReadOnlyRepository : ITransientDependency
 {
     Task<LoadChartResponse?> GetLoadChartAsync(LoadChartRequest request, CancellationToken cancellationToken);
     Task<VoltageChartResponse?> GetVoltageChartAsync(VoltageChartRequest request, CancellationToken cancellationToken);

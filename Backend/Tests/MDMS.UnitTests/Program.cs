@@ -22,7 +22,8 @@ public static class Program
         {
             typeof(MeteringCalculationTests),
             typeof(EmailSecurityAndConfigurationTests),
-            typeof(StatementPdfGeneratorTests)
+            typeof(StatementPdfGeneratorTests),
+            typeof(Phase1TelemetryAndPartitionTests)
         };
 
         int totalTests = 0;

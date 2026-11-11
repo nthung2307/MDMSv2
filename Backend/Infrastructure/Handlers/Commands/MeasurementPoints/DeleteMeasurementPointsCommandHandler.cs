@@ -4,6 +4,7 @@ using Application.Common.ValueObjects;
 using Application.DataTransferObjects.Responses.MeasurementPoints;
 using Application.Handlers.Commands.MeasurementPoints;
 using Application.Repositories.ReadWrite;
+using Application.Services;
 using Nobisoft.Core.Authorization.Interfaces;
 using Nobisoft.Core.Constants;
 using Nobisoft.Core.Domain.Entities;
@@ -16,12 +17,14 @@ public class DeleteMeasurementPointsCommandHandler : IDeleteMeasurementPointsCom
     private readonly ICurrentUserService _currentUserService;
     private readonly ILoggerService _loggerService;
     private readonly IMeasurementPointsReadWriteRepository _measurementPointsReadWriteRepository;
+    private readonly ITagRoutingCacheService _tagRoutingCacheService;
 
-    public DeleteMeasurementPointsCommandHandler(ICurrentUserService currentUserService, ILoggerService loggerService, IMeasurementPointsReadWriteRepository measurementPointsReadWriteRepository)
+    public DeleteMeasurementPointsCommandHandler(ICurrentUserService currentUserService, ILoggerService loggerService, IMeasurementPointsReadWriteRepository measurementPointsReadWriteRepository, ITagRoutingCacheService tagRoutingCacheService)
     {
         _currentUserService = currentUserService;
         _loggerService = loggerService;
         _measurementPointsReadWriteRepository = measurementPointsReadWriteRepository;
+        _tagRoutingCacheService = tagRoutingCacheService;
     }
 
     public async Task<RequestResult<MeasurementPointResponse>> Handle(DeleteMeasurementPointsCommand command, CancellationToken cancellationToken)
@@ -70,6 +73,7 @@ public class DeleteMeasurementPointsCommandHandler : IDeleteMeasurementPointsCom
 
             // Save all changes
             await _measurementPointsReadWriteRepository.SaveChangesAsync(cancellationToken);
+            _tagRoutingCacheService.Invalidate();
             return RequestResult<MeasurementPointResponse>.Succeed(new MeasurementPointResponse());
         } catch (Exception ex)
         {

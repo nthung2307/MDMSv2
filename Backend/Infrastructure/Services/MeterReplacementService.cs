@@ -20,19 +20,22 @@ public class MeterReplacementService : IMeterReplacementService
     private readonly IMeasurementPointsReadWriteRepository _pointsRepo;
     private readonly ISnowflakeIdService _snowflakeIdService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly ITagRoutingCacheService? _tagRoutingCacheService;
 
     public MeterReplacementService(
         IMeterReplacementReadOnlyRepository readOnlyRepo,
         IMeterReplacementReadWriteRepository readWriteRepo,
         IMeasurementPointsReadWriteRepository pointsRepo,
         ISnowflakeIdService snowflakeIdService,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        ITagRoutingCacheService? tagRoutingCacheService = null)
     {
         _readOnlyRepo = readOnlyRepo;
         _readWriteRepo = readWriteRepo;
         _pointsRepo = pointsRepo;
         _snowflakeIdService = snowflakeIdService;
         _currentUserService = currentUserService;
+        _tagRoutingCacheService = tagRoutingCacheService;
     }
 
     public async Task<OffsetPaginationResponse<MeterReplacementDto>> GetListAsync(
@@ -158,6 +161,7 @@ public class MeterReplacementService : IMeterReplacementService
                 point.IsNewChange = true;
                 await _pointsRepo.UpdateAsync(point, cancellationToken);
                 await _pointsRepo.SaveChangesAsync(cancellationToken);
+                _tagRoutingCacheService?.Invalidate();
             }
         }
 
@@ -201,6 +205,7 @@ public class MeterReplacementService : IMeterReplacementService
             point.IsNewChange = true;
             await _pointsRepo.UpdateAsync(point, cancellationToken);
             await _pointsRepo.SaveChangesAsync(cancellationToken);
+            _tagRoutingCacheService?.Invalidate();
         }
 
         var refreshed = await _readOnlyRepo.GetByIdWithPointAsync(id, cancellationToken);

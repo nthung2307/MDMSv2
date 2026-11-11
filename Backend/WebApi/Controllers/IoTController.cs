@@ -385,7 +385,7 @@ public class IoTController : ControllerBase
         }
         catch (Exception e)
         {
-            _loggerService.LogError(e, nameof(ReceiveDataAsync));
+            _loggerService.LogError(e, nameof(ReceiveDataByDateTimeAsync));
             throw;
         }
     }
@@ -413,7 +413,7 @@ public class IoTController : ControllerBase
         }
         catch (Exception e)
         {
-            _loggerService.LogError(e, nameof(ReceiveDataAsync));
+            _loggerService.LogError(e, nameof(ReceiveDataAlertAsync));
             throw;
         }
     }

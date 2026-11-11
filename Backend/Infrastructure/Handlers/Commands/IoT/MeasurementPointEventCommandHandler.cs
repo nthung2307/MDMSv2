@@ -1,15 +1,16 @@
-using System.Text.Json;
 using Application.Commands.IoT;
 using Application.Common.Responses.Common.Responses;
-using Application.DataTransferObjects.Requests.MeasurementPoints;
 using Application.DataTransferObjects.Responses.IoT;
 using Application.DataTransferObjects.Responses.MeasurementPointMonitoring;
 using Application.Handlers.Commands.IoT;
 using Application.Repositories.ReadOnly;
 using Application.Repositories.ReadWrite;
+using Application.Services;
 using Domain.Entities;
+using Infrastructure.Helpers;
 using Infrastructure.Services;
 using Microsoft.AspNetCore.SignalR;
+using Nobisoft.Core.Constants;
 using Nobisoft.Core.Interfaces;
 using Nobisoft.Core.Logger.Interfaces;
 
@@ -17,332 +18,336 @@ namespace Infrastructure.Handlers.Commands.IoT;
 
 public class MeasurementPointEventCommandHandler : IMeasurementPointEventCommandHandlers
 {
+    private readonly ITagRoutingCacheService _tagRoutingCacheService;
+    private readonly IBufferedTelemetryIngestionService _bufferedIngestionService;
     private readonly ILoggerService _loggerService;
     private readonly IMeasurementPointEventReadWriteRepository _measurementPointEventReadWriteRepository;
     private readonly ISnowflakeIdService _snowflakeIdService;
-    private readonly IMeasurementPointsReadOnlyRepository _measurementPointsReadOnlyRepository;
     private readonly IMeasurementPointAlertReadWriteRepository _measurementPointAlertReadWriteRepository;
     private readonly ITagNameReadWriteRepository _tagNameReadWriteRepository;
     private readonly IHubContext<NotificationEventHub> _notificationEventHub;
     private readonly IMeasurementPointAlertReadOnlyRepository _measurementPointAlertReadOnlyRepository;
-    private readonly IMeasurementPointByStatusReadWriteRepository _measurementPointByStatusReadWriteRepository;
 
     public MeasurementPointEventCommandHandler(
+        ITagRoutingCacheService tagRoutingCacheService,
+        IBufferedTelemetryIngestionService bufferedIngestionService,
         ILoggerService loggerService,
         IMeasurementPointEventReadWriteRepository measurementPointEventReadWriteRepository,
         ISnowflakeIdService snowflakeIdService,
-        IMeasurementPointsReadOnlyRepository measurementPointsReadOnlyRepository,
         IMeasurementPointAlertReadWriteRepository measurementPointAlertReadWriteRepository,
         ITagNameReadWriteRepository tagNameReadWriteRepository,
         IHubContext<NotificationEventHub> notificationEventHub,
-        IMeasurementPointAlertReadOnlyRepository measurementPointAlertReadOnlyRepository,
-        IMeasurementPointByStatusReadWriteRepository measurementPointByStatusReadWriteRepository)
+        IMeasurementPointAlertReadOnlyRepository measurementPointAlertReadOnlyRepository)
     {
+        _tagRoutingCacheService = tagRoutingCacheService;
+        _bufferedIngestionService = bufferedIngestionService;
         _loggerService = loggerService;
         _measurementPointEventReadWriteRepository = measurementPointEventReadWriteRepository;
         _snowflakeIdService = snowflakeIdService;
-        _measurementPointsReadOnlyRepository = measurementPointsReadOnlyRepository;
         _measurementPointAlertReadWriteRepository = measurementPointAlertReadWriteRepository;
         _tagNameReadWriteRepository = tagNameReadWriteRepository;
         _notificationEventHub = notificationEventHub;
         _measurementPointAlertReadOnlyRepository = measurementPointAlertReadOnlyRepository;
-        _measurementPointByStatusReadWriteRepository = measurementPointByStatusReadWriteRepository;
     }
 
-    public async Task<RequestResult<MeasurementPointMonitoringResponse>> Handle(MeasurementPointEventCommand request, CancellationToken cancellationToken)
+    public async Task<RequestResult<MeasurementPointMonitoringResponse>> Handle(
+        MeasurementPointEventCommand request,
+        CancellationToken cancellationToken)
     {
         try
         {
-            if (request?.Request?.Values == null)
+            if (request.Request?.Values == null || request.Request.Values.Count == 0)
             {
                 return RequestResult<MeasurementPointMonitoringResponse>.Succeed(new MeasurementPointMonitoringResponse());
             }
 
-            var viewListEventDto = new List<MeasurementPointEventDto>();
-            var viewListMeasurementPointAlertDto = new List<MeasurementPointAlertDto>();
-            var hasRemovedAlert = false;
-            var measurementPoints = await _measurementPointsReadOnlyRepository.GetListMeasurementPointAsync(cancellationToken);
-
-            var measurementPointIds = measurementPoints.Select(mp => mp.Id).ToList();
-
-            var tagNameEntities = await _tagNameReadWriteRepository
-                .GetTagNamesForMeasurementPointsAsync(measurementPointIds, cancellationToken);
-
-            var measurementPointsAlertEntities = await _measurementPointAlertReadWriteRepository
-                .GetAlertsForMeasurementPointsAsync(measurementPointIds, cancellationToken);
-
-            // Smart Upsert: Lấy bản ghi trạng thái hiện hành của từng cặp (MeasurementPointId, TagNameDescription)
-            var latestStatusMap = await _measurementPointByStatusReadWriteRepository
-                .GetLatestStatusRecordsAsync(measurementPointIds, cancellationToken);
-
-            var tagNameDictionary = tagNameEntities
-                .GroupBy(x => x.MeasurementPointId)
-                .ToDictionary(g => g.Key, g => g.ToList());
-
-            var measurementPointAlertDictionary = measurementPointsAlertEntities
-                .GroupBy(x => x.MeasurementPointId)
-                .ToDictionary(g => g.Key, g => g.ToList());
-            var groupId = await _snowflakeIdService.GenerateId(cancellationToken);
-
-            foreach (var measurementPoint in measurementPoints)
+            var tagMap = await _tagRoutingCacheService.GetTagMapAsync(cancellationToken);
+            if (tagMap.Count == 0)
             {
-                var tagNames = tagNameDictionary.GetValueOrDefault(measurementPoint.Id) ?? new List<TagNameEntity>();
-                var alerts = measurementPointAlertDictionary.GetValueOrDefault(measurementPoint.Id) ?? new List<MeasurementPointsAlertEntity>();
+                return RequestResult<MeasurementPointMonitoringResponse>.Succeed(new MeasurementPointMonitoringResponse());
+            }
 
-                foreach (var tagName in tagNames)
+            // Collect matched entries only; sort stably by timestamp so buffered Kepware packets evaluate in chronological order
+            var matchedEntries = new List<MatchedStatusEntry>();
+            var pointIds = new HashSet<long>();
+
+            foreach (var iotVal in request.Request.Values)
+            {
+                if (iotVal == null ||
+                    string.IsNullOrWhiteSpace(iotVal.Id) ||
+                    !tagMap.TryGetValue(iotVal.Id.Trim(), out var tagEntry))
                 {
-                    var iotDataValue = request.Request.Values.OrderByDescending(x => x.T).FirstOrDefault(v => v != null && v.Id == tagName.TagName);
+                    continue;
+                }
 
-                    if (iotDataValue != null)
+                var convertedValue = IoTPacketParserHelper.ConvertToString((object?)iotVal.V);
+                if (string.IsNullOrEmpty(convertedValue) || string.Equals(convertedValue, "null", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var quality = IoTPacketParserHelper.ParseQuality((object?)iotVal.Q);
+                var parsedBool = IoTPacketParserHelper.TryGetBoolean((object?)iotVal.V);
+                var recordTime = iotVal.T > 0
+                    ? DateTimeOffset.FromUnixTimeMilliseconds(iotVal.T)
+                    : DateTimeOffset.UtcNow;
+
+                matchedEntries.Add(new MatchedStatusEntry(tagEntry, iotVal.T, recordTime, convertedValue, quality, parsedBool));
+                pointIds.Add(tagEntry.MeasurementPointId);
+            }
+
+            if (matchedEntries.Count == 0)
+            {
+                return RequestResult<MeasurementPointMonitoringResponse>.Succeed(new MeasurementPointMonitoringResponse());
+            }
+
+            var orderedEntries = matchedEntries.Count > 1
+                ? matchedEntries.OrderBy(e => e.TimestampMs).ToList()
+                : matchedEntries;
+
+            var pointIdList = pointIds.ToList();
+            var tagEntities = await _tagNameReadWriteRepository.GetTagNamesForMeasurementPointsAsync(pointIdList, cancellationToken);
+            var tagEntityById = tagEntities.ToDictionary(t => t.Id, t => t);
+
+            var alerts = await _measurementPointAlertReadWriteRepository.GetAlertsForMeasurementPointsAsync(pointIdList, cancellationToken);
+            var pendingNewAlerts = new Dictionary<long, MeasurementPointsAlertEntity>();
+            var dirtyTags = new Dictionary<long, TagNameEntity>();
+
+            var hasEvent = false;
+            var hasAddedAlert = false;
+            var hasRemovedAlert = false;
+            var statusBatches = new Dictionary<long, (string Code, DateTimeOffset LatestTs, Dictionary<string, TelemetryTagSample> LatestSamples)>();
+
+            foreach (var item in orderedEntries)
+            {
+                UpdateStatusBatch(statusBatches, item);
+
+                if (!tagEntityById.TryGetValue(item.Tag.TagNameId, out var tagEntity))
+                {
+                    continue;
+                }
+
+                var eventDisplayName = string.Equals(item.Tag.Description, ListDataMeasurementPoint.MatKetNoi, StringComparison.OrdinalIgnoreCase)
+                    ? "Trạng thái kết nối"
+                    : item.Tag.CustomName;
+
+                if (!item.ParsedBool && item.ParsedBool != tagEntity.WarningValue)
+                {
+                    await AddEventAsync(item, eventDisplayName, "NORMAL", cancellationToken);
+                    hasEvent = true;
+
+                    tagEntity.WarningValue = false;
+                    dirtyTags[tagEntity.Id] = tagEntity;
+
+                    hasRemovedAlert |= await ClearMatchingAlertsAsync(alerts, pendingNewAlerts, tagEntity.Id, item.Tag, cancellationToken);
+                }
+                else if (!item.ParsedBool && item.ParsedBool == tagEntity.WarningValue)
+                {
+                    hasRemovedAlert |= await ClearMatchingAlertsAsync(alerts, pendingNewAlerts, tagEntity.Id, item.Tag, cancellationToken);
+                }
+                else if (item.ParsedBool && item.ParsedBool != tagEntity.WarningValue)
+                {
+                    await AddEventAsync(item, eventDisplayName, "ALARM", cancellationToken);
+                    hasEvent = true;
+
+                    var existingAlert = FindMatchingAlert(alerts, tagEntity.Id, item.Tag);
+                    if (existingAlert != null)
                     {
-                        var convertedValue = ConvertToString(iotDataValue.V);
-                        if (string.IsNullOrEmpty(convertedValue) || convertedValue == "null")
+                        existingAlert.Value = item.ConvertedVal;
+                        existingAlert.Quanlity = item.Quality;
+                        existingAlert.Status = "ALARM";
+                        existingAlert.ParameterCode ??= item.Tag.Description;
+                        existingAlert.CreatedTime = item.RecordTime;
+                        if (!pendingNewAlerts.ContainsKey(tagEntity.Id))
                         {
-                            _loggerService.LogInformation($"Skipping event record with empty value for TagName: {tagName.TagName}, MeasurementPoint: {measurementPoint.Code}");
-                            continue;
-                        }
-
-                        var parsedQuality = ParseQuality(iotDataValue.Q);
-                        var recordTime = DateTimeOffset.FromUnixTimeMilliseconds(iotDataValue.T);
-
-                        // Smart Upsert cho bảng trạng thái hiện hành (MeasurementPointMonitoringByStatusEntity)
-                        if (!string.IsNullOrEmpty(tagName.Description)
-                            && latestStatusMap.TryGetValue((measurementPoint.Id, tagName.Description), out var existingStatus)
-                            && existingStatus != null)
-                        {
-                            existingStatus.Value = convertedValue;
-                            existingStatus.Quanlity = parsedQuality;
-                            existingStatus.GroupId = groupId;
-                            existingStatus.TagNameId = tagName.Id;
-                            existingStatus.CreatedTime = recordTime;
-                        }
-                        else
-                        {
-                            var measurementPointDataByStatus = new MeasurementPointMonitoringByStatusEntity()
-                            {
-                                Id = await _snowflakeIdService.GenerateId(cancellationToken),
-                                MeasurementPointId = measurementPoint.Id,
-                                TagNameId = tagName.Id,
-                                TagNameDescription = tagName.Description,
-                                Value = convertedValue,
-                                Quanlity = parsedQuality,
-                                GroupId = groupId,
-                                CreatedTime = recordTime
-                            };
-
-                            await _measurementPointByStatusReadWriteRepository.AddAsync(measurementPointDataByStatus, cancellationToken);
-                            if (!string.IsNullOrEmpty(tagName.Description))
-                            {
-                                latestStatusMap[(measurementPoint.Id, tagName.Description)] = measurementPointDataByStatus;
-                            }
-                        }
-
-                        var parsedV = TryGetBooleanFromJsonElement(iotDataValue.V);
-
-                        if (!parsedV && parsedV != tagName.WarningValue)
-                        {
-                            var measurementPointData = new MeasurementPointsEventEntity()
-                            {
-                                Id = await _snowflakeIdService.GenerateId(cancellationToken),
-                                MeasurementPointId = measurementPoint.Id,
-                                TagNameId = tagName.Id,
-                                EventName = tagName.Description == "MAT_KET_NOI" ? "Trạng thái kết nối" : tagName.CustomName,
-                                Value = convertedValue,
-                                Quanlity = parsedQuality,
-                                Status = !parsedV ? "NORMAL" : "ALARM",
-                                CreatedTime = recordTime
-                            };
-
-                            await _measurementPointEventReadWriteRepository.AddAsync(measurementPointData, cancellationToken);
-                            
-                            tagName.WarningValue = false;
-                            await _tagNameReadWriteRepository.UpdateAsync(tagName, cancellationToken);
-
-                            // Remove existing alert if it exists
-                            var existingAlerts = alerts.Where(a => a.TagNameId == tagName.Id).ToList();
-                            foreach (var alert in existingAlerts)
-                            {
-                                await _measurementPointAlertReadWriteRepository.RemoveAsync(alert, cancellationToken);
-                                alerts.Remove(alert);
-                                hasRemovedAlert = true;
-                            }
-                            
-                            var dto = new MeasurementPointEventDto()
-                            {
-                                MeasurementPointsId = measurementPoint.Id,
-                                MeasurementPointCode = measurementPoint.Code,
-                                CustomerName = measurementPoint.Customer?.FullName ?? string.Empty,
-                                EventName = tagName.Description == "MAT_KET_NOI" ? "Trạng thái kết nối" : tagName.CustomName,
-                                Status = !parsedV ? "NORMAL" : "ALARM",
-                                Quanlity = parsedQuality,
-                                Value = convertedValue,
-                                CreatedTime = recordTime,
-                            };
-                            viewListEventDto.Add(dto);
-                        }
-                        else if (!parsedV && parsedV == tagName.WarningValue)
-                        {
-                            // Clean up any stale alert records if tag is already NORMAL
-                            var staleAlerts = alerts.Where(a => a.TagNameId == tagName.Id).ToList();
-                            foreach (var staleAlert in staleAlerts)
-                            {
-                                await _measurementPointAlertReadWriteRepository.RemoveAsync(staleAlert, cancellationToken);
-                                alerts.Remove(staleAlert);
-                                hasRemovedAlert = true;
-                            }
-                        }
-
-                        if (parsedV && parsedV != tagName.WarningValue)
-                        {
-                            var measurementPointData = new MeasurementPointsEventEntity()
-                            {
-                                Id = await _snowflakeIdService.GenerateId(cancellationToken),
-                                MeasurementPointId = measurementPoint.Id,
-                                TagNameId = tagName.Id,
-                                EventName = tagName.Description == "MAT_KET_NOI" ? "Trạng thái kết nối" : tagName.CustomName,
-                                Value = convertedValue,
-                                Quanlity = parsedQuality,
-                                Status = !parsedV ? "NORMAL" : "ALARM",
-                                CreatedTime = recordTime
-                            };
-
-                            await _measurementPointEventReadWriteRepository.AddAsync(measurementPointData, cancellationToken);
-
-                            // Check if alert already exists for this measurement point and tag name
-                            var existingAlert = alerts.FirstOrDefault(a => a.TagNameId == tagName.Id);
-                            
-                            // Only create new alert if no existing alert for this tag
-                            if (existingAlert == null)
-                            {
-                                var measurementPointAlert = new MeasurementPointsAlertEntity()
-                                {
-                                    Id = await _snowflakeIdService.GenerateId(cancellationToken),
-                                    MeasurementPointId = measurementPoint.Id,
-                                    TagNameId = tagName.Id,
-                                    EventName = tagName.Description == "MAT_KET_NOI" ? "Trạng thái kết nối" : tagName.CustomName,
-                                    Value = convertedValue,
-                                    Quanlity = parsedQuality,
-                                    Status = "ALARM",
-                                    CreatedTime = recordTime
-                                };
-                                await _measurementPointAlertReadWriteRepository.AddAsync(measurementPointAlert, cancellationToken);
-                                alerts.Add(measurementPointAlert);
-
-                                var listAlert = new MeasurementPointAlertDto()
-                                {
-                                    MeasurementPointsId = measurementPoint.Id,
-                                    MeasurementPointCode = measurementPoint.Code,
-                                    CustomerName = measurementPoint.Customer?.FullName ?? string.Empty,
-                                    EventName = tagName.Description == "MAT_KET_NOI" ? "Trạng thái kết nối" : tagName.CustomName,
-                                    Status = "ALARM",
-                                    Value = convertedValue,
-                                    Quanlity = parsedQuality,
-                                    CreatedTime = recordTime,
-                                };
-                                viewListMeasurementPointAlertDto.Add(listAlert);
-                            }
-
-                            tagName.WarningValue = true;
-                            await _tagNameReadWriteRepository.UpdateAsync(tagName, cancellationToken);
-
-                            var dto = new MeasurementPointEventDto()
-                            {
-                                MeasurementPointsId = measurementPoint.Id,
-                                MeasurementPointCode = measurementPoint.Code,
-                                CustomerName = measurementPoint.Customer?.FullName ?? string.Empty,
-                                EventName = tagName.Description == "MAT_KET_NOI" ? "Trạng thái kết nối" : tagName.CustomName,
-                                Status = !parsedV ? "NORMAL" : "ALARM",
-                                Value = convertedValue,
-                                Quanlity = parsedQuality,
-                                CreatedTime = recordTime,
-                            };
-                            viewListEventDto.Add(dto);
-                        }
-                        else if (parsedV && parsedV == tagName.WarningValue)
-                        {
-                            // Value is true and alert already exists - do nothing
-                            _loggerService.LogInformation($"Alert already exists for MeasurementPoint: {measurementPoint.Code}, TagName: {tagName.TagName}, Value: {convertedValue}");
+                            await _measurementPointAlertReadWriteRepository.UpdateAsync(existingAlert, cancellationToken);
                         }
                     }
+                    else
+                    {
+                        var alertEntity = new MeasurementPointsAlertEntity
+                        {
+                            Id = await _snowflakeIdService.GenerateId(cancellationToken),
+                            MeasurementPointId = item.Tag.MeasurementPointId,
+                            TagNameId = item.Tag.TagNameId,
+                            ParameterCode = item.Tag.Description,
+                            EventName = eventDisplayName ?? item.Tag.Description,
+                            Value = item.ConvertedVal,
+                            Quanlity = item.Quality,
+                            Status = "ALARM",
+                            CreatedTime = item.RecordTime
+                        };
+                        pendingNewAlerts[tagEntity.Id] = alertEntity;
+                        alerts.Add(alertEntity);
+                    }
+
+                    tagEntity.WarningValue = true;
+                    dirtyTags[tagEntity.Id] = tagEntity;
                 }
+            }
+
+            // Persist only alerts that remained active at the end of the packet (avoids RestfulRepository Attach+Remove deleting unsaved rows)
+            foreach (var pendingAlert in pendingNewAlerts.Values)
+            {
+                await _measurementPointAlertReadWriteRepository.AddAsync(pendingAlert, cancellationToken);
+                hasAddedAlert = true;
+            }
+
+            foreach (var dirtyTag in dirtyTags.Values)
+            {
+                await _tagNameReadWriteRepository.UpdateAsync(dirtyTag, cancellationToken);
+            }
+
+            foreach (var kvp in statusBatches)
+            {
+                await _bufferedIngestionService.EnqueueAsync(new TelemetryIngestionItem
+                {
+                    MeasurementPointId = kvp.Key,
+                    MeasurementPointCode = kvp.Value.Code,
+                    Timestamp = kvp.Value.LatestTs,
+                    WriteTimeSeries = false,
+                    SourcePacketType = 2,
+                    Samples = kvp.Value.LatestSamples.Values.ToList()
+                }, cancellationToken);
             }
 
             await _measurementPointEventReadWriteRepository.SaveChangesAsync(cancellationToken);
             await _measurementPointAlertReadWriteRepository.SaveChangesAsync(cancellationToken);
             await _tagNameReadWriteRepository.SaveChangesAsync(cancellationToken);
-            await _measurementPointByStatusReadWriteRepository.SaveChangesAsync(cancellationToken);
 
-            if (viewListEventDto.Count > 0)
-                await _notificationEventHub.Clients.All.SendAsync("ReceiveEvent", "New Event", cancellationToken: cancellationToken);
-            if (viewListMeasurementPointAlertDto.Count > 0)
-                await _notificationEventHub.Clients.All.SendAsync("ReceiveAlert", "New Alert", cancellationToken: cancellationToken);
-            else if (hasRemovedAlert)
-                await _notificationEventHub.Clients.All.SendAsync("ReceiveAlert", "Clear Alert", cancellationToken: cancellationToken);
-            var countMeasurementPoint = await _measurementPointAlertReadOnlyRepository.CountMeasurementPointAlert(cancellationToken);
-            await _notificationEventHub.Clients.All.SendAsync("CountAlert", countMeasurementPoint, cancellationToken: cancellationToken);
+            await TryBroadcastNotificationsAsync(hasEvent, hasAddedAlert, hasRemovedAlert, cancellationToken);
 
             return RequestResult<MeasurementPointMonitoringResponse>.Succeed(new MeasurementPointMonitoringResponse());
         }
-        catch (Exception e)
+        catch (Exception ex)
         {
-            _loggerService.LogError(e, nameof(Handle));
+            _loggerService.LogError(ex, nameof(MeasurementPointEventCommandHandler));
             throw;
         }
     }
 
-    private static bool ParseQuality(string? q)
+    private sealed record MatchedStatusEntry(
+        TagRoutingEntry Tag,
+        long TimestampMs,
+        DateTimeOffset RecordTime,
+        string ConvertedVal,
+        bool Quality,
+        bool ParsedBool);
+
+    private static void UpdateStatusBatch(
+        Dictionary<long, (string Code, DateTimeOffset LatestTs, Dictionary<string, TelemetryTagSample> LatestSamples)> statusBatches,
+        MatchedStatusEntry item)
     {
-        if (string.IsNullOrWhiteSpace(q)) return true;
-        if (bool.TryParse(q, out var bVal)) return bVal;
-        var trimmed = q.Trim();
-        if (trimmed == "1" || trimmed == "192" || trimmed.Equals("Good", StringComparison.OrdinalIgnoreCase)) return true;
-        if (trimmed == "0" || trimmed.Equals("Bad", StringComparison.OrdinalIgnoreCase)) return false;
-        return true;
+        if (!statusBatches.TryGetValue(item.Tag.MeasurementPointId, out var statusBatch))
+        {
+            statusBatch = (
+                item.Tag.MeasurementPointCode,
+                item.RecordTime,
+                new Dictionary<string, TelemetryTagSample>(StringComparer.OrdinalIgnoreCase));
+        }
+        else if (item.RecordTime > statusBatch.LatestTs)
+        {
+            statusBatch.LatestTs = item.RecordTime;
+        }
+
+        statusBatch.LatestSamples[item.Tag.Description] = new TelemetryTagSample
+        {
+            Description = item.Tag.Description,
+            BoolValue = item.ParsedBool,
+            Quality = item.Quality,
+            Timestamp = item.RecordTime
+        };
+        statusBatches[item.Tag.MeasurementPointId] = statusBatch;
     }
 
-    public static string ConvertToString(object value)
+    private async Task AddEventAsync(
+        MatchedStatusEntry item,
+        string? eventDisplayName,
+        string status,
+        CancellationToken cancellationToken)
     {
-        if (value == null)
+        var eventEntity = new MeasurementPointsEventEntity
         {
-            return "null";
-        }
-
-        return value switch
-        {
-            double d => d.ToString(),
-            float f => f.ToString(),
-            long l => l.ToString(),
-            bool b => b.ToString(),
-            string s => s,
-            _ => value.ToString()
-        } ?? string.Empty;
+            Id = await _snowflakeIdService.GenerateId(cancellationToken),
+            MeasurementPointId = item.Tag.MeasurementPointId,
+            TagNameId = item.Tag.TagNameId,
+            ParameterCode = item.Tag.Description,
+            EventName = eventDisplayName,
+            Value = item.ConvertedVal,
+            Quanlity = item.Quality,
+            Status = status,
+            CreatedTime = item.RecordTime
+        };
+        await _measurementPointEventReadWriteRepository.AddAsync(eventEntity, cancellationToken);
     }
 
-    private bool TryGetBooleanFromJsonElement(JsonElement value)
+    private static MeasurementPointsAlertEntity? FindMatchingAlert(
+        List<MeasurementPointsAlertEntity> alerts,
+        long tagEntityId,
+        TagRoutingEntry tag)
     {
-        if (value.ValueKind == JsonValueKind.True)
+        return alerts.FirstOrDefault(a =>
+            a.TagNameId == tagEntityId ||
+            (a.TagNameId == null &&
+             a.MeasurementPointId == tag.MeasurementPointId &&
+             string.Equals(a.ParameterCode, tag.Description, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private async Task<bool> ClearMatchingAlertsAsync(
+        List<MeasurementPointsAlertEntity> alerts,
+        Dictionary<long, MeasurementPointsAlertEntity> pendingNewAlerts,
+        long tagEntityId,
+        TagRoutingEntry tag,
+        CancellationToken cancellationToken)
+    {
+        var matchingAlerts = alerts
+            .Where(a =>
+                a.TagNameId == tagEntityId ||
+                (a.TagNameId == null &&
+                 a.MeasurementPointId == tag.MeasurementPointId &&
+                 string.Equals(a.ParameterCode, tag.Description, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        var removedAny = false;
+        foreach (var alert in matchingAlerts)
         {
-            return true;
-        }
-        else if (value.ValueKind == JsonValueKind.False)
-        {
-            return false;
-        }
-        else if (value.ValueKind == JsonValueKind.Number)
-        {
-            if (value.TryGetDouble(out var d))
+            if (pendingNewAlerts.TryGetValue(tagEntityId, out var pendingAlert) && ReferenceEquals(pendingAlert, alert))
             {
-                return Math.Abs(d) > 1e-6;
+                pendingNewAlerts.Remove(tagEntityId);
             }
+            else
+            {
+                await _measurementPointAlertReadWriteRepository.RemoveAsync(alert, cancellationToken);
+                removedAny = true;
+            }
+
+            alerts.Remove(alert);
         }
-        else if (value.ValueKind == JsonValueKind.String)
+
+        return removedAny;
+    }
+
+    private async Task TryBroadcastNotificationsAsync(
+        bool hasEvent,
+        bool hasAddedAlert,
+        bool hasRemovedAlert,
+        CancellationToken cancellationToken)
+    {
+        try
         {
-            var str = value.GetString()?.Trim();
-            if (string.IsNullOrEmpty(str)) return false;
-            if (bool.TryParse(str, out bool result)) return result;
-            if (str == "1" || str.Equals("ALARM", StringComparison.OrdinalIgnoreCase)) return true;
-            if (str == "0" || str.Equals("NORMAL", StringComparison.OrdinalIgnoreCase)) return false;
+            if (hasEvent)
+                await _notificationEventHub.Clients.All.SendAsync("ReceiveEvent", "New Event", cancellationToken);
+            if (hasAddedAlert)
+                await _notificationEventHub.Clients.All.SendAsync("ReceiveAlert", "New Alert", cancellationToken);
+            if (hasRemovedAlert)
+                await _notificationEventHub.Clients.All.SendAsync("ReceiveAlert", "Clear Alert", cancellationToken);
+
+            var alertCount = await _measurementPointAlertReadOnlyRepository.CountMeasurementPointAlert(cancellationToken);
+            await _notificationEventHub.Clients.All.SendAsync("CountAlert", alertCount, cancellationToken);
         }
-        return false;
+        catch (Exception ex)
+        {
+            _loggerService.LogWarning(ex, nameof(TryBroadcastNotificationsAsync));
+        }
     }
 }

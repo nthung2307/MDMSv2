@@ -38,7 +38,7 @@ public class MeasurementPointDailyEnergyReportReadOnlyRepository :
             .Where(m => m.MeasurementPoint.CustomerId == request.CustomerId)
             .Where(m => m.MeasurementPointId == request.MeasurementPointId)
             .Where(m => m.CreatedTime >= startTime && m.CreatedTime < endTime)
-            .PaginateWithAscAndAsync<MeasurementPointDailyEnergyReportEntity, FinalizedEnergyReportResponse>(request, _mapper, cancellationToken);
+            .PaginateWithAscMappedAsync<MeasurementPointDailyEnergyReportEntity, FinalizedEnergyReportResponse>(request, _mapper, cancellationToken);
         return result;
     }
 

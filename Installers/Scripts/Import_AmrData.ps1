@@ -291,7 +291,9 @@ SELECT 'ENERGY_REPORTS_DAILY', COUNT(*) FROM measurementpointdailyenergyreports
 UNION ALL
 SELECT 'ENERGY_REPORTS_HALFHOUR', COUNT(*) FROM measurementpointhalfhourenergyreports
 UNION ALL
-SELECT 'TELEMETRY_MONITORING', COUNT(*) FROM measurementpointmonitoring
+SELECT 'CURRENT_SNAPSHOTS', COUNT(*) FROM measurementpointcurrentsnapshots
+UNION ALL
+SELECT 'TIME_SERIES_ROWS', COUNT(*) FROM measurementpointtimeseries
 UNION ALL
 SELECT 'USERS', COUNT(*) FROM users;
 "@

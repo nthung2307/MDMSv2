@@ -4,6 +4,7 @@ using Application.Common.ValueObjects;
 using Application.DataTransferObjects.Responses.TagName;
 using Application.Handlers.Commands.TagName;
 using Application.Repositories.ReadWrite;
+using Application.Services;
 using Nobisoft.Core.Authorization.Interfaces;
 using Nobisoft.Core.Constants;
 using Nobisoft.Core.Logger.Interfaces;
@@ -15,13 +16,14 @@ public class DeleteTagNameCommandHandler : IDeleteTagNameCommandHandler
     private readonly ITagNameReadWriteRepository _tagNameReadWriteRepository;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILoggerService _loggerService;
+    private readonly ITagRoutingCacheService _tagRoutingCacheService;
 
-
-    public DeleteTagNameCommandHandler(ICurrentUserService currentUserService, ITagNameReadWriteRepository tagNameReadWriteRepository, ILoggerService loggerService)
+    public DeleteTagNameCommandHandler(ICurrentUserService currentUserService, ITagNameReadWriteRepository tagNameReadWriteRepository, ILoggerService loggerService, ITagRoutingCacheService tagRoutingCacheService)
     {
         _currentUserService = currentUserService;
         _tagNameReadWriteRepository = tagNameReadWriteRepository;
         _loggerService = loggerService;
+        _tagRoutingCacheService = tagRoutingCacheService;
     }
 
     public async Task<RequestResult<TagNameResponse>> Handle(DeleteTagNameCommand command, CancellationToken cancellationToken)
@@ -57,6 +59,7 @@ public class DeleteTagNameCommandHandler : IDeleteTagNameCommandHandler
             
             await _tagNameReadWriteRepository.UpdateAsync(profile, cancellationToken);
             await _tagNameReadWriteRepository.SaveChangesAsync(cancellationToken);
+            _tagRoutingCacheService.Invalidate();
             return RequestResult<TagNameResponse>.Succeed(new TagNameResponse());
         } catch (Exception ex)
         {

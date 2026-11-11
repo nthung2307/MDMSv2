@@ -13,6 +13,7 @@ public class MeasurementPointHalfHourOperatingReportConfiguration : IEntityTypeC
         builder.Property(r => r.Id).ValueGeneratedNever();
         builder.HasIndex(x => x.CreatedTime);
         builder.HasIndex(x => x.MeasurementPointId);
+        builder.HasIndex(x => new { x.MeasurementPointId, x.CreatedTime }).IsUnique();
 
         builder.HasOne(x => x.MeasurementPoint)
             .WithMany()

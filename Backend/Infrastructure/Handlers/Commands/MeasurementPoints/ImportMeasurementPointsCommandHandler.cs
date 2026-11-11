@@ -4,6 +4,7 @@ using Application.Common.ValueObjects;
 using Application.DataTransferObjects.Responses.MeasurementPoints;
 using Application.Handlers.Commands.MeasurementPoints;
 using Application.Repositories.ReadWrite;
+using Application.Services;
 using Nobisoft.Core.Authorization.Interfaces;
 using Nobisoft.Core.Logger.Interfaces;
 
@@ -14,15 +15,18 @@ public class ImportMeasurementPointsCommandHandler : IImportMeasurementPointsCom
     private readonly IMeasurementPointsReadWriteRepository _measurementPointsReadWriteRepository;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILoggerService _loggerService;
+    private readonly ITagRoutingCacheService _tagRoutingCacheService;
 
     public ImportMeasurementPointsCommandHandler(
         IMeasurementPointsReadWriteRepository measurementPointsReadWriteRepository,
         ICurrentUserService currentUserService,
-        ILoggerService loggerService)
+        ILoggerService loggerService,
+        ITagRoutingCacheService tagRoutingCacheService)
     {
         _measurementPointsReadWriteRepository = measurementPointsReadWriteRepository;
         _currentUserService = currentUserService;
         _loggerService = loggerService;
+        _tagRoutingCacheService = tagRoutingCacheService;
     }
 
     public async Task<RequestResult<ImportMeasurementPointResponse>> Handle(ImportMeasurementPointsCommand request, CancellationToken cancellationToken)
@@ -38,6 +42,7 @@ public class ImportMeasurementPointsCommandHandler : IImportMeasurementPointsCom
                 currentUserName,
                 cancellationToken);
 
+            _tagRoutingCacheService.Invalidate();
             return RequestResult<ImportMeasurementPointResponse>.Succeed(result);
         }
         catch (Exception ex)

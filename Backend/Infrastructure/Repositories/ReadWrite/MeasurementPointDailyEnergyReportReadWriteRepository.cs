@@ -5,6 +5,8 @@ using Application.DataTransferObjects.Responses.Report;
 using Application.Repositories.ReadWrite;
 using CsvHelper;
 using Domain.Entities;
+using Domain.Enums;
+using Domain.Helpers;
 using Microsoft.EntityFrameworkCore;
 using Nobisoft.Core.Constants;
 using Nobisoft.Core.Database.DbContext;
@@ -119,17 +121,17 @@ public class MeasurementPointDailyEnergyReportReadWriteRepository : RestfulRepos
                             var report = reports[i];
                             table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(report.CreatedTime?.ToOffset(TimeSpan.FromHours(7)).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) ?? string.Empty).FontFamily(Fonts.Arial).FontSize(11);
                             
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhGiao)).FontFamily(Fonts.Arial).FontSize(11);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao)).FontFamily(Fonts.Arial).FontSize(11);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao)).FontFamily(Fonts.Arial).FontSize(11);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao)).FontFamily(Fonts.Arial).FontSize(11);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao)).FontFamily(Fonts.Arial).FontSize(11);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPTongKenhGiao)).FontFamily(Fonts.Arial).FontSize(11);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao)).FontFamily(Fonts.Arial).FontSize(11);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao)).FontFamily(Fonts.Arial).FontSize(11);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao)).FontFamily(Fonts.Arial).FontSize(11);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao)).FontFamily(Fonts.Arial).FontSize(11);
                             
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhNhan)).FontFamily(Fonts.Arial).FontSize(11);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan)).FontFamily(Fonts.Arial).FontSize(11);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan)).FontFamily(Fonts.Arial).FontSize(11);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan)).FontFamily(Fonts.Arial).FontSize(11);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan)).FontFamily(Fonts.Arial).FontSize(11);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPTongKenhNhan)).FontFamily(Fonts.Arial).FontSize(11);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan)).FontFamily(Fonts.Arial).FontSize(11);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan)).FontFamily(Fonts.Arial).FontSize(11);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan)).FontFamily(Fonts.Arial).FontSize(11);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).AlignRight().ShowEntire().Text(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan)).FontFamily(Fonts.Arial).FontSize(11);
                         }
                     });
                 });
@@ -214,16 +216,16 @@ public class MeasurementPointDailyEnergyReportReadWriteRepository : RestfulRepos
         {
             var report = query[i];
             csvWriter.WriteField(report.CreatedTime?.ToOffset(TimeSpan.FromHours(7)).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) ?? string.Empty);
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhGiao));
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao));
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao));
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao));
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao));
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhNhan));
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan));
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan));
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan));
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPTongKenhGiao));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPTongKenhNhan));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan));
             await csvWriter.NextRecordAsync();
         }
         await streamWriter.FlushAsync(cancellationToken);
@@ -312,16 +314,16 @@ public class MeasurementPointDailyEnergyReportReadWriteRepository : RestfulRepos
         foreach (var report in yearlyRecords)
         {
             csvWriter.WriteField(report.CreatedTime?.ToOffset(TimeSpan.FromHours(7)).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) ?? string.Empty);
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhGiao));
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao));
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao));
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao));
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao));
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhNhan));
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan));
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan));
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan));
-            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPTongKenhGiao));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPTongKenhNhan));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan));
+            csvWriter.WriteField(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan));
             await csvWriter.NextRecordAsync();
         }
 
@@ -433,16 +435,16 @@ public class MeasurementPointDailyEnergyReportReadWriteRepository : RestfulRepos
                     foreach (var report in yearlyRecords)
                     {
                         table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignCenter().Text(report.CreatedTime?.ToOffset(TimeSpan.FromHours(7)).ToString("dd/MM/yyyy HH:mm") ?? "").FontFamily(Fonts.Arial).FontSize(8);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhGiao)).FontFamily(Fonts.Arial).FontSize(8);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao)).FontFamily(Fonts.Arial).FontSize(8);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao)).FontFamily(Fonts.Arial).FontSize(8);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao)).FontFamily(Fonts.Arial).FontSize(8);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao)).FontFamily(Fonts.Arial).FontSize(8);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhNhan)).FontFamily(Fonts.Arial).FontSize(8);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan)).FontFamily(Fonts.Arial).FontSize(8);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan)).FontFamily(Fonts.Arial).FontSize(8);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan)).FontFamily(Fonts.Arial).FontSize(8);
-                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPTongKenhGiao)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPTongKenhNhan)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan)).FontFamily(Fonts.Arial).FontSize(8);
+                        table.Cell().Border(1).BorderColor(Colors.Black).Padding(2).AlignRight().Text(FormatValue(report.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, report.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan)).FontFamily(Fonts.Arial).FontSize(8);
                     }
                 });
 
@@ -463,15 +465,8 @@ public class MeasurementPointDailyEnergyReportReadWriteRepository : RestfulRepos
         return document.GeneratePdf();
     }
 
-    private string FormatValue(string? value)
+    private string FormatValue(decimal? value, int suspectedMask, EnergySuspectedFlags flag)
     {
-        if (value == null) return "N/A";
-        var viCulture = CultureInfo.GetCultureInfo("vi-VN");
-        double valueNumber = double.Parse(value, CultureInfo.InvariantCulture);
-        if (valueNumber % 1 == 0)
-        {
-            return valueNumber.ToString("N0", viCulture);
-        }
-        return valueNumber.ToString("N2", viCulture);
+        return MeteringValueHelper.FormatEnergyReportValue(value, suspectedMask, flag, "N/A") ?? "N/A";
     }
 }

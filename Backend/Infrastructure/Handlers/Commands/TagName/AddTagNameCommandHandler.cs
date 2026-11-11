@@ -5,6 +5,7 @@ using Application.DataTransferObjects.Responses.TagName;
 using Application.Handlers.Commands.TagName;
 using Application.Repositories.ReadOnly;
 using Application.Repositories.ReadWrite;
+using Application.Services;
 using Domain.Entities;
 using Nobisoft.Core.Authorization.Interfaces;
 using Nobisoft.Core.Constants;
@@ -20,14 +21,16 @@ public class AddTagNameCommandHandler : ICreateTagNameCommandHandler
     private readonly ICurrentUserService _currentUserService;
     private readonly ITagNameReadWriteRepository _tagNameReadWriteRepository;
     private readonly IMeasurementPointsReadOnlyRepository _measurementPointsReadOnlyRepository;
+    private readonly ITagRoutingCacheService _tagRoutingCacheService;
 
-    public AddTagNameCommandHandler(ISnowflakeIdService snowflakeIdService, ILoggerService loggerService, ICurrentUserService currentUserService, ITagNameReadWriteRepository tagNameReadWriteRepository, IMeasurementPointsReadOnlyRepository measurementPointsReadOnlyRepository)
+    public AddTagNameCommandHandler(ISnowflakeIdService snowflakeIdService, ILoggerService loggerService, ICurrentUserService currentUserService, ITagNameReadWriteRepository tagNameReadWriteRepository, IMeasurementPointsReadOnlyRepository measurementPointsReadOnlyRepository, ITagRoutingCacheService tagRoutingCacheService)
     {
         _snowflakeIdService = snowflakeIdService;
         _loggerService = loggerService;
         _currentUserService = currentUserService;
         _tagNameReadWriteRepository = tagNameReadWriteRepository;
         _measurementPointsReadOnlyRepository = measurementPointsReadOnlyRepository;
+        _tagRoutingCacheService = tagRoutingCacheService;
     }
 
     public async Task<RequestResult<TagNameResponse>> Handle(CreateTagNameCommands request, CancellationToken cancellationToken)
@@ -90,6 +93,7 @@ public class AddTagNameCommandHandler : ICreateTagNameCommandHandler
                 }
             }
             await _tagNameReadWriteRepository.SaveChangesAsync(cancellationToken);
+            _tagRoutingCacheService.Invalidate();
             return RequestResult<TagNameResponse>.Succeed(new TagNameResponse());
         } catch (Exception e)
         {

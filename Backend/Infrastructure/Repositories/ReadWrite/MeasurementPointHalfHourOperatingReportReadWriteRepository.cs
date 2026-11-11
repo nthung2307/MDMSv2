@@ -4,6 +4,7 @@ using Application.DataTransferObjects.Requests.Report;
 using Application.Repositories.ReadWrite;
 using CsvHelper;
 using Domain.Entities;
+using Infrastructure.Helpers;
 using Microsoft.EntityFrameworkCore;
 using Nobisoft.Core.Constants;
 using Nobisoft.Core.Database.DbContext;
@@ -24,8 +25,6 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
 {
     private readonly AppReadWriteDbContext _context;
     private readonly DbSet<MeasurementPointHalfHourOperatingReportEntity> _dbSet;
-    private readonly DbSet<MeasurementPointMonitoringHourlyEntity> _hourlySet;
-    private readonly DbSet<MeasurementPointMonitoringEntity> _monitoringSet;
     private readonly DbSet<MeasurementPointsEntity> _pointSet;
 
     public MeasurementPointHalfHourOperatingReportReadWriteRepository(
@@ -34,217 +33,41 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
     {
         _context = context;
         _dbSet = context.Set<MeasurementPointHalfHourOperatingReportEntity>();
-        _hourlySet = context.Set<MeasurementPointMonitoringHourlyEntity>();
-        _monitoringSet = context.Set<MeasurementPointMonitoringEntity>();
         _pointSet = context.Set<MeasurementPointsEntity>();
     }
 
-    private async Task<string> GetConfiguredVoltageUnitAsync(long measurementPointId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var tags = await _context.Set<TagNameEntity>().AsNoTracking()
-                .Where(t => t.MeasurementPointId == measurementPointId &&
-                            !t.Deleted &&
-                            !string.IsNullOrEmpty(t.Unit) &&
-                            (t.Description == ListDataMeasurementPoint.DienApPhaA ||
-                             t.Description == ListDataMeasurementPoint.DienApPhaB ||
-                             t.Description == ListDataMeasurementPoint.DienApPhaC ||
-                             t.Description.Contains("DIEN_AP") ||
-                             t.Description.Contains("Điện áp") ||
-                             t.Description.Contains("dien ap")))
-                .Select(t => new { t.Description, t.Unit })
-                .ToListAsync(cancellationToken);
-
-            var unit = tags.FirstOrDefault(t => t.Description == ListDataMeasurementPoint.DienApPhaA)?.Unit
-                       ?? tags.FirstOrDefault(t => t.Description == ListDataMeasurementPoint.DienApPhaB)?.Unit
-                       ?? tags.FirstOrDefault(t => t.Description == ListDataMeasurementPoint.DienApPhaC)?.Unit
-                       ?? tags.FirstOrDefault()?.Unit;
-
-            if (!string.IsNullOrWhiteSpace(unit)) return unit;
-        }
-        catch { }
-        return "kV";
-    }
+    private Task<ConfiguredOperatingUnits> GetConfiguredUnitsAsync(long measurementPointId, CancellationToken cancellationToken)
+        => OperatingReportFallbackHelper.GetConfiguredUnitsAsync(_context, measurementPointId, cancellationToken);
 
     private async Task<List<MeasurementPointHalfHourOperatingReportEntity>> GetReportsForExportAsync(
         OperatingParameterReportRequest request,
         CancellationToken cancellationToken)
     {
-        var configuredVoltageUnit = await GetConfiguredVoltageUnitAsync(request.MeasurementPointId, cancellationToken);
-        try
-        {
-            var reports = await _dbSet.AsNoTracking()
-                .Include(m => m.MeasurementPoint)
-                .Where(m => m.MeasurementPointId == request.MeasurementPointId)
-                .Where(m => m.CreatedTime >= request.StartTime && m.CreatedTime <= request.EndTime)
-                .OrderBy(m => m.CreatedTime)
-                .ToListAsync(cancellationToken);
+        var reports = await _dbSet.AsNoTracking()
+            .Include(m => m.MeasurementPoint)
+            .Where(m => m.MeasurementPointId == request.MeasurementPointId)
+            .Where(m => m.CreatedTime >= request.StartTime && m.CreatedTime <= request.EndTime)
+            .OrderBy(m => m.CreatedTime)
+            .ToListAsync(cancellationToken);
 
-            if (reports.Any())
-            {
-                foreach (var r in reports)
-                {
-                    r.DienApPhaAUnit = configuredVoltageUnit;
-                    r.DienApPhaBUnit = configuredVoltageUnit;
-                    r.DienApPhaCUnit = configuredVoltageUnit;
-                }
-                return reports;
-            }
-        }
-        catch
+        if (reports.Any())
         {
-            // Bỏ qua lỗi table chưa có
+            return reports;
         }
 
-        // Fallback từ MeasurementPointMonitoringHourly
-        var point = await _pointSet.AsNoTracking().FirstOrDefaultAsync(p => p.Id == request.MeasurementPointId, cancellationToken);
-        var cultureInfo = CultureInfo.InvariantCulture;
-
-        try
-        {
-            var hourlyData = await _hourlySet.AsNoTracking()
-                .Where(h => h.MeasurementPointId == request.MeasurementPointId &&
-                            h.CreatedTime >= request.StartTime && h.CreatedTime <= request.EndTime)
-                .OrderBy(h => h.CreatedTime)
-                .ToListAsync(cancellationToken);
-
-            if (hourlyData.Any())
-            {
-                return hourlyData.Select(h =>
-                {
-                    double? p = double.TryParse(h.TrungBinhCongSuatTacDungTong3Pha, NumberStyles.Any, cultureInfo, out var pVal) ? pVal : null;
-                    double? q = double.TryParse(h.TrungBinhCongSuatPhanKhangTong3Pha, NumberStyles.Any, cultureInfo, out var qVal) ? qVal : null;
-                    double? pf = null;
-                    if (p.HasValue && q.HasValue)
-                    {
-                        var s = Math.Sqrt(p.Value * p.Value + q.Value * q.Value);
-                        if (s > 0) pf = Math.Round(Math.Abs(p.Value) / s, 3);
-                    }
-
-                    return new MeasurementPointHalfHourOperatingReportEntity
-                    {
-                        Id = h.Id,
-                        MeasurementPointId = h.MeasurementPointId,
-                        MeasurementPoint = point,
-                        CreatedTime = h.CreatedTime,
-                        DienApPhaA = double.TryParse(h.TrungBinhDienApPhaA, NumberStyles.Any, cultureInfo, out var ua) ? ua : null,
-                        DienApPhaAUnit = configuredVoltageUnit,
-                        DienApPhaB = double.TryParse(h.TrungBinhDienApPhaB, NumberStyles.Any, cultureInfo, out var ub) ? ub : null,
-                        DienApPhaBUnit = configuredVoltageUnit,
-                        DienApPhaC = double.TryParse(h.TrungBinhDienApPhaC, NumberStyles.Any, cultureInfo, out var uc) ? uc : null,
-                        DienApPhaCUnit = configuredVoltageUnit,
-                        DongDienPhaA = double.TryParse(h.TrungBinhDongDienPhaA, NumberStyles.Any, cultureInfo, out var ia) ? ia : null,
-                        DongDienPhaAUnit = h.TrungBinhDongDienPhaAUnit,
-                        DongDienPhaB = double.TryParse(h.TrungBinhDongDienPhaB, NumberStyles.Any, cultureInfo, out var ib) ? ib : null,
-                        DongDienPhaBUnit = h.TrungBinhDongDienPhaBUnit,
-                        DongDienPhaC = double.TryParse(h.TrungBinhDongDienPhaC, NumberStyles.Any, cultureInfo, out var ic) ? ic : null,
-                        DongDienPhaCUnit = h.TrungBinhDongDienPhaCUnit,
-                        CongSuatTacDungTong3Pha = p,
-                        CongSuatTacDungTong3PhaUnit = h.CongSuatTacDungTong3PhaUnit,
-                        CongSuatPhanKhangTong3Pha = q,
-                        CongSuatPhanKhangTong3PhaUnit = h.TrungBinhCongSuatPhanKhangTong3PhaUnit,
-                        HeSoCongSuatPF = pf,
-                        TanSoHeThong = 50.0,
-                        TanSoHeThongUnit = "Hz"
-                    };
-                }).ToList();
-            }
-        }
-        catch
-        {
-            // Bỏ qua lỗi
-        }
-
-        // Fallback từ raw telemetry MeasurementPointMonitoring
-        try
-        {
-            var rawList = await _monitoringSet.AsNoTracking()
-                .Where(x => x.MeasurementPointsId == request.MeasurementPointId &&
-                            x.CreatedTime >= request.StartTime && x.CreatedTime <= request.EndTime &&
-                            x.Value != null && x.Value != "")
-                .Include(x => x.TagName)
-                .OrderBy(x => x.CreatedTime)
-                .ToListAsync(cancellationToken);
-
-            if (rawList.Any())
-            {
-                var grouped = rawList
-                    .GroupBy(x =>
-                    {
-                        var t = x.CreatedTime!.Value;
-                        var min = t.Minute >= 30 ? 30 : 0;
-                        return new DateTimeOffset(t.Year, t.Month, t.Day, t.Hour, min, 0, t.Offset);
-                    })
-                    .OrderBy(g => g.Key);
-
-                var list = new List<MeasurementPointHalfHourOperatingReportEntity>();
-                foreach (var g in grouped)
-                {
-                    double? GetTagAvg(string tagDesc)
-                    {
-                        var vals = g.Where(x => x.TagNameDescription == tagDesc && double.TryParse(x.Value, NumberStyles.Any, cultureInfo, out _))
-                            .Select(x => double.Parse(x.Value!, cultureInfo))
-                            .ToList();
-                        return vals.Any() ? Math.Round(vals.Average(), 2) : null;
-                    }
-
-                    string? GetTagUnit(string tagDesc, string defaultUnit)
-                    {
-                        return g.FirstOrDefault(x => x.TagNameDescription == tagDesc)?.TagName?.Unit ?? defaultUnit;
-                    }
-
-                    var p = GetTagAvg(ListDataMeasurementPoint.CongSuatTacDungTong3Pha);
-                    var q = GetTagAvg(ListDataMeasurementPoint.CongSuatPhanKhangTong3Pha);
-                    var pf = GetTagAvg(ListDataMeasurementPoint.HeSoCongSuatPFTrungBinh3Pha);
-                    if (!pf.HasValue && p.HasValue && q.HasValue)
-                    {
-                        var s = Math.Sqrt(p.Value * p.Value + q.Value * q.Value);
-                        if (s > 0) pf = Math.Round(Math.Abs(p.Value) / s, 3);
-                    }
-
-                    list.Add(new MeasurementPointHalfHourOperatingReportEntity
-                    {
-                        Id = g.First().Id,
-                        MeasurementPointId = request.MeasurementPointId,
-                        MeasurementPoint = point,
-                        CreatedTime = g.Key,
-                        DienApPhaA = GetTagAvg(ListDataMeasurementPoint.DienApPhaA),
-                        DienApPhaAUnit = configuredVoltageUnit,
-                        DienApPhaB = GetTagAvg(ListDataMeasurementPoint.DienApPhaB),
-                        DienApPhaBUnit = configuredVoltageUnit,
-                        DienApPhaC = GetTagAvg(ListDataMeasurementPoint.DienApPhaC),
-                        DienApPhaCUnit = configuredVoltageUnit,
-                        DongDienPhaA = GetTagAvg(ListDataMeasurementPoint.DongDienPhaA),
-                        DongDienPhaAUnit = GetTagUnit(ListDataMeasurementPoint.DongDienPhaA, "A"),
-                        DongDienPhaB = GetTagAvg(ListDataMeasurementPoint.DongDienPhaB),
-                        DongDienPhaBUnit = GetTagUnit(ListDataMeasurementPoint.DongDienPhaB, "A"),
-                        DongDienPhaC = GetTagAvg(ListDataMeasurementPoint.DongDienPhaC),
-                        DongDienPhaCUnit = GetTagUnit(ListDataMeasurementPoint.DongDienPhaC, "A"),
-                        CongSuatTacDungTong3Pha = p,
-                        CongSuatTacDungTong3PhaUnit = GetTagUnit(ListDataMeasurementPoint.CongSuatTacDungTong3Pha, "kW"),
-                        CongSuatPhanKhangTong3Pha = q,
-                        CongSuatPhanKhangTong3PhaUnit = GetTagUnit(ListDataMeasurementPoint.CongSuatPhanKhangTong3Pha, "kVAr"),
-                        HeSoCongSuatPF = pf,
-                        TanSoHeThong = GetTagAvg(ListDataMeasurementPoint.TanSoHeThong) ?? 50.0,
-                        TanSoHeThongUnit = GetTagUnit(ListDataMeasurementPoint.TanSoHeThong, "Hz")
-                    });
-                }
-                return list;
-            }
-        }
-        catch
-        {
-            // Bỏ qua lỗi
-        }
-
-        return new List<MeasurementPointHalfHourOperatingReportEntity>();
+        // Fallback từ partitioned wide-table MeasurementPointTimeSeries (cửa sổ 12 tháng)
+        return await OperatingReportFallbackHelper.GetFallbackFromTimeSeriesAsync(
+            _context,
+            request.MeasurementPointId,
+            request.StartTime,
+            request.EndTime,
+            cancellationToken);
     }
 
     public async Task<byte[]> GenerateCsv(OperatingParameterReportRequest request, CancellationToken cancellationToken)
     {
         var reports = await GetReportsForExportAsync(request, cancellationToken);
-        var voltageUnit = await GetConfiguredVoltageUnitAsync(request.MeasurementPointId, cancellationToken);
+        var units = await GetConfiguredUnitsAsync(request.MeasurementPointId, cancellationToken);
 
         using var memoryStream = new MemoryStream();
         await using var streamWriter = new StreamWriter(memoryStream, new UTF8Encoding(true));
@@ -252,16 +75,16 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
 
         // Header
         csvWriter.WriteField("Thời gian");
-        csvWriter.WriteField($"Điện áp Pha A ({voltageUnit})");
-        csvWriter.WriteField($"Điện áp Pha B ({voltageUnit})");
-        csvWriter.WriteField($"Điện áp Pha C ({voltageUnit})");
-        csvWriter.WriteField("Dòng điện Pha A (A)");
-        csvWriter.WriteField("Dòng điện Pha B (A)");
-        csvWriter.WriteField("Dòng điện Pha C (A)");
-        csvWriter.WriteField("P Tổng (kW)");
-        csvWriter.WriteField("Q Tổng (kVAr)");
+        csvWriter.WriteField($"Điện áp Pha A ({units.VoltageA})");
+        csvWriter.WriteField($"Điện áp Pha B ({units.VoltageB})");
+        csvWriter.WriteField($"Điện áp Pha C ({units.VoltageC})");
+        csvWriter.WriteField($"Dòng điện Pha A ({units.CurrentA})");
+        csvWriter.WriteField($"Dòng điện Pha B ({units.CurrentB})");
+        csvWriter.WriteField($"Dòng điện Pha C ({units.CurrentC})");
+        csvWriter.WriteField($"P Tổng ({units.ActivePower})");
+        csvWriter.WriteField($"Q Tổng ({units.ReactivePower})");
         csvWriter.WriteField("Hệ số công suất PF");
-        csvWriter.WriteField("Tần số (Hz)");
+        csvWriter.WriteField($"Tần số ({units.Frequency})");
         await csvWriter.NextRecordAsync();
 
         var viCulture = CultureInfo.GetCultureInfo("vi-VN");
@@ -324,16 +147,14 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
         wsData.Cells["A3"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
         wsData.Row(3).Height = 20;
 
-        var voltageUnit = await GetConfiguredVoltageUnitAsync(request.MeasurementPointId, cancellationToken);
-        if (string.IsNullOrWhiteSpace(voltageUnit))
-        {
-            voltageUnit = reports.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r.DienApPhaAUnit))?.DienApPhaAUnit ?? "kV";
-        }
+        var units = await GetConfiguredUnitsAsync(request.MeasurementPointId, cancellationToken);
+        var voltageUnit = units.VoltageA;
 
         // Header bảng (Dòng 5)
         var headers = new string[] {
-            "STT", "Thời gian", $"Ua ({voltageUnit})", $"Ub ({voltageUnit})", $"Uc ({voltageUnit})",
-            "Ia (A)", "Ib (A)", "Ic (A)", "Pt (kW)", "Qt (kVAr)", "PF", "Tần số (Hz)"
+            "STT", "Thời gian", $"Ua ({units.VoltageA})", $"Ub ({units.VoltageB})", $"Uc ({units.VoltageC})",
+            $"Ia ({units.CurrentA})", $"Ib ({units.CurrentB})", $"Ic ({units.CurrentC})",
+            $"Pt ({units.ActivePower})", $"Qt ({units.ReactivePower})", "PF", $"Tần số ({units.Frequency})"
         };
 
         for (int i = 0; i < headers.Length; i++)
@@ -448,7 +269,7 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
             wsI.Cells["A1"].Style.Font.Italic = true;
             wsI.Cells["A1"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
             wsI.Cells["A2:N2"].Merge = true;
-            wsI.Cells["A2"].Value = "BIỂU ĐỒ: DÒNG ĐIỆN (A)";
+            wsI.Cells["A2"].Value = $"BIỂU ĐỒ: DÒNG ĐIỆN ({units.CurrentA})";
             wsI.Cells["A2"].Style.Font.Bold = true;
             wsI.Cells["A2"].Style.Font.Size = 13;
             wsI.Cells["A2"].Style.Font.Color.SetColor(System.Drawing.Color.FromArgb(15, 76, 129));
@@ -461,11 +282,11 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
                 chartI.SetSize(1150, 550);
                 var xSeries = wsData.Cells[dataStartRow, 2, dataEndRow, 2];
                 var serIa = chartI.Series.Add(wsData.Cells[dataStartRow, 6, dataEndRow, 6], xSeries) as ExcelLineChartSerie;
-                if (serIa != null) { serIa.Header = "Ia (A)"; serIa.Smooth = true; }
+                if (serIa != null) { serIa.Header = $"Ia ({units.CurrentA})"; serIa.Smooth = true; }
                 var serIb = chartI.Series.Add(wsData.Cells[dataStartRow, 7, dataEndRow, 7], xSeries) as ExcelLineChartSerie;
-                if (serIb != null) { serIb.Header = "Ib (A)"; serIb.Smooth = true; }
+                if (serIb != null) { serIb.Header = $"Ib ({units.CurrentB})"; serIb.Smooth = true; }
                 var serIc = chartI.Series.Add(wsData.Cells[dataStartRow, 8, dataEndRow, 8], xSeries) as ExcelLineChartSerie;
-                if (serIc != null) { serIc.Header = "Ic (A)"; serIc.Smooth = true; }
+                if (serIc != null) { serIc.Header = $"Ic ({units.CurrentC})"; serIc.Smooth = true; }
             }
 
             // 4. SHEET BIỂU ĐỒ CÔNG SUẤT (Native Line Chart)
@@ -476,7 +297,7 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
             wsP.Cells["A1"].Style.Font.Italic = true;
             wsP.Cells["A1"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
             wsP.Cells["A2:N2"].Merge = true;
-            wsP.Cells["A2"].Value = "BIỂU ĐỒ: CÔNG SUẤT Pt (kW) & Qt (kVAr)";
+            wsP.Cells["A2"].Value = $"BIỂU ĐỒ: CÔNG SUẤT Pt ({units.ActivePower}) & Qt ({units.ReactivePower})";
             wsP.Cells["A2"].Style.Font.Bold = true;
             wsP.Cells["A2"].Style.Font.Size = 13;
             wsP.Cells["A2"].Style.Font.Color.SetColor(System.Drawing.Color.FromArgb(15, 76, 129));
@@ -489,9 +310,9 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
                 chartP.SetSize(1150, 550);
                 var xSeries = wsData.Cells[dataStartRow, 2, dataEndRow, 2];
                 var serP = chartP.Series.Add(wsData.Cells[dataStartRow, 9, dataEndRow, 9], xSeries) as ExcelLineChartSerie;
-                if (serP != null) { serP.Header = "Pt (kW)"; serP.Smooth = true; }
+                if (serP != null) { serP.Header = $"Pt ({units.ActivePower})"; serP.Smooth = true; }
                 var serQ = chartP.Series.Add(wsData.Cells[dataStartRow, 10, dataEndRow, 10], xSeries) as ExcelLineChartSerie;
-                if (serQ != null) { serQ.Header = "Qt (kVAr)"; serQ.Smooth = true; }
+                if (serQ != null) { serQ.Header = $"Qt ({units.ReactivePower})"; serQ.Smooth = true; }
             }
 
             // 5. SHEET BIỂU ĐỒ HỆ SỐ PF (Native Line Chart)
@@ -549,7 +370,7 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
     public async Task<byte[]> GeneratePdf(OperatingParameterReportRequest request, CancellationToken cancellationToken)
     {
         var reports = await GetReportsForExportAsync(request, cancellationToken);
-        var voltageUnit = await GetConfiguredVoltageUnitAsync(request.MeasurementPointId, cancellationToken);
+        var units = await GetConfiguredUnitsAsync(request.MeasurementPointId, cancellationToken);
 
         var pointCode = reports.FirstOrDefault()?.MeasurementPoint?.Code ?? request.MeasurementPointId.ToString();
 
@@ -592,16 +413,16 @@ public class MeasurementPointHalfHourOperatingReportReadWriteRepository :
                         static IContainer CellStyle(IContainer c) => c.Background(Colors.Grey.Lighten2).Border(0.5f).BorderColor(Colors.Grey.Medium).Padding(3).AlignCenter();
 
                         header.Cell().Element(CellStyle).Text("Thời gian").FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        header.Cell().Element(CellStyle).Text($"Ua ({voltageUnit})").FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        header.Cell().Element(CellStyle).Text($"Ub ({voltageUnit})").FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        header.Cell().Element(CellStyle).Text($"Uc ({voltageUnit})").FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        header.Cell().Element(CellStyle).Text("Ia (A)").FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        header.Cell().Element(CellStyle).Text("Ib (A)").FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        header.Cell().Element(CellStyle).Text("Ic (A)").FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        header.Cell().Element(CellStyle).Text("P (kW)").FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        header.Cell().Element(CellStyle).Text("Q (kVAr)").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Element(CellStyle).Text($"Ua ({units.VoltageA})").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Element(CellStyle).Text($"Ub ({units.VoltageB})").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Element(CellStyle).Text($"Uc ({units.VoltageC})").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Element(CellStyle).Text($"Ia ({units.CurrentA})").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Element(CellStyle).Text($"Ib ({units.CurrentB})").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Element(CellStyle).Text($"Ic ({units.CurrentC})").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Element(CellStyle).Text($"P ({units.ActivePower})").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Element(CellStyle).Text($"Q ({units.ReactivePower})").FontFamily(Fonts.Arial).FontSize(8).Bold();
                         header.Cell().Element(CellStyle).Text("PF").FontFamily(Fonts.Arial).FontSize(8).Bold();
-                        header.Cell().Element(CellStyle).Text("F (Hz)").FontFamily(Fonts.Arial).FontSize(8).Bold();
+                        header.Cell().Element(CellStyle).Text($"F ({units.Frequency})").FontFamily(Fonts.Arial).FontSize(8).Bold();
                     });
 
                     var viCulture = CultureInfo.GetCultureInfo("vi-VN");

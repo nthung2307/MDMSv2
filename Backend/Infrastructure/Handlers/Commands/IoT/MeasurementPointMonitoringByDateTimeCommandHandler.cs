@@ -1,472 +1,189 @@
-using System.Globalization;
-using System.Text.Json;
 using Application.Commands.IoT;
 using Application.Common.Responses.Common.Responses;
-using Application.DataTransferObjects.Requests.MeasurementPointMonitoring;
 using Application.DataTransferObjects.Responses.IoT;
 using Application.DataTransferObjects.Responses.MeasurementPointMonitoring;
 using Application.Handlers.Commands.IoT;
-using Application.Repositories.ReadOnly;
-using Application.Repositories.ReadWrite;
-using Domain.Entities;
-using Infrastructure.Services;
-using Microsoft.AspNetCore.SignalR;
+using Application.Services;
+using Domain.Helpers;
+using Infrastructure.Helpers;
 using Nobisoft.Core.Constants;
-using Nobisoft.Core.Infrastructure.Interfaces;
-using Nobisoft.Core.Interfaces;
 using Nobisoft.Core.Logger.Interfaces;
 
 namespace Infrastructure.Handlers.Commands.IoT;
 
 public class MeasurementPointMonitoringByDateTimeCommandHandler : IMeasurementPointMonitoringByDateTimeCommandHandlers
 {
-    private static readonly HashSet<string> CurrentClockTags = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ListDataMeasurementPoint.NgayHienTai,
-        ListDataMeasurementPoint.ThangHienTai,
-        ListDataMeasurementPoint.NamHienTai,
-        ListDataMeasurementPoint.GioHienTai,
-        ListDataMeasurementPoint.PhutHienTai,
-        ListDataMeasurementPoint.GiayHienTai
-    };
-
-    private static readonly HashSet<string> CutoffDateTimeTags = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ListDataMeasurementPoint.NgayChotGanNhat,
-        ListDataMeasurementPoint.ThangChotGanNhat,
-        ListDataMeasurementPoint.NamChotGanNhat,
-        ListDataMeasurementPoint.GioChotGanNhat,
-        ListDataMeasurementPoint.PhutChotGanNhat,
-        ListDataMeasurementPoint.GiayChotGanNhat
-    };
-
-    private static readonly HashSet<string> PmaxCurrDateTimeTags = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ListDataMeasurementPoint.NamPmaxKyHienTai,
-        ListDataMeasurementPoint.ThangPmaxKyHienTai,
-        ListDataMeasurementPoint.NgayPmaxKyHienTai,
-        ListDataMeasurementPoint.GioPmaxKyHienTai,
-        ListDataMeasurementPoint.PhutPmaxKyHienTai,
-        ListDataMeasurementPoint.GiayPmaxKyHienTai
-    };
-
-    private static readonly HashSet<string> PmaxPrevDateTimeTags = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ListDataMeasurementPoint.NamPmaxKyTruoc,
-        ListDataMeasurementPoint.ThangPmaxKyTruoc,
-        ListDataMeasurementPoint.NgayPmaxKyTruoc,
-        ListDataMeasurementPoint.GioPmaxKyTruoc,
-        ListDataMeasurementPoint.PhutPmaxKyTruoc,
-        ListDataMeasurementPoint.GiayPmaxKyTruoc
-    };
-
+    private readonly ITagRoutingCacheService _tagRoutingCacheService;
+    private readonly IBufferedTelemetryIngestionService _bufferedIngestionService;
     private readonly ILoggerService _loggerService;
-    private readonly ISnowflakeIdService _snowflakeIdService;
-    private readonly IDateTimeService _dateTimeService;
-    private readonly IHubContext<DetailNotificationDateTimeHub> _detailHubContext;
-    private readonly IMeasurementPointsReadOnlyRepository _measurementPointsReadOnlyRepository;
-    private readonly IMeasurementPointMonitoringReadWriteByDateTimeRepository _measurementPointMonitoringReadWriteByDateTimeRepository;
 
     public MeasurementPointMonitoringByDateTimeCommandHandler(
-        ILoggerService loggerService,
-        ISnowflakeIdService snowflakeIdService,
-        IDateTimeService dateTimeService,
-        IMeasurementPointsReadOnlyRepository measurementPointsReadOnlyRepository,
-        IMeasurementPointMonitoringReadWriteByDateTimeRepository measurementPointMonitoringReadWriteByDateTimeRepository,
-        IHubContext<DetailNotificationDateTimeHub> detailHubContext)
+        ITagRoutingCacheService tagRoutingCacheService,
+        IBufferedTelemetryIngestionService bufferedIngestionService,
+        ILoggerService loggerService)
     {
+        _tagRoutingCacheService = tagRoutingCacheService;
+        _bufferedIngestionService = bufferedIngestionService;
         _loggerService = loggerService;
-        _snowflakeIdService = snowflakeIdService;
-        _dateTimeService = dateTimeService;
-        _measurementPointsReadOnlyRepository = measurementPointsReadOnlyRepository;
-        _measurementPointMonitoringReadWriteByDateTimeRepository = measurementPointMonitoringReadWriteByDateTimeRepository;
-        _detailHubContext = detailHubContext;
     }
 
-    public async Task<RequestResult<MeasurementPointMonitoringResponse>> Handle(MeasurementPointMonitoringByDateTimeCommand request, CancellationToken cancellationToken)
+    public async Task<RequestResult<MeasurementPointMonitoringResponse>> Handle(
+        MeasurementPointMonitoringByDateTimeCommand request,
+        CancellationToken cancellationToken)
     {
         try
         {
-            if (request?.Request?.Values == null)
+            if (request.Request?.Values == null || request.Request.Values.Count == 0)
             {
                 return RequestResult<MeasurementPointMonitoringResponse>.Succeed(new MeasurementPointMonitoringResponse());
             }
 
-            var viewDetailNotifications = new List<MeasurementPointMonitoringByDateTimeDto>();
-            var cultureInfo = CultureInfo.InvariantCulture;
-
-            var measurementPoints = await _measurementPointsReadOnlyRepository.GetListMeasurementPointAsync(cancellationToken);
-            var measurementPointIds = measurementPoints.Select(x => x.Id).ToList();
-            var groupId = await _snowflakeIdService.GenerateId(cancellationToken);
-
-            // Smart Upsert: Lấy bản ghi mới nhất của từng cặp (MeasurementPointId, TagNameDescription)
-            var latestDateTimeMap = await _measurementPointMonitoringReadWriteByDateTimeRepository.GetLatestDateTimeRecordsAsync(
-                measurementPointIds,
-                cancellationToken);
-
-            var measurementPointEntityToInsert = new List<MeasurementPointMonitoringByDateTimeEntity>();
-
-            foreach (var measurementPoint in measurementPoints)
+            var tagMap = await _tagRoutingCacheService.GetTagMapAsync(cancellationToken);
+            var pointMap = await _tagRoutingCacheService.GetPointMapAsync(cancellationToken);
+            if (tagMap.Count == 0)
             {
-                if (measurementPoint.TagNames == null || measurementPoint.TagNames.Count == 0)
+                return RequestResult<MeasurementPointMonitoringResponse>.Succeed(new MeasurementPointMonitoringResponse());
+            }
+
+            var grouped = new Dictionary<long, (DateTimeOffset LatestTs, MeasurementPointMonitoringByDateTimeDto Notification, List<TelemetryTagSample> Samples)>();
+
+            foreach (var iotVal in request.Request.Values)
+            {
+                if (string.IsNullOrWhiteSpace(iotVal.Id) ||
+                    !tagMap.TryGetValue(iotVal.Id.Trim(), out var tagEntry) ||
+                    string.IsNullOrWhiteSpace(tagEntry.Description))
                 {
                     continue;
                 }
 
-                var dto = new MeasurementPointMonitoringByDateTimeDto()
-                {
-                    MeasurementPointsId = measurementPoint.Id,
-                    MeasurementPointCode = measurementPoint.Code,
-                    MeasurementPointDescription = measurementPoint.Description,
-                    CustomerCode = measurementPoint.Customer?.CustomerCode ?? string.Empty,
-                    CustomerName = measurementPoint.Customer?.FullName ?? string.Empty,
-                    GroupId = groupId,
-                };
-
-                var createdTime = _dateTimeService.Now();
-
-                // Thu thập các giá trị hợp lệ của điểm đo trong gói tin hiện tại
-                var incomingItems = new List<(TagNameEntity Tag, string ConvertedValue, bool Quality, DateTimeOffset RecordTime)>();
-                foreach (var tagName in measurementPoint.TagNames)
-                {
-                    if (string.IsNullOrEmpty(tagName.Description)) continue;
-                    var iotDataValues = request.Request.Values.Where(v => v != null && v.Id == tagName.TagName);
-                    foreach (var iotDataValue in iotDataValues)
-                    {
-                        var convertedValue = ConvertToString(iotDataValue.V);
-                        if (string.IsNullOrEmpty(convertedValue) || convertedValue == "null")
-                        {
-                            continue;
-                        }
-
-                        var q = ParseQuality(iotDataValue.Q);
-                        var t = DateTimeOffset.FromUnixTimeMilliseconds(iotDataValue.T);
-                        incomingItems.Add((tagName, convertedValue, q, t));
-                    }
-                }
-
-                if (incomingItems.Count == 0)
+                var rawValue = IoTPacketParserHelper.ConvertToString(iotVal.V);
+                if (string.IsNullOrWhiteSpace(rawValue) || string.Equals(rawValue, "null", StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
-                // Kiểm tra sự thay đổi theo cụm thời gian đóng băng (Cutoff, PmaxCurr, PmaxPrev)
-                bool cutoffClusterChanged = HasClusterChanged(measurementPoint.Id, CutoffDateTimeTags, incomingItems, latestDateTimeMap);
-                bool pmaxCurrClusterChanged = HasClusterChanged(measurementPoint.Id, PmaxCurrDateTimeTags, incomingItems, latestDateTimeMap);
-                bool pmaxPrevClusterChanged = HasClusterChanged(measurementPoint.Id, PmaxPrevDateTimeTags, incomingItems, latestDateTimeMap);
+                var quality = IoTPacketParserHelper.ParseQuality(iotVal.Q);
+                var recordTime = iotVal.T > 0
+                    ? DateTimeOffset.FromUnixTimeMilliseconds(iotVal.T)
+                    : DateTimeOffset.UtcNow;
 
-                var touchedDescriptions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                foreach (var item in incomingItems)
+                if (!grouped.TryGetValue(tagEntry.MeasurementPointId, out var bucket))
                 {
-                    var desc = item.Tag.Description!;
-                    touchedDescriptions.Add(desc);
-
-                    bool isClockTag = CurrentClockTags.Contains(desc);
-                    bool isCutoffTag = CutoffDateTimeTags.Contains(desc);
-                    bool isPmaxCurrTag = PmaxCurrDateTimeTags.Contains(desc);
-                    bool isPmaxPrevTag = PmaxPrevDateTimeTags.Contains(desc);
-
-                    bool hasExisting = latestDateTimeMap.TryGetValue((measurementPoint.Id, desc), out var existingRec) && existingRec != null;
-
-                    if (isClockTag && hasExisting)
+                    pointMap.TryGetValue(tagEntry.MeasurementPointId, out var ptInfo);
+                    var dto = new MeasurementPointMonitoringByDateTimeDto
                     {
-                        // Đồng hồ hiện tại của công tơ: luôn Update tại chỗ để không làm phình bảng
-                        existingRec!.Value = item.ConvertedValue;
-                        existingRec.Quanlity = item.Quality;
-                        existingRec.GroupId = groupId;
-                        existingRec.TagNameId = item.Tag.Id;
-                        existingRec.CreatedTime = item.RecordTime;
-                    }
-                    else if ((isCutoffTag && !cutoffClusterChanged && hasExisting)
-                             || (isPmaxCurrTag && !pmaxCurrClusterChanged && hasExisting)
-                             || (isPmaxPrevTag && !pmaxPrevClusterChanged && hasExisting))
-                    {
-                        // Cụm thời điểm chốt / Pmax không thay đổi trong kỳ: chỉ Update GroupId & Quality tại chỗ
-                        existingRec!.GroupId = groupId;
-                        existingRec.Quanlity = item.Quality;
-                        existingRec.TagNameId = item.Tag.Id;
-                    }
-                    else
-                    {
-                        // Chưa có bản ghi HOẶC sang kỳ chốt mới / Pmax mới: Insert bản ghi mới
-                        var measurementDataId = await _snowflakeIdService.GenerateId(cancellationToken);
-                        var measurementPointData = new MeasurementPointMonitoringByDateTimeEntity()
-                        {
-                            Id = measurementDataId,
-                            MeasurementPointId = measurementPoint.Id,
-                            TagNameId = item.Tag.Id,
-                            TagNameDescription = desc,
-                            Value = item.ConvertedValue,
-                            Quanlity = item.Quality,
-                            GroupId = groupId,
-                            CreatedTime = item.RecordTime
-                        };
-
-                        measurementPointEntityToInsert.Add(measurementPointData);
-                        latestDateTimeMap[(measurementPoint.Id, desc)] = measurementPointData;
-                    }
-
-                    PopulateDtoField(dto, desc, item.ConvertedValue, item.Quality, cultureInfo);
+                        MeasurementPointsId = tagEntry.MeasurementPointId,
+                        MeasurementPointCode = tagEntry.MeasurementPointCode,
+                        MeasurementPointDescription = ptInfo?.Description ?? tagEntry.MeasurementPointDescription,
+                        CustomerCode = ptInfo?.CustomerCode ?? tagEntry.CustomerCode,
+                        CustomerName = ptInfo?.CustomerName ?? tagEntry.CustomerName,
+                        GroupId = tagEntry.MeasurementPointId,
+                        CreatedTime = recordTime
+                    };
+                    bucket = (recordTime, dto, new List<TelemetryTagSample>());
+                }
+                else if (recordTime > bucket.LatestTs)
+                {
+                    bucket.LatestTs = recordTime;
+                    bucket.Notification.CreatedTime = recordTime;
                 }
 
-                // Đồng bộ GroupId cho các tag DateTime khác của cùng điểm đo chưa xuất hiện trong gói tin này
-                var allDateTimeTags = CurrentClockTags
-                    .Concat(CutoffDateTimeTags)
-                    .Concat(PmaxCurrDateTimeTags)
-                    .Concat(PmaxPrevDateTimeTags);
-
-                foreach (var tagDesc in allDateTimeTags)
+                var parsedSmallInt = MeteringValueHelper.ParseSmallInt(rawValue);
+                if (!parsedSmallInt.HasValue)
                 {
-                    if (!touchedDescriptions.Contains(tagDesc)
-                        && latestDateTimeMap.TryGetValue((measurementPoint.Id, tagDesc), out var untouchedRec)
-                        && untouchedRec != null)
-                    {
-                        untouchedRec.GroupId = groupId;
-                    }
+                    continue;
                 }
 
-                dto.CreatedTime = createdTime;
-                viewDetailNotifications.Add(dto);
+                ApplyDateTimeField(bucket.Notification, tagEntry.Description, rawValue.Trim(), quality);
+                bucket.Samples.Add(new TelemetryTagSample
+                {
+                    Description = tagEntry.Description,
+                    SmallIntValue = parsedSmallInt,
+                    Quality = quality,
+                    Timestamp = recordTime
+                });
+
+                grouped[tagEntry.MeasurementPointId] = bucket;
             }
 
-            if (measurementPointEntityToInsert.Count > 0)
+            foreach (var kvp in grouped)
             {
-                await _measurementPointMonitoringReadWriteByDateTimeRepository.AddRangeAsync(measurementPointEntityToInsert, cancellationToken);
-            }
-            await _measurementPointMonitoringReadWriteByDateTimeRepository.SaveChangesAsync(cancellationToken);
-
-            foreach (var item in viewDetailNotifications)
-            {
-                var measurementPointCode = item.MeasurementPointCode;
-                if (!string.IsNullOrEmpty(measurementPointCode) && _detailHubContext?.Clients != null)
+                await _bufferedIngestionService.EnqueueAsync(new TelemetryIngestionItem
                 {
-                    await _detailHubContext.Clients.Group(measurementPointCode).SendAsync("ReceiveDetailDateTimeUpdate", item, cancellationToken: cancellationToken);
-                }
+                    MeasurementPointId = kvp.Key,
+                    MeasurementPointCode = kvp.Value.Notification.MeasurementPointCode ?? string.Empty,
+                    Timestamp = kvp.Value.LatestTs,
+                    WriteTimeSeries = false,
+                    SourcePacketType = 3,
+                    Samples = kvp.Value.Samples,
+                    DateTimeNotification = kvp.Value.Notification
+                }, cancellationToken);
             }
 
             return RequestResult<MeasurementPointMonitoringResponse>.Succeed(new MeasurementPointMonitoringResponse());
         }
-        catch (Exception e)
+        catch (Exception ex)
         {
-            _loggerService.LogError(e, nameof(Handle));
+            _loggerService.LogError(ex, nameof(MeasurementPointMonitoringByDateTimeCommandHandler));
             throw;
         }
     }
 
-    private static bool HasClusterChanged(
-        long measurementPointId,
-        HashSet<string> clusterTags,
-        List<(TagNameEntity Tag, string ConvertedValue, bool Quality, DateTimeOffset RecordTime)> incomingItems,
-        Dictionary<(long MeasurementPointId, string TagNameDescription), MeasurementPointMonitoringByDateTimeEntity> latestMap)
+    private static void ApplyDateTimeField(MeasurementPointMonitoringByDateTimeDto dto, string description, string formatted, bool quality)
     {
-        foreach (var item in incomingItems)
-        {
-            var desc = item.Tag.Description;
-            if (string.IsNullOrEmpty(desc) || !clusterTags.Contains(desc)) continue;
-
-            if (!latestMap.TryGetValue((measurementPointId, desc), out var existing) || existing == null)
-            {
-                return true;
-            }
-
-            if (!AreValuesEqual(existing.Value, item.ConvertedValue))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool AreValuesEqual(string? oldVal, string? newVal)
-    {
-        if (string.Equals(oldVal?.Trim(), newVal?.Trim(), StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        if (double.TryParse(oldVal, NumberStyles.Float, CultureInfo.InvariantCulture, out var d1) &&
-            double.TryParse(newVal, NumberStyles.Float, CultureInfo.InvariantCulture, out var d2))
-        {
-            return Math.Abs(d1 - d2) < 1e-6;
-        }
-
-        return false;
-    }
-
-    private static void PopulateDtoField(
-        MeasurementPointMonitoringByDateTimeDto dto,
-        string description,
-        string value,
-        bool quality,
-        CultureInfo cultureInfo)
-    {
-        var formatted = double.TryParse(value, NumberStyles.Float, cultureInfo, out var d) ? d.ToString(cultureInfo) : value;
         switch (description)
         {
-            case ListDataMeasurementPoint.NgayHienTai:
-                dto.CurrentDate = formatted;
-                dto.CurrentDateQuanlity = quality;
-                break;
-            case ListDataMeasurementPoint.ThangHienTai:
-                dto.CurrentMonth = formatted;
-                dto.CurrentMonthQuanlity = quality;
-                break;
             case ListDataMeasurementPoint.NamHienTai:
-                dto.CurrentYear = formatted;
-                dto.CurrentYearQuanlity = quality;
-                break;
+                dto.CurrentYear = formatted; dto.CurrentYearQuanlity = quality; break;
+            case ListDataMeasurementPoint.ThangHienTai:
+                dto.CurrentMonth = formatted; dto.CurrentMonthQuanlity = quality; break;
+            case ListDataMeasurementPoint.NgayHienTai:
+                dto.CurrentDate = formatted; dto.CurrentDateQuanlity = quality; break;
             case ListDataMeasurementPoint.GioHienTai:
-                dto.CurrentTime = formatted;
-                dto.CurrentTimeQuanlity = quality;
-                break;
+                dto.CurrentTime = formatted; dto.CurrentTimeQuanlity = quality; break;
             case ListDataMeasurementPoint.PhutHienTai:
-                dto.CurrentMinute = formatted;
-                dto.CurrentMinuteQuanlity = quality;
-                break;
+                dto.CurrentMinute = formatted; dto.CurrentMinuteQuanlity = quality; break;
             case ListDataMeasurementPoint.GiayHienTai:
-                dto.CurrentSecond = formatted;
-                dto.CurrentSecondQuanlity = quality;
-                break;
-            case ListDataMeasurementPoint.NgayChotGanNhat:
-                dto.LatestClosingDate = formatted;
-                dto.LatestClosingDateQuanlity = quality;
-                break;
-            case ListDataMeasurementPoint.ThangChotGanNhat:
-                dto.LatestClosingMonth = formatted;
-                dto.LatestClosingMonthQuanlity = quality;
-                break;
+                dto.CurrentSecond = formatted; dto.CurrentSecondQuanlity = quality; break;
+
             case ListDataMeasurementPoint.NamChotGanNhat:
-                dto.LatestClosingYear = formatted;
-                dto.LatestClosingYearQuanlity = quality;
-                break;
+                dto.LatestClosingYear = formatted; dto.LatestClosingYearQuanlity = quality; break;
+            case ListDataMeasurementPoint.ThangChotGanNhat:
+                dto.LatestClosingMonth = formatted; dto.LatestClosingMonthQuanlity = quality; break;
+            case ListDataMeasurementPoint.NgayChotGanNhat:
+                dto.LatestClosingDate = formatted; dto.LatestClosingDateQuanlity = quality; break;
             case ListDataMeasurementPoint.GioChotGanNhat:
-                dto.LatestClosingTime = formatted;
-                dto.LatestClosingTimeQuanlity = quality;
-                break;
+                dto.LatestClosingTime = formatted; dto.LatestClosingTimeQuanlity = quality; break;
             case ListDataMeasurementPoint.PhutChotGanNhat:
-                dto.LatestClosingMinute = formatted;
-                dto.LatestClosingMinuteQuanlity = quality;
-                break;
+                dto.LatestClosingMinute = formatted; dto.LatestClosingMinuteQuanlity = quality; break;
             case ListDataMeasurementPoint.GiayChotGanNhat:
-                dto.LatestClosingSecond = formatted;
-                dto.LatestClosingSecondQuanlity = quality;
-                break;
+                dto.LatestClosingSecond = formatted; dto.LatestClosingSecondQuanlity = quality; break;
+
             case ListDataMeasurementPoint.NamPmaxKyHienTai:
-                dto.PmaxCurrentPeriodYear = formatted;
-                dto.PmaxCurrentPeriodYearQuanlity = quality;
-                break;
+                dto.PmaxCurrentPeriodYear = formatted; dto.PmaxCurrentPeriodYearQuanlity = quality; break;
             case ListDataMeasurementPoint.ThangPmaxKyHienTai:
-                dto.PmaxCurrentPeriodMonth = formatted;
-                dto.PmaxCurrentPeriodMonthQuanlity = quality;
-                break;
+                dto.PmaxCurrentPeriodMonth = formatted; dto.PmaxCurrentPeriodMonthQuanlity = quality; break;
             case ListDataMeasurementPoint.NgayPmaxKyHienTai:
-                dto.PmaxCurrentPeriodDate = formatted;
-                dto.PmaxCurrentPeriodDateQuanlity = quality;
-                break;
+                dto.PmaxCurrentPeriodDate = formatted; dto.PmaxCurrentPeriodDateQuanlity = quality; break;
             case ListDataMeasurementPoint.GioPmaxKyHienTai:
-                dto.PmaxCurrentPeriodTime = formatted;
-                dto.PmaxCurrentPeriodTimeQuanlity = quality;
-                break;
+                dto.PmaxCurrentPeriodTime = formatted; dto.PmaxCurrentPeriodTimeQuanlity = quality; break;
             case ListDataMeasurementPoint.PhutPmaxKyHienTai:
-                dto.PmaxCurrentPeriodMinute = formatted;
-                dto.PmaxCurrentPeriodMinuteQuanlity = quality;
-                break;
+                dto.PmaxCurrentPeriodMinute = formatted; dto.PmaxCurrentPeriodMinuteQuanlity = quality; break;
             case ListDataMeasurementPoint.GiayPmaxKyHienTai:
-                dto.PmaxCurrentPeriodSecond = formatted;
-                dto.PmaxCurrentPeriodSecondQuanlity = quality;
-                break;
+                dto.PmaxCurrentPeriodSecond = formatted; dto.PmaxCurrentPeriodSecondQuanlity = quality; break;
+
             case ListDataMeasurementPoint.NamPmaxKyTruoc:
-                dto.PmaxPreviousPeriodYear = formatted;
-                dto.PmaxPreviousPeriodYearQuanlity = quality;
-                break;
+                dto.PmaxPreviousPeriodYear = formatted; dto.PmaxPreviousPeriodYearQuanlity = quality; break;
             case ListDataMeasurementPoint.ThangPmaxKyTruoc:
-                dto.PmaxPreviousPeriodMonth = formatted;
-                dto.PmaxPreviousPeriodMonthQuanlity = quality;
-                break;
+                dto.PmaxPreviousPeriodMonth = formatted; dto.PmaxPreviousPeriodMonthQuanlity = quality; break;
             case ListDataMeasurementPoint.NgayPmaxKyTruoc:
-                dto.PmaxPreviousPeriodDate = formatted;
-                dto.PmaxPreviousPeriodDateQuanlity = quality;
-                break;
+                dto.PmaxPreviousPeriodDate = formatted; dto.PmaxPreviousPeriodDateQuanlity = quality; break;
             case ListDataMeasurementPoint.GioPmaxKyTruoc:
-                dto.PmaxPreviousPeriodTime = formatted;
-                dto.PmaxPreviousPeriodTimeQuanlity = quality;
-                break;
+                dto.PmaxPreviousPeriodTime = formatted; dto.PmaxPreviousPeriodTimeQuanlity = quality; break;
             case ListDataMeasurementPoint.PhutPmaxKyTruoc:
-                dto.PmaxPreviousPeriodMinute = formatted;
-                dto.PmaxPreviousPeriodMinuteQuanlity = quality;
-                break;
+                dto.PmaxPreviousPeriodMinute = formatted; dto.PmaxPreviousPeriodMinuteQuanlity = quality; break;
             case ListDataMeasurementPoint.GiayPmaxKyTruoc:
-                dto.PmaxPreviousPeriodSecond = formatted;
-                dto.PmaxPreviousPeriodSecondQuanlity = quality;
-                break;
+                dto.PmaxPreviousPeriodSecond = formatted; dto.PmaxPreviousPeriodSecondQuanlity = quality; break;
         }
-    }
-
-    private static string ConvertToString(object value)
-    {
-        if (value == null)
-        {
-            return "null";
-        }
-
-        try
-        {
-            var jsonElement = JsonSerializer.SerializeToElement(value);
-
-            if (jsonElement.ValueKind == JsonValueKind.Number)
-            {
-                if (jsonElement.TryGetDouble(out double d))
-                {
-                    return Math.Round(d, 0).ToString("F0", CultureInfo.InvariantCulture);
-                }
-            }
-            else if (jsonElement.ValueKind == JsonValueKind.String)
-            {
-                string strValue = jsonElement.GetString();
-                return TryConvertStringToNumber(strValue);
-            }
-            else if (jsonElement.ValueKind == JsonValueKind.True || jsonElement.ValueKind == JsonValueKind.False)
-            {
-                return jsonElement.GetBoolean().ToString();
-            }
-            else if (jsonElement.ValueKind == JsonValueKind.Object || jsonElement.ValueKind == JsonValueKind.Array)
-            {
-                return jsonElement.ToString();
-            }
-        }
-        catch (JsonException)
-        {
-            return value switch
-            {
-                double d => Math.Round(d, 0).ToString("F0", CultureInfo.InvariantCulture),
-                float f => Math.Round(f, 0).ToString("F0", CultureInfo.InvariantCulture),
-                long l => l.ToString(),
-                bool b => b.ToString(),
-                string s => s,
-                _ => value.ToString()
-            } ?? string.Empty;
-        }
-
-        return value.ToString();
-    }
-
-    private static string TryConvertStringToNumber(string s)
-    {
-        if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsedDouble))
-        {
-            return Math.Round(parsedDouble, 0).ToString("F0", CultureInfo.InvariantCulture);
-        }
-
-        return s;
-    }
-
-    private static bool ParseQuality(string? q)
-    {
-        if (string.IsNullOrWhiteSpace(q)) return true; // Mặc định Good nếu không gửi cờ Q
-        if (bool.TryParse(q, out var bVal)) return bVal;
-        var trimmed = q.Trim();
-        if (trimmed == "1" || trimmed == "192" || trimmed.Equals("Good", StringComparison.OrdinalIgnoreCase)) return true;
-        if (trimmed == "0" || trimmed.Equals("Bad", StringComparison.OrdinalIgnoreCase)) return false;
-        return true;
     }
 }

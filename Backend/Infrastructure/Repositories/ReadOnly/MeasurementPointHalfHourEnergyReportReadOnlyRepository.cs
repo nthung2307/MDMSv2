@@ -7,6 +7,8 @@ using Application.Repositories.ReadOnly;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using Domain.Entities;
+using Domain.Enums;
+using Domain.Helpers;
 using Microsoft.EntityFrameworkCore;
 using Nobisoft.Core.Authorization;
 using Nobisoft.Core.Authorization.Interfaces;
@@ -73,7 +75,7 @@ public class MeasurementPointHalfHourEnergyReportReadOnlyRepository :
             .Where(m => m.MeasurementPoint.CustomerId == request.CustomerId)
             .Where(m => m.MeasurementPointId == request.MeasurementPointId)
             .Where(m => m.CreatedTime >= request.StartTime && m.CreatedTime <= request.EndTime)
-            .PaginateWithAscAndAsync<MeasurementPointHalfHourEnergyReportEntity, FinalizedEnergyReportResponse>(request, _mapper, cancellationToken);
+            .PaginateWithAscMappedAsync<MeasurementPointHalfHourEnergyReportEntity, FinalizedEnergyReportResponse>(request, _mapper, cancellationToken);
         return result;
     }
 
@@ -85,28 +87,9 @@ public class MeasurementPointHalfHourEnergyReportReadOnlyRepository :
         return new DateTimeOffset(baseTime.Year, baseTime.Month, baseTime.Day, baseTime.Hour, roundedMinute, 0, baseTime.Offset);
     }
 
-    private static string? FormatEnergyValue(string? value)
+    private static string? FormatEnergyValue(decimal? value, int suspectedMask, EnergySuspectedFlags flag)
     {
-        if (string.IsNullOrWhiteSpace(value)) return null;
-        bool isNotTopical = value.EndsWith("*") || value.Contains("Not Topical");
-        string cleanValue = value.Replace("*", "").Replace("(Not Topical)", "").Trim();
-
-        if (double.TryParse(cleanValue, NumberStyles.Any, CultureInfo.InvariantCulture, out double valueNumber))
-        {
-            var viCulture = CultureInfo.GetCultureInfo("vi-VN");
-            string formatted = valueNumber % 1 == 0
-                ? valueNumber.ToString("N0", viCulture)
-                : valueNumber.ToString("N2", viCulture);
-            return isNotTopical ? $"{formatted}*" : formatted;
-        }
-        return isNotTopical ? $"{cleanValue}*" : cleanValue;
-    }
-
-    private static string? EnsureSuspected(string? val)
-    {
-        if (string.IsNullOrWhiteSpace(val)) return null;
-        val = val.Trim();
-        return val.EndsWith("*") ? val : $"{val}*";
+        return MeteringValueHelper.FormatEnergyReportValue(value, suspectedMask, flag, null);
     }
 
     public async Task<List<ActivePointsEnergyReportResponse>> GetActivePointsEnergyReportAsync(
@@ -185,16 +168,18 @@ public class MeasurementPointHalfHourEnergyReportReadOnlyRepository :
                 {
                     MeasurementPointId = pastEntity.MeasurementPointId,
                     CreatedTime = pastEntity.CreatedTime,
-                    ChiSoTichLuyDienNangTacDungAPTongKenhGiao = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangTacDungAPTongKenhGiao),
-                    ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao),
-                    ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao),
-                    ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao),
-                    ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao),
-                    ChiSoTichLuyDienNangTacDungAPTongKenhNhan = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangTacDungAPTongKenhNhan),
-                    ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan),
-                    ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan),
-                    ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan),
-                    ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan = EnsureSuspected(pastEntity.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan),
+                    ChiSoTichLuyDienNangTacDungAPTongKenhGiao = pastEntity.ChiSoTichLuyDienNangTacDungAPTongKenhGiao,
+                    ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao = pastEntity.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao,
+                    ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao = pastEntity.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao,
+                    ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao = pastEntity.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao,
+                    ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao = pastEntity.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao,
+                    ChiSoTichLuyDienNangTacDungAPTongKenhNhan = pastEntity.ChiSoTichLuyDienNangTacDungAPTongKenhNhan,
+                    ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan = pastEntity.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan,
+                    ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan = pastEntity.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan,
+                    ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan = pastEntity.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan,
+                    ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan = pastEntity.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan,
+                    SuspectedMask = 0x3FF,
+                    IsSuspected = true
                 };
             }
         }
@@ -203,6 +188,7 @@ public class MeasurementPointHalfHourEnergyReportReadOnlyRepository :
         foreach (var p in activePoints)
         {
             energyDict.TryGetValue(p.Id, out var energy);
+            var mask = energy?.SuspectedMask ?? 0;
 
             var item = new ActivePointsEnergyReportResponse
             {
@@ -215,17 +201,17 @@ public class MeasurementPointHalfHourEnergyReportReadOnlyRepository :
                 MultiplierFactor = p.MultiplierFactor,
                 CreatedTime = targetSlot,
 
-                ChiSoTichLuyDienNangTacDungAPTongKenhGiao = FormatEnergyValue(energy?.ChiSoTichLuyDienNangTacDungAPTongKenhGiao),
-                ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao = FormatEnergyValue(energy?.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao),
-                ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao = FormatEnergyValue(energy?.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao),
-                ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao = FormatEnergyValue(energy?.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao),
-                ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao = FormatEnergyValue(energy?.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao),
+                ChiSoTichLuyDienNangTacDungAPTongKenhGiao = FormatEnergyValue(energy?.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, mask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPTongKenhGiao),
+                ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao = FormatEnergyValue(energy?.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, mask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao),
+                ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao = FormatEnergyValue(energy?.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, mask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao),
+                ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao = FormatEnergyValue(energy?.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, mask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao),
+                ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao = FormatEnergyValue(energy?.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, mask, EnergySuspectedFlags.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao),
 
-                ChiSoTichLuyDienNangTacDungAPTongKenhNhan = FormatEnergyValue(energy?.ChiSoTichLuyDienNangTacDungAPTongKenhNhan),
-                ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan = FormatEnergyValue(energy?.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan),
-                ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan = FormatEnergyValue(energy?.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan),
-                ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan = FormatEnergyValue(energy?.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan),
-                ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan = FormatEnergyValue(energy?.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan),
+                ChiSoTichLuyDienNangTacDungAPTongKenhNhan = FormatEnergyValue(energy?.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, mask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPTongKenhNhan),
+                ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan = FormatEnergyValue(energy?.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, mask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan),
+                ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan = FormatEnergyValue(energy?.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, mask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan),
+                ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan = FormatEnergyValue(energy?.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, mask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan),
+                ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan = FormatEnergyValue(energy?.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, mask, EnergySuspectedFlags.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan),
             };
             result.Add(item);
         }

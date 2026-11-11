@@ -61,11 +61,8 @@ namespace Application.Common
             public const string UserCustomers = "UserCustomers";
             public const string Gcs = "Gcs";
             public const string GcsTemporary = "GcsTemporary";
-            public const string MeasurementPointMonitoring = "MeasurementPointMonitoring";
-            public const string MeasurementPointMonitoringByDateTime = "MeasurementPointMonitoringByDateTime";
-            public const string MeasurementPointMonitoringByStatus = "MeasurementPointMonitoringByStatus";
-            public const string ArchiveDataMeasurementPointMonitoring = "ArchiveDataMeasurementPointMonitoring";
-            public const string MeasurementPointMonitoringHourly = "MeasurementPointMonitoringHourly";
+            public const string MeasurementPointCurrentSnapshots = "MeasurementPointCurrentSnapshots";
+            public const string MeasurementPointTimeSeries = "MeasurementPointTimeSeries";
             public const string MeasurementPointEvents = "MeasurementPointEvents";
             public const string GcsCutoffCycle = "GcsCutoffCycle";
             public const string GcsMonthlyDetail = "GcsMonthlyDetail";

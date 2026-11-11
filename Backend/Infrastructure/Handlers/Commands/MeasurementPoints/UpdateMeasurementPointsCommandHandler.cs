@@ -6,6 +6,7 @@ using Application.DataTransferObjects.Responses.MeasurementPoints;
 using Application.Handlers.Commands.MeasurementPoints;
 using Application.Repositories.ReadOnly;
 using Application.Repositories.ReadWrite;
+using Application.Services;
 using Nobisoft.Core.Authorization.Interfaces;
 using Nobisoft.Core.Constants;
 using Nobisoft.Core.Logger.Interfaces;
@@ -20,8 +21,9 @@ public class UpdateMeasurementPointsCommandHandler : IUpdateMeasurementPointsCom
     private readonly IMeasurementPointsReadOnlyRepository _measurementPointsReadOnlyRepository;
     private readonly IGcsCutOffCycleReadWriteRepository _gcsCutOffCycleReadWriteRepository;
     private readonly IGcsReadOnlyRepository _gcsReadOnlyRepository;
+    private readonly ITagRoutingCacheService _tagRoutingCacheService;
 
-    public UpdateMeasurementPointsCommandHandler(ICurrentUserService currentUserService, ILoggerService loggerService, IMeasurementPointsReadWriteRepository measurementPointsReadWriteRepository, IMeasurementPointsReadOnlyRepository measurementPointsReadOnlyRepository, IGcsCutOffCycleReadWriteRepository gcsCutOffCycleReadWriteRepository, IGcsReadOnlyRepository gcsReadOnlyRepository)
+    public UpdateMeasurementPointsCommandHandler(ICurrentUserService currentUserService, ILoggerService loggerService, IMeasurementPointsReadWriteRepository measurementPointsReadWriteRepository, IMeasurementPointsReadOnlyRepository measurementPointsReadOnlyRepository, IGcsCutOffCycleReadWriteRepository gcsCutOffCycleReadWriteRepository, IGcsReadOnlyRepository gcsReadOnlyRepository, ITagRoutingCacheService tagRoutingCacheService)
     {
         _currentUserService = currentUserService;
         _loggerService = loggerService;
@@ -29,6 +31,7 @@ public class UpdateMeasurementPointsCommandHandler : IUpdateMeasurementPointsCom
         _measurementPointsReadOnlyRepository = measurementPointsReadOnlyRepository;
         _gcsCutOffCycleReadWriteRepository = gcsCutOffCycleReadWriteRepository;
         _gcsReadOnlyRepository = gcsReadOnlyRepository;
+        _tagRoutingCacheService = tagRoutingCacheService;
     }
 
     public async Task<RequestResult<MeasurementPointResponse>> Handle(UpdateMeasurementPointsCommand command, CancellationToken cancellationToken)
@@ -191,6 +194,7 @@ public class UpdateMeasurementPointsCommandHandler : IUpdateMeasurementPointsCom
             measurementPoint.ModifiedBy = currentId;
             await _measurementPointsReadWriteRepository.UpdateAsync(measurementPoint, cancellationToken);
             await _measurementPointsReadWriteRepository.SaveChangesAsync(cancellationToken);
+            _tagRoutingCacheService.Invalidate();
             return RequestResult<MeasurementPointResponse>.Succeed(new MeasurementPointResponse());
         } catch (Exception ex)
         {

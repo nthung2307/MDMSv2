@@ -3,6 +3,8 @@ using Application.DataTransferObjects.Requests.Report;
 using Application.DataTransferObjects.Responses.Report;
 using Application.Repositories.ReadOnly;
 using Domain.Entities;
+using Domain.Enums;
+using Domain.Helpers;
 using Microsoft.EntityFrameworkCore;
 using Nobisoft.Core.Database.DbContext;
 using Nobisoft.Core.Database.Repository;
@@ -166,17 +168,17 @@ public class EnergyConsumptionReportReadOnlyRepository :
 
             if (currRecord != null && prevRecord != null)
             {
-                var (giaoTong, s1) = CalculateDelta(currRecord.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, prevRecord.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, multiplier, isSuspected);
-                var (giaoBT, s2) = CalculateDelta(currRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, prevRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, multiplier, isSuspected);
-                var (giaoCD, s3) = CalculateDelta(currRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, prevRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, multiplier, isSuspected);
-                var (giaoTD, s4) = CalculateDelta(currRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, prevRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, multiplier, isSuspected);
-                var (giaoVC, s5) = CalculateDelta(currRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, prevRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, multiplier, isSuspected);
+                var (giaoTong, s1) = CalculateDelta(currRecord.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, currRecord.SuspectedMask, prevRecord.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, prevRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, multiplier, isSuspected);
+                var (giaoBT, s2) = CalculateDelta(currRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, currRecord.SuspectedMask, prevRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, prevRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, multiplier, isSuspected);
+                var (giaoCD, s3) = CalculateDelta(currRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, currRecord.SuspectedMask, prevRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, prevRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, multiplier, isSuspected);
+                var (giaoTD, s4) = CalculateDelta(currRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, currRecord.SuspectedMask, prevRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, prevRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, multiplier, isSuspected);
+                var (giaoVC, s5) = CalculateDelta(currRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, currRecord.SuspectedMask, prevRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, prevRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, multiplier, isSuspected);
 
-                var (nhanTong, s6) = CalculateDelta(currRecord.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, prevRecord.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, multiplier, isSuspected);
-                var (nhanBT, s7) = CalculateDelta(currRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, prevRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, multiplier, isSuspected);
-                var (nhanCD, s8) = CalculateDelta(currRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, prevRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, multiplier, isSuspected);
-                var (nhanTD, s9) = CalculateDelta(currRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, prevRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, multiplier, isSuspected);
-                var (nhanVC, s10) = CalculateDelta(currRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, prevRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, multiplier, isSuspected);
+                var (nhanTong, s6) = CalculateDelta(currRecord.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, currRecord.SuspectedMask, prevRecord.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, prevRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, multiplier, isSuspected);
+                var (nhanBT, s7) = CalculateDelta(currRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, currRecord.SuspectedMask, prevRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, prevRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, multiplier, isSuspected);
+                var (nhanCD, s8) = CalculateDelta(currRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, currRecord.SuspectedMask, prevRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, prevRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, multiplier, isSuspected);
+                var (nhanTD, s9) = CalculateDelta(currRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, currRecord.SuspectedMask, prevRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, prevRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, multiplier, isSuspected);
+                var (nhanVC, s10) = CalculateDelta(currRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, currRecord.SuspectedMask, prevRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, prevRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, multiplier, isSuspected);
 
                 item.SanLuongTacDungTongKenhGiao = giaoTong;
                 item.SanLuongTacDungBTKenhGiao = giaoBT;
@@ -342,17 +344,17 @@ public class EnergyConsumptionReportReadOnlyRepository :
 
             if (nextDayRecord != null && currDayRecord != null)
             {
-                var (giaoTong, s1) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, currDayRecord.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, multiplier, isSuspected);
-                var (giaoBT, s2) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, currDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, multiplier, isSuspected);
-                var (giaoCD, s3) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, currDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, multiplier, isSuspected);
-                var (giaoTD, s4) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, currDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, multiplier, isSuspected);
-                var (giaoVC, s5) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, currDayRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, multiplier, isSuspected);
+                var (giaoTong, s1) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, nextDayRecord.SuspectedMask, currDayRecord.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, currDayRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, multiplier, isSuspected);
+                var (giaoBT, s2) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, nextDayRecord.SuspectedMask, currDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, currDayRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, multiplier, isSuspected);
+                var (giaoCD, s3) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, nextDayRecord.SuspectedMask, currDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, currDayRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, multiplier, isSuspected);
+                var (giaoTD, s4) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, nextDayRecord.SuspectedMask, currDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, currDayRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, multiplier, isSuspected);
+                var (giaoVC, s5) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, nextDayRecord.SuspectedMask, currDayRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, currDayRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, multiplier, isSuspected);
 
-                var (nhanTong, s6) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, currDayRecord.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, multiplier, isSuspected);
-                var (nhanBT, s7) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, currDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, multiplier, isSuspected);
-                var (nhanCD, s8) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, currDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, multiplier, isSuspected);
-                var (nhanTD, s9) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, currDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, multiplier, isSuspected);
-                var (nhanVC, s10) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, currDayRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, multiplier, isSuspected);
+                var (nhanTong, s6) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, nextDayRecord.SuspectedMask, currDayRecord.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, currDayRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, multiplier, isSuspected);
+                var (nhanBT, s7) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, nextDayRecord.SuspectedMask, currDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, currDayRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, multiplier, isSuspected);
+                var (nhanCD, s8) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, nextDayRecord.SuspectedMask, currDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, currDayRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, multiplier, isSuspected);
+                var (nhanTD, s9) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, nextDayRecord.SuspectedMask, currDayRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, currDayRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, multiplier, isSuspected);
+                var (nhanVC, s10) = CalculateDelta(nextDayRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, nextDayRecord.SuspectedMask, currDayRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, currDayRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, multiplier, isSuspected);
 
                 item.SanLuongTacDungTongKenhGiao = giaoTong;
                 item.SanLuongTacDungBTKenhGiao = giaoBT;
@@ -504,17 +506,17 @@ public class EnergyConsumptionReportReadOnlyRepository :
 
             if (startRecord != null && endRecord != null)
             {
-                var (giaoTong, s1) = CalculateDelta(endRecord.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, startRecord.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, multiplier, isSuspected);
-                var (giaoBT, s2) = CalculateDelta(endRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, startRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, multiplier, isSuspected);
-                var (giaoCD, s3) = CalculateDelta(endRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, startRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, multiplier, isSuspected);
-                var (giaoTD, s4) = CalculateDelta(endRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, startRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, multiplier, isSuspected);
-                var (giaoVC, s5) = CalculateDelta(endRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, startRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, multiplier, isSuspected);
+                var (giaoTong, s1) = CalculateDelta(endRecord.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, endRecord.SuspectedMask, startRecord.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, startRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPTongKenhGiao, multiplier, isSuspected);
+                var (giaoBT, s2) = CalculateDelta(endRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, endRecord.SuspectedMask, startRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, startRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, multiplier, isSuspected);
+                var (giaoCD, s3) = CalculateDelta(endRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, endRecord.SuspectedMask, startRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, startRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, multiplier, isSuspected);
+                var (giaoTD, s4) = CalculateDelta(endRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, endRecord.SuspectedMask, startRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, startRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, multiplier, isSuspected);
+                var (giaoVC, s5) = CalculateDelta(endRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, endRecord.SuspectedMask, startRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, startRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, multiplier, isSuspected);
 
-                var (nhanTong, s6) = CalculateDelta(endRecord.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, startRecord.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, multiplier, isSuspected);
-                var (nhanBT, s7) = CalculateDelta(endRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, startRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, multiplier, isSuspected);
-                var (nhanCD, s8) = CalculateDelta(endRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, startRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, multiplier, isSuspected);
-                var (nhanTD, s9) = CalculateDelta(endRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, startRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, multiplier, isSuspected);
-                var (nhanVC, s10) = CalculateDelta(endRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, startRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, multiplier, isSuspected);
+                var (nhanTong, s6) = CalculateDelta(endRecord.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, endRecord.SuspectedMask, startRecord.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, startRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPTongKenhNhan, multiplier, isSuspected);
+                var (nhanBT, s7) = CalculateDelta(endRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, endRecord.SuspectedMask, startRecord.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, startRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, multiplier, isSuspected);
+                var (nhanCD, s8) = CalculateDelta(endRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, endRecord.SuspectedMask, startRecord.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, startRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, multiplier, isSuspected);
+                var (nhanTD, s9) = CalculateDelta(endRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, endRecord.SuspectedMask, startRecord.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, startRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, multiplier, isSuspected);
+                var (nhanVC, s10) = CalculateDelta(endRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, endRecord.SuspectedMask, startRecord.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, startRecord.SuspectedMask, EnergySuspectedFlags.ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, multiplier, isSuspected);
 
                 item.SanLuongTacDungTongKenhGiao = giaoTong;
                 item.SanLuongTacDungBTKenhGiao = giaoBT;
@@ -540,38 +542,34 @@ public class EnergyConsumptionReportReadOnlyRepository :
 
     #region Helper Methods
     private static (double? Delta, bool IsSuspected) CalculateDelta(
-        string? currentStr, 
-        string? prevStr, 
-        double multiplier, 
+        decimal? currentDec,
+        int currMask,
+        decimal? prevDec,
+        int prevMask,
+        EnergySuspectedFlags flag,
+        double multiplier,
         bool isSuspectedSource = false)
     {
-        if (string.IsNullOrWhiteSpace(currentStr) || string.IsNullOrWhiteSpace(prevStr))
+        if (!currentDec.HasValue || !prevDec.HasValue)
             return (null, false);
 
-        bool isSuspected = isSuspectedSource || 
-                           currentStr.Contains('*') || currentStr.Contains("Not Topical") ||
-                           prevStr.Contains('*') || prevStr.Contains("Not Topical");
+        var hasSuspectedFlag = MeteringValueHelper.HasSuspectedFlag(currMask, flag) ||
+                               MeteringValueHelper.HasSuspectedFlag(prevMask, flag);
+        var isSuspected = isSuspectedSource || hasSuspectedFlag;
 
-        var cleanCurrent = currentStr.Replace("*", "").Replace("(Not Topical)", "").Trim();
-        var cleanPrev = prevStr.Replace("*", "").Replace("(Not Topical)", "").Trim();
-
-        if (!double.TryParse(cleanCurrent, NumberStyles.Any, CultureInfo.InvariantCulture, out var currentVal) ||
-            !double.TryParse(cleanPrev, NumberStyles.Any, CultureInfo.InvariantCulture, out var prevVal))
-            return (null, false);
+        var currentVal = (double)currentDec.Value;
+        var prevVal = (double)prevDec.Value;
 
         double delta;
         if (currentVal < prevVal)
         {
-            // Trường hợp thay thế công tơ (chỉ số mới nhỏ hơn chỉ số cũ valid gần nhất):
-            // Coi chỉ số công tơ mới bắt đầu từ 0 -> delta = currentVal
             delta = currentVal;
             isSuspected = true;
         }
         else
         {
             delta = currentVal - prevVal;
-            // Nếu delta == 0 do mất kết nối kéo dài giữ nguyên chỉ số, đánh dấu nghi ngờ
-            if (delta == 0 && (currentStr.Contains('*') || prevStr.Contains('*') || isSuspectedSource))
+            if (delta == 0 && (hasSuspectedFlag || isSuspectedSource))
             {
                 isSuspected = true;
             }

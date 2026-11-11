@@ -17,7 +17,8 @@ param (
     [string]$TargetBackendDir = "C:\MDMSv2\Backend",
     [string]$TargetFrontendDir = "C:\MDMSv2\Frontend",
     [string]$SourcePackageDir = $PSScriptRoot,
-    [string]$MySqlPassword = ""
+    [string]$MySqlPassword = "",
+    [switch]$SkipBackup
 )
 
 $ErrorActionPreference = "Stop"
@@ -155,75 +156,84 @@ if (-not $mysqlExe) {
 }
 
 if ($mysqlExe -and -not [string]::IsNullOrWhiteSpace($dbPassword)) {
-    Write-Host ""
-    Write-Host "   Dang don dep cac dau sao (*) nghi ngo cu trong CSDL (7 ngay qua)..." -ForegroundColor Yellow
-    $cleanSql = @"
-UPDATE measurementpointhalfhourenergyreports 
-SET 
-  ChiSoTichLuyDienNangTacDungAPTongKenhGiao = REPLACE(REPLACE(ChiSoTichLuyDienNangTacDungAPTongKenhGiao, '*', ''), '(Not Topical)', ''),
-  ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao = REPLACE(REPLACE(ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, '*', ''), '(Not Topical)', ''),
-  ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao = REPLACE(REPLACE(ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, '*', ''), '(Not Topical)', ''),
-  ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao = REPLACE(REPLACE(ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, '*', ''), '(Not Topical)', ''),
-  ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao = REPLACE(REPLACE(ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, '*', ''), '(Not Topical)', ''),
-  ChiSoTichLuyDienNangTacDungAPTongKenhNhan = REPLACE(REPLACE(ChiSoTichLuyDienNangTacDungAPTongKenhNhan, '*', ''), '(Not Topical)', ''),
-  ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan = REPLACE(REPLACE(ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, '*', ''), '(Not Topical)', ''),
-  ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan = REPLACE(REPLACE(ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, '*', ''), '(Not Topical)', ''),
-  ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan = REPLACE(REPLACE(ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, '*', ''), '(Not Topical)', ''),
-  ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan = REPLACE(REPLACE(ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, '*', ''), '(Not Topical)', '')
-WHERE CreatedTime >= NOW() - INTERVAL 7 DAY;
-
-UPDATE measurementpointdailyenergyreports 
-SET 
-  ChiSoTichLuyDienNangTacDungAPTongKenhGiao = REPLACE(REPLACE(ChiSoTichLuyDienNangTacDungAPTongKenhGiao, '*', ''), '(Not Topical)', ''),
-  ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao = REPLACE(REPLACE(ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhGiao, '*', ''), '(Not Topical)', ''),
-  ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao = REPLACE(REPLACE(ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhGiao, '*', ''), '(Not Topical)', ''),
-  ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao = REPLACE(REPLACE(ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhGiao, '*', ''), '(Not Topical)', ''),
-  ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao = REPLACE(REPLACE(ChiSoTichLuyDienNangPhanKhangAQTongKenhGiao, '*', ''), '(Not Topical)', ''),
-  ChiSoTichLuyDienNangTacDungAPTongKenhNhan = REPLACE(REPLACE(ChiSoTichLuyDienNangTacDungAPTongKenhNhan, '*', ''), '(Not Topical)', ''),
-  ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan = REPLACE(REPLACE(ChiSoTichLuyDienNangTacDungAPBieuGioBTKenhNhan, '*', ''), '(Not Topical)', ''),
-  ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan = REPLACE(REPLACE(ChiSoTichLuyDienNangTacDungAPBieuGioCDKenhNhan, '*', ''), '(Not Topical)', ''),
-  ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan = REPLACE(REPLACE(ChiSoTichLuyDienNangTacDungAPBieuGioTDKenhNhan, '*', ''), '(Not Topical)', ''),
-  ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan = REPLACE(REPLACE(ChiSoTichLuyDienNangPhanKhangAQTongKenhNhan, '*', ''), '(Not Topical)', '')
-WHERE CreatedTime >= NOW() - INTERVAL 7 DAY;
-"@
-    try {
-        $tempSqlFile = Join-Path $env:TEMP "clean_suspected.sql"
-        [System.IO.File]::WriteAllText($tempSqlFile, "SET NAMES utf8mb4;`n" + $cleanSql, [System.Text.Encoding]::UTF8)
-        & $mysqlExe "--host=$dbServer" "--port=$dbPort" "--user=$dbUser" "--password=$dbPassword" "--default-character-set=utf8mb4" "$dbName" "-e" "SET NAMES utf8mb4; source $tempSqlFile"
-        Remove-Item $tempSqlFile -Force -ErrorAction SilentlyContinue
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "   -> [OK] Da don dep du lieu cu va dam bao cau truc cac cot moi (GcsTemporary, StatementPdfTemplates)." -ForegroundColor Green
+    # 2.5 Sao luu CSDL bang mysqldump truoc khi chay SQL migration Phase 1 (Zero-Data-Loss Safeguard)
+    if (-not $SkipBackup) {
+        $mysqlBinDir = Split-Path -Path $mysqlExe -Parent
+        $mysqldumpExe = Join-Path $mysqlBinDir "mysqldump.exe"
+        if (-not (Test-Path $mysqldumpExe)) {
+            $mysqldumpCmd = Get-Command "mysqldump.exe" -ErrorAction SilentlyContinue
+            if ($mysqldumpCmd) { $mysqldumpExe = $mysqldumpCmd.Source }
         }
-    } catch {
-        Write-Warning "   Khong the tu dong don dep du lieu cu qua mysql.exe: $_"
+
+        if ($mysqldumpExe -and (Test-Path $mysqldumpExe)) {
+            $rootDir = Split-Path -Path $TargetBackendDir -Parent
+            $backupDir = Join-Path $rootDir "Backups"
+            if (-not (Test-Path $backupDir)) {
+                New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+            }
+            $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+            $backupFile = Join-Path $backupDir "amr_pre_phase1_$timestamp.sql"
+            Write-Host ""
+            Write-Host "   Dang sao luu CSDL '$dbName' truoc khi migration tai: $backupFile..." -ForegroundColor Yellow
+
+            $env:MYSQL_PWD = $dbPassword
+            try {
+                & $mysqldumpExe "--host=$dbServer" "--port=$dbPort" "--user=$dbUser" "--single-transaction" "--routines" "--triggers" "--hex-blob" "--default-character-set=utf8mb4" "--result-file=$backupFile" "$dbName"
+                if ($LASTEXITCODE -ne 0 -or -not (Test-Path $backupFile) -or (Get-Item $backupFile).Length -eq 0) {
+                    throw "Sao luu CSDL qua mysqldump that bai (ExitCode: $LASTEXITCODE). Dung nang cap de bao toan du lieu!"
+                }
+                $dumpMb = [math]::Round(((Get-Item $backupFile).Length / 1MB), 2)
+                Write-Host "   -> [OK] Da sao luu CSDL thanh cong ($dumpMb MB)." -ForegroundColor Green
+            }
+            finally {
+                Remove-Item Env:MYSQL_PWD -ErrorAction SilentlyContinue
+            }
+        } else {
+            Write-Warning "   [!] Khong tim thay mysqldump.exe. Dang tiep tuc migration khong co file dump (Verification Gate van bao ve bang goc)."
+        }
     }
 
-    # Tu dong thuc thi file SQL migration neu co trong goi Hotfix (Loai bo script sua font Tieng Viet de bao toan mau tuy bien cua nguoi dung)
+    # Tu dong thuc thi cac file SQL migration theo thu tu thoi gian (Loai bo script sua font Tieng Viet)
     $sqlSearchDirs = @(
         (Join-Path $SourcePackageDir "Database"),
         $SourcePackageDir
     )
-    foreach ($dir in $sqlSearchDirs) {
-        if (Test-Path $dir) {
-            $migrationFiles = Get-ChildItem -Path $dir -Filter "*.sql" -File | Where-Object { 
-                ($_.Name -like "*email*" -or $_.Name -like "*migration*" -or $_.Name -like "*table*" -or $_.Name -like "*decimal*" -or $_.Name -match "^\d{8}_") -and
-                $_.Name -notlike "*font*" -and
-                $_.Name -notlike "*encoding*"
-            } | Sort-Object Name
-            foreach ($sqlFile in $migrationFiles) {
-                Write-Host "   Dang thuc thi script migration CSDL: $($sqlFile.Name)..." -ForegroundColor Yellow
-                try {
-                    & $mysqlExe "--host=$dbServer" "--port=$dbPort" "--user=$dbUser" "--password=$dbPassword" "--default-character-set=utf8mb4" "$dbName" "-e" "SET NAMES utf8mb4; source $($sqlFile.FullName)"
-                    if ($LASTEXITCODE -eq 0) {
+    $executedSqlNames = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $env:MYSQL_PWD = $dbPassword
+    try {
+        foreach ($dir in $sqlSearchDirs) {
+            if (Test-Path $dir) {
+                $migrationFiles = Get-ChildItem -Path $dir -Filter "*.sql" -File | Where-Object {
+                    ($_.Name -like "*email*" -or $_.Name -like "*migration*" -or $_.Name -like "*table*" -or $_.Name -like "*decimal*" -or $_.Name -match "^\d{8}_") -and
+                    $_.Name -notlike "*font*" -and
+                    $_.Name -notlike "*encoding*"
+                } | Sort-Object Name
+                foreach ($sqlFile in $migrationFiles) {
+                    if (-not $executedSqlNames.Add($sqlFile.Name)) {
+                        continue
+                    }
+                    Write-Host "   Dang thuc thi script migration CSDL: $($sqlFile.Name)..." -ForegroundColor Yellow
+                    # Feed SQL file via stdin redirection so mysql.exe processes DELIMITER, multi-line statements, and paths with spaces cleanly
+                    $mysqlArgs = @(
+                        "`"--host=$dbServer`"",
+                        "`"--port=$dbPort`"",
+                        "`"--user=$dbUser`"",
+                        "`"--default-character-set=utf8mb4`"",
+                        "`"$dbName`""
+                    )
+                    $mysqlProc = Start-Process -FilePath $mysqlExe -ArgumentList $mysqlArgs -RedirectStandardInput $sqlFile.FullName -NoNewWindow -Wait -PassThru
+                    if ($mysqlProc -and $mysqlProc.ExitCode -eq 0) {
                         Write-Host "   -> [OK] Thuc thi $($sqlFile.Name) thanh cong!" -ForegroundColor Green
                     } else {
-                        Write-Warning "   Khong the thuc thi $($sqlFile.Name) (ExitCode: $LASTEXITCODE). Vui long kiem tra lai quyen truy cap MySQL."
+                        $exitCode = if ($mysqlProc) { $mysqlProc.ExitCode } else { -1 }
+                        throw "Thuc thi script $($sqlFile.Name) that bai (ExitCode: $exitCode). Dung nang cap de tranh lech schema!"
                     }
-                } catch {
-                    Write-Warning "   Khong the thuc thi $($sqlFile.Name): $_"
                 }
             }
         }
+    }
+    finally {
+        Remove-Item Env:MYSQL_PWD -ErrorAction SilentlyContinue
     }
 }
 
