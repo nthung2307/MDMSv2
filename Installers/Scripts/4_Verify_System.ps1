@@ -3,6 +3,12 @@
     Kiem tra toan dien trang thai hoat dong (Health Check) cua MDMSv2 tren Windows Server 2019.
 #>
 
+[CmdletBinding()]
+param (
+    [int]$BackendPort = 19089,
+    [int]$FrontendPort = 80
+)
+
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "    KIEM TRA HOAT DONG TOAN BO HE THONG (HEALTH CHECK)    " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
@@ -39,8 +45,8 @@ function Test-Http {
 Write-Host "`n1. Kiem tra cac cong dich vu cuc bo (Local Ports):" -ForegroundColor Yellow
 Test-Port -Port 3306 -ServiceName "MySQL Database"
 Test-Port -Port 39320 -ServiceName "Kepware IoT Gateway REST Server"
-Test-Port -Port 19089 -ServiceName "MDMSv2 Backend WebApi (.NET 8)"
-Test-Port -Port 80 -ServiceName "MDMSv2 Frontend (IIS Web Site)"
+Test-Port -Port $BackendPort -ServiceName "MDMSv2 Backend WebApi (.NET 8)"
+Test-Port -Port $FrontendPort -ServiceName "MDMSv2 Frontend (IIS Web Site)"
 
 Write-Host "`n2. Kiem tra cac tien trinh va dich vu Windows:" -ForegroundColor Yellow
 
@@ -76,10 +82,10 @@ foreach ($s in $services) {
 }
 
 Write-Host "`n3. Kiem tra phan hoi HTTP API & Giao dien:" -ForegroundColor Yellow
-Test-Http -Url "http://127.0.0.1:19089/" -Description "Backend Welcome Endpoint"
-Test-Http -Url "http://127.0.0.1:19089/swagger/index.html" -Description "Swagger API Documentation"
-Test-Http -Url "http://127.0.0.1:19089/dashboard" -Description "Hangfire Background Jobs Dashboard"
-Test-Http -Url "http://127.0.0.1:80/" -Description "Frontend Web Portal"
+Test-Http -Url "http://127.0.0.1:$BackendPort/" -Description "Backend Welcome Endpoint"
+Test-Http -Url "http://127.0.0.1:$BackendPort/swagger/index.html" -Description "Swagger API Documentation"
+Test-Http -Url "http://127.0.0.1:$BackendPort/dashboard" -Description "Hangfire Background Jobs Dashboard"
+Test-Http -Url "http://127.0.0.1:$FrontendPort/" -Description "Frontend Web Portal"
 
 Write-Host "`n==========================================================" -ForegroundColor Cyan
 Write-Host "                KET THUC KIEM TRA HE THONG                " -ForegroundColor Cyan

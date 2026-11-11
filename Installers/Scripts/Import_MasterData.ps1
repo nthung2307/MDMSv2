@@ -135,7 +135,7 @@ Write-Host ('Cong cu MySQL Client   : ' + $mysqlExe) -ForegroundColor Gray
 
 # 3. Nhan dien thong tin ket noi MySQL tu appsettings.Production.json
 $backendCandidates = @(
-    (Join-Path $scriptDir '..\..\Backend\Presentation\WebAPI'),
+    (Join-Path $scriptDir '..\..\Backend\WebApi'),
     (Join-Path $scriptDir '..\Backend'),
     'C:\MDMSv2\Backend'
 )
@@ -193,6 +193,50 @@ function Hash-MdmsPassword {
     return [Convert]::ToBase64String($dst)
 }
 
+function Invoke-MySqlFileSafe {
+    param(
+        [string]$FilePath,
+        [string]$Database = '',
+        [switch]$LargePacket,
+        [switch]$SilentResult,
+        [string]$OutputPath = ''
+    )
+    $mysqlArgs = @(
+        "`"--host=$MySqlHost`"",
+        "`"--port=$MySqlPort`"",
+        "`"--user=$MySqlUser`"",
+        "`"--default-character-set=utf8mb4`""
+    )
+    if ($LargePacket) {
+        $mysqlArgs += "--max-allowed-packet=512M"
+        $mysqlArgs += "--net-buffer-length=16384"
+    }
+    if ($SilentResult) {
+        $mysqlArgs += "-N"
+        $mysqlArgs += "-s"
+    } elseif (-not [string]::IsNullOrWhiteSpace($OutputPath)) {
+        $mysqlArgs += "-t"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Database)) {
+        $mysqlArgs += "`"$Database`""
+    }
+
+    $prevPwd = $env:MYSQL_PWD
+    $env:MYSQL_PWD = $MySqlPassword
+    try {
+        if (-not [string]::IsNullOrWhiteSpace($OutputPath)) {
+            return Start-Process -FilePath $mysqlExe -ArgumentList $mysqlArgs -RedirectStandardInput $FilePath -RedirectStandardOutput $OutputPath -NoNewWindow -Wait -PassThru
+        }
+        return Start-Process -FilePath $mysqlExe -ArgumentList $mysqlArgs -RedirectStandardInput $FilePath -NoNewWindow -Wait -PassThru
+    } finally {
+        if ($null -ne $prevPwd) {
+            $env:MYSQL_PWD = $prevPwd
+        } else {
+            Remove-Item Env:MYSQL_PWD -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 function Invoke-MySqlCommand {
     param(
         [string]$SqlContent,
@@ -200,18 +244,15 @@ function Invoke-MySqlCommand {
     )
     Write-Host ('   -> ' + $Description + '...') -ForegroundColor Gray
     $tempSql = Join-Path $env:TEMP ('mdms_exec_' + [guid]::NewGuid().ToString('N') + '.sql')
-    $tempBat = Join-Path $env:TEMP ('mdms_exec_' + [guid]::NewGuid().ToString('N') + '.bat')
     try {
         $utf8NoBom = New-Object System.Text.UTF8Encoding $false
         [System.IO.File]::WriteAllText($tempSql, $SqlContent, $utf8NoBom)
-        $batCmd = '@echo off' + "`r`n" + '"' + $mysqlExe + '" -h ' + $MySqlHost + ' -P ' + $MySqlPort + ' -u ' + $MySqlUser + ' "-p' + $MySqlPassword + '" --default-character-set=utf8mb4 amr < "' + $tempSql + '"'
-        Set-Content -Path $tempBat -Value $batCmd -Encoding ASCII
-        $p = Start-Process -FilePath $tempBat -Wait -PassThru -NoNewWindow
-        if ($p.ExitCode -ne 0) {
-            throw ('Lenh MySQL ket thuc voi ma loi: ' + $p.ExitCode)
+        $p = Invoke-MySqlFileSafe -FilePath $tempSql -Database 'amr'
+        if (-not $p -or $p.ExitCode -ne 0) {
+            throw ('Lenh MySQL ket thuc voi ma loi: ' + $(if ($p) { $p.ExitCode } else { -1 }))
         }
     } finally {
-        Remove-Item -Path $tempSql, $tempBat -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path $tempSql -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -224,32 +265,22 @@ try {
     $tempCheckRes = Join-Path $env:TEMP 'check_amr.txt'
     $utf8NoBom = New-Object System.Text.UTF8Encoding $false
     [System.IO.File]::WriteAllText($tempCheckSql, $checkDbSql, $utf8NoBom)
-    $batCheck = '@echo off' + "`r`n" + '"' + $mysqlExe + '" -h ' + $MySqlHost + ' -P ' + $MySqlPort + ' -u ' + $MySqlUser + ' "-p' + $MySqlPassword + '" -N -s < "' + $tempCheckSql + '" > "' + $tempCheckRes + '"'
-    $tempBat = Join-Path $env:TEMP 'run_check.bat'
-    Set-Content -Path $tempBat -Value $batCheck -Encoding ASCII
-    $p = Start-Process -FilePath $tempBat -Wait -PassThru -NoNewWindow
+    $p = Invoke-MySqlFileSafe -FilePath $tempCheckSql -SilentResult -OutputPath $tempCheckRes
     if (Test-Path $tempCheckRes) {
         $res = Get-Content $tempCheckRes -Raw -ErrorAction SilentlyContinue
         if ($res -and $res.Trim() -eq 'amr') { $hasAmrDb = $true }
     }
-    Remove-Item -Path $tempCheckSql, $tempCheckRes, $tempBat -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $tempCheckSql, $tempCheckRes -Force -ErrorAction SilentlyContinue
 } catch {}
 
 if (-not $hasAmrDb) {
     if ($fileFull -and (Test-Path $fileFull)) {
         Write-Host "   Chua co database 'amr'. Dang khoi tao cau truc bang tu: $(Split-Path $fileFull -Leaf)..." -ForegroundColor Yellow
-        $importFullBat = Join-Path $env:TEMP 'import_full.bat'
-        try {
-            $batCmd = '@echo off' + "`r`n" + '"' + $mysqlExe + '" -h ' + $MySqlHost + ' -P ' + $MySqlPort + ' -u ' + $MySqlUser + ' "-p' + $MySqlPassword + '" --default-character-set=utf8mb4 < "' + $fileFull + '"'
-            Set-Content -Path $importFullBat -Value $batCmd -Encoding ASCII
-            $p = Start-Process -FilePath $importFullBat -Wait -PassThru -NoNewWindow
-            if ($p.ExitCode -ne 0) {
-                throw ('Import amr_full.sql that bai voi ma loi ' + $p.ExitCode)
-            }
-            Write-Host '   [PASS] Da khoi tao database amr thanh cong tu amr_full.sql!' -ForegroundColor Green
-        } finally {
-            Remove-Item -Path $importFullBat -Force -ErrorAction SilentlyContinue
+        $p = Invoke-MySqlFileSafe -FilePath $fileFull
+        if (-not $p -or $p.ExitCode -ne 0) {
+            throw ('Import amr_full.sql that bai voi ma loi ' + $(if ($p) { $p.ExitCode } else { -1 }))
         }
+        Write-Host '   [PASS] Da khoi tao database amr thanh cong tu amr_full.sql!' -ForegroundColor Green
     } else {
         Write-Error "Chua co Database 'amr' va khong tim thay amr_full.sql de khoi tao. Dung tien trinh."
     }
@@ -279,20 +310,13 @@ SET FOREIGN_KEY_CHECKS = 1;
 Invoke-MySqlCommand -SqlContent $cleanMasterSql -Description "Don dep ban ghi cu tren cac bang Master Data"
 
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
-$importDataBat = Join-Path $env:TEMP 'import_master.bat'
-try {
-    $batCmd = '@echo off' + "`r`n" + '"' + $mysqlExe + '" -h ' + $MySqlHost + ' -P ' + $MySqlPort + ' -u ' + $MySqlUser + ' "-p' + $MySqlPassword + '" --max-allowed-packet=512M --net-buffer-length=16384 --default-character-set=utf8mb4 amr < "' + $fileData + '"'
-    Set-Content -Path $importDataBat -Value $batCmd -Encoding ASCII
-    $p = Start-Process -FilePath $importDataBat -Wait -PassThru -NoNewWindow
-    $sw.Stop()
+$p = Invoke-MySqlFileSafe -FilePath $fileData -Database 'amr' -LargePacket
+$sw.Stop()
 
-    if ($p.ExitCode -ne 0) {
-        throw ('Import Master Data that bai voi ma loi ' + $p.ExitCode)
-    }
-    Write-Host ('   [PASS] Da import thanh cong Master Data trong ' + [math]::Round($sw.Elapsed.TotalSeconds, 2) + ' giay!') -ForegroundColor Green
-} finally {
-    Remove-Item -Path $importDataBat -Force -ErrorAction SilentlyContinue
+if (-not $p -or $p.ExitCode -ne 0) {
+    throw ('Import Master Data that bai voi ma loi ' + $(if ($p) { $p.ExitCode } else { -1 }))
 }
+Write-Host ('   [PASS] Da import thanh cong Master Data trong ' + [math]::Round($sw.Elapsed.TotalSeconds, 2) + ' giay!') -ForegroundColor Green
 
 # 6. BUOC 3: Dong bo mat khau tai khoan Admin Web Portal
 Write-Host "`n[BUOC 3/4] Dong bo mat khau tai khoan Admin Web Portal..." -ForegroundColor Yellow
@@ -353,18 +377,17 @@ SELECT 'Bao cao Thong so van hanh nua gio (operating reports)', CAST(COUNT(*) AS
 UNION ALL
 SELECT 'Bao cao San luong ngay (daily energy)', CAST(COUNT(*) AS CHAR) FROM measurementpointdailyenergyreports
 UNION ALL
-SELECT 'Du lieu do dem tuc thoi (monitoring)', CAST(COUNT(*) AS CHAR) FROM measurementpointmonitoring
+SELECT 'Snapshot trang thai hien hanh (snapshots)', CAST(COUNT(*) AS CHAR) FROM measurementpointcurrentsnapshots
+UNION ALL
+SELECT 'Chuoi thoi gian do dem (time series)', CAST(COUNT(*) AS CHAR) FROM measurementpointtimeseries
 UNION ALL
 SELECT 'Phieu bao dien nang (periodic statements)', CAST(COUNT(*) AS CHAR) FROM periodicenergystatement;
 "@
 
 try {
-    Set-Content -Path $verifyQueryFile -Value $verifySql -Encoding UTF8
-    $batVerify = '@echo off' + "`r`n" + '"' + $mysqlExe + '" -h ' + $MySqlHost + ' -P ' + $MySqlPort + ' -u ' + $MySqlUser + ' "-p' + $MySqlPassword + '" -t < "' + $verifyQueryFile + '" > "' + $verifyResultFile + '"'
-    $tempBatVerify = Join-Path $env:TEMP 'run_verify.bat'
-    Set-Content -Path $tempBatVerify -Value $batVerify -Encoding ASCII
-    $p = Start-Process -FilePath $tempBatVerify -Wait -PassThru -NoNewWindow
-    Remove-Item -Path $tempBatVerify -Force -ErrorAction SilentlyContinue
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($verifyQueryFile, $verifySql, $utf8NoBom)
+    $p = Invoke-MySqlFileSafe -FilePath $verifyQueryFile -Database 'amr' -OutputPath $verifyResultFile
 
     if (Test-Path $verifyResultFile) {
         Write-Host "`n=== KET QUA KIEM TRA SAU KHI IMPORT MASTER DATA ===" -ForegroundColor Cyan

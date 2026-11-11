@@ -1,3 +1,72 @@
+# [DEV UPDATE] PHASE 1 HOTFIX — KHẮC PHỤC XỬ LÝ TÍN HIỆU REST CLIENT 'Status' (CẢNH BÁO, SỰ KIỆN & KẾT NỐI)
+
+> **Tài liệu cập nhật phát triển (Developer Changelog)**  
+> **Phiên bản:** v3.2.1-PHASE1-STATUS-ALERT-INGESTION-HOTFIX  
+> **Người thực hiện:** MDMS-Coder (Lead Full-Stack Developer)  
+> **Thời gian:** 11/11/2026  
+
+---
+
+### Nguyên nhân gốc rễ & Các hạng mục khắc phục:
+1. **Lỗi EF Core `DbUpdateConcurrencyException` (HTTP 500) khi một tag đổi trạng thái nhiều lần trong cùng gói Narrow Format (`false -> true -> false`)** ([`MeasurementPointEventCommandHandler.cs`](file:///e:/sources/MDMSv2/Backend/Infrastructure/Handlers/Commands/IoT/MeasurementPointEventCommandHandler.cs)):
+   - Do trước đây thêm `MeasurementPointsAlertEntity` mới via `RestfulRepository.AddAsync` (`EntityState.Added`) rồi lại gọi `RemoveAsync` (`Attach` + `Remove`, đưa thực thể chưa lưu thành `EntityState.Deleted`) trong cùng một DbContext/request, khiến `SaveChangesAsync()` phát sinh `DELETE ... WHERE Id = @p0` 0 dòng và ném `DbUpdateConcurrencyException`.
+   - Đã sửa bằng cách sắp xếp `matchedEntries` tăng dần theo `TimestampMs`, quản lý cảnh báo chờ tạo trong từ điển `pendingNewAlerts` trong suốt vòng lặp và chỉ gọi `AddAsync` sau vòng lặp nếu trạng thái cuối vẫn là `ALARM`.
+   - Bổ sung dọn cả cảnh báo mồ côi (`TagNameId == null` khớp `MeasurementPointId` & `ParameterCode`) ở nhánh `NORMAL`, gom bản ghi Snapshot mới nhất theo `Description` trong `statusBatches` (`LatestSamples`), chỉ gọi `UpdateAsync` một lần cho mỗi `TagNameEntity` thay đổi (`dirtyTags`), và cô lập phát SignalR trong `TryBroadcastNotificationsAsync`.
+2. **Lỗi HTTP 400 (`Bad Request`) khi gói Kepware chứa `"v": null` hoặc trường tag tùy chọn bị rỗng** ([`IoTDataRequest.cs`](file:///e:/sources/MDMSv2/Backend/Application/DataTransferObjects/Requests/IoT/IoTDataRequest.cs)):
+   - Chuyển `IoTDataRequest.Values`, `IoTDataValue.Id`, `IoTDataValue.V`, `IoTDataValue.Q` sang nullable (`?`) để System.Text.Json / MVC model validation (`.NET 8 <Nullable>enable</Nullable>`) không từ chối toàn bộ gói Status trước khi vào controller.
+3. **Chuẩn hóa Log Catch Blocks trong [`IoTController.cs`](file:///e:/sources/MDMSv2/Backend/WebApi/Controllers/IoTController.cs)**:
+   - Sửa tên action trong log lỗi của `ReceiveDataByDateTimeAsync` và `ReceiveDataAlertAsync` từ `nameof(ReceiveDataAsync)` sang đúng tên hàm tương ứng.
+4. **Bổ sung Unit Tests Hồi quy** ([`Phase1TelemetryAndPartitionTests.cs`](file:///e:/sources/MDMSv2/Backend/Tests/MDMS.UnitTests/Phase1TelemetryAndPartitionTests.cs)):
+   - Thêm `IoTDataRequest_AllowsNullableTagFieldsWithoutModelBindingFailure` và `MeasurementPointEventCommandHandler_EvaluatesBufferedTransitionsSafely`.
+5. **Hoàn thiện Bộ cài đặt máy mới ([`SetupMDMS.ps1`](file:///e:/sources/MDMSv2/Installers/Scripts/SetupMDMS.ps1) & SQL Clean-Install)**:
+   - Sửa lỗi cú pháp PowerShell `$url:` tại [`1_Install_Prerequisites.ps1`](file:///e:/sources/MDMSv2/Installers/Scripts/1_Install_Prerequisites.ps1).
+   - Bổ sung `EngineType`, `ExcelTemplateBase64`, `ExcelTemplateFileName` (và cột `gcstemporary`/`gcsmonthlydetail`/`periodicenergystatement`) vào [`amr_full.sql`](file:///e:/sources/MDMSv2/Installers/Database/amr_full.sql), gỡ bỏ block `notificationtemplates` trùng và các Event/Stored Procedure dọn bảng EAV cũ (`20261111_phase1_optimize_metering_schema.sql` cũng tự dọn triệt để khi nâng cấp).
+   - Chuẩn hóa idempotent cho [`20261031_create_email_config_and_metering_tables.sql`](file:///e:/sources/MDMSv2/Installers/Database/20261031_create_email_config_and_metering_tables.sql) và [`20261109_standardize_decimal_metering_tables.sql`](file:///e:/sources/MDMSv2/Installers/Database/20261109_standardize_decimal_metering_tables.sql) qua `sp_phase3_ensure_column` (tự thêm hoặc chuyển đổi `NewPreviousReading`, `CosPhi`, `PmaxTime`, `ReadingTime`...).
+   - Nâng cấp [`SetupMDMS.ps1`](file:///e:/sources/MDMSv2/Installers/Scripts/SetupMDMS.ps1), [`2_Setup_Backend_Service.ps1`](file:///e:/sources/MDMSv2/Installers/Scripts/2_Setup_Backend_Service.ps1), [`4_Verify_System.ps1`](file:///e:/sources/MDMSv2/Installers/Scripts/4_Verify_System.ps1), [`Import_MasterData.ps1`](file:///e:/sources/MDMSv2/Installers/Scripts/Import_MasterData.ps1): chuyển gọi `mysql.exe` sang `$env:MYSQL_PWD` + `-RedirectStandardInput` (tránh lỗi ký tự đặc biệt `.bat`), kiểm tra xác thực MySQL trước khi import, bảo vệ CSDL đã tồn tại trước khi reset, bắt buộc kiểm tra `ExitCode` từng migration `^\d{8}_*.sql`, xác minh đủ 10 bảng lõi / 0 cột `*Unit` dư / partition TimeSeries trước khi tiếp tục, upsert `users` và `systemconfig` không trùng key, và tăng timeout kiểm tra khởi động lần đầu Backend lên 60s (`30 x 2s`).
+
+---
+
+# [DEV UPDATE] PHASE 1 — TỐI ƯU HÓA CSDL ĐO ĐẾM, WIDE-TABLE PARTITION 12 THÁNG & PIPELINE THU THẬP IOT HIỆU NĂNG CAO
+
+> **Tài liệu cập nhật phát triển (Developer Changelog)**  
+> **Phiên bản:** v3.2.0-PHASE1-DB-AND-IOT-PIPELINE-OPTIMIZATION  
+> **Người thực hiện:** MDMS-Coder (Lead Full-Stack Developer)  
+> **Thời gian:** 11/11/2026  
+
+---
+
+### Tóm tắt các nội dung hoàn thành:
+
+1. **Chuyển đổi Kiến trúc CSDL từ 5 Bảng EAV/Hourly sang Wide-Table Snapshot & TimeSeries Partitioned (Zero-Data-Loss)**:
+   - **Loại bỏ 5 thực thể & bảng cũ** khỏi tầng Domain / Application / Infrastructure / EF Snapshot:
+     `MeasurementPointMonitoring`, `ArchiveDataMeasurementPointMonitoring`, `MeasurementPointMonitoringByDateTime`, `MeasurementPointMonitoringByStatus`, `MeasurementPointMonitoringHourly` (cùng toàn bộ `I*ReadWriteRepository` & `BackgroundJobArchiveDataService`).
+   - **Tạo bảng Snapshot trạng thái hiện hành (`MeasurementPointCurrentSnapshots`)** ([`MeasurementPointCurrentSnapshotEntity.cs`](file:///e:/sources/MDMSv2/Backend/Domain/Entities/MeasurementPointCurrentSnapshotEntity.cs), [`MeasurementPointCurrentSnapshotEntityConfiguration.cs`](file:///e:/sources/MDMSv2/Backend/Infrastructure/Databases/MeasurementPointCurrentSnapshotEntityConfiguration.cs)):
+     * Mô hình **1 dòng / 1 Điểm đo** với `UNIQUE INDEX (MeasurementPointId)`.
+     * Lưu trữ trọn vẹn 41 đại lượng `DECIMAL(18,4)` + `*Unit` + `*Quality` + `*UpdatedAt`, trạng thái kết nối `MatKetNoi`, 10 kênh cảnh báo `CanhBao01..10`, và 24 trường đồng hồ / thời điểm chốt / $P_{max}$ (`smallint`).
+   - **Tạo bảng Chuỗi thời gian rộng phân vùng tháng (`MeasurementPointTimeSeries`)** ([`MeasurementPointTimeSeriesEntity.cs`](file:///e:/sources/MDMSv2/Backend/Domain/Entities/MeasurementPointTimeSeriesEntity.cs), [`MeasurementPointTimeSeriesEntityConfiguration.cs`](file:///e:/sources/MDMSv2/Backend/Infrastructure/Databases/MeasurementPointTimeSeriesEntityConfiguration.cs)):
+     * Phân vùng `PARTITION BY RANGE (PartitionYm)` theo múi giờ Việt Nam `UTC+7` (`yyyyMM`), khóa chính tổ hợp `(MeasurementPointId, PartitionYm, RecordedAt, Id)`.
+     * Thiết lập chính sách **lưu giữ 12 tháng** (`retentionMonths = 12`) và tự động khởi tạo trước **3 tháng tương lai** qua [`PartitionManagementService`](file:///e:/sources/MDMSv2/Backend/Infrastructure/Services/PartitionManagementService.cs) và Hangfire Job `"MaintainTimeSeriesPartitions"` (`0 1 * * *`), thay thế hoàn toàn `"GroupDataPerMeter"` & `"ArchiveDataMeasurementPointMonitoring"`.
+
+2. **Chuẩn hóa Báo cáo Điện năng (`DECIMAL(18,4)` + `SuspectedMask`) & Giữ nguyên cấu trúc Vận hành 30 phút**:
+   - **Tạo [`EnergySuspectedFlags`](file:///e:/sources/MDMSv2/Backend/Domain/Enums/EnergySuspectedFlags.cs) & [`MeteringValueHelper`](file:///e:/sources/MDMSv2/Backend/Domain/Helpers/MeteringValueHelper.cs)**:
+     * Mã hóa cờ nghi ngờ (`*` / `(Not Topical)`) của 10 kênh điện năng tích lũy thành bitmask 10-bit `SuspectedMask` (bit `0..9`) và cờ tổng `IsSuspected` trên [`MeasurementPointHalfHourEnergyReportEntity`](file:///e:/sources/MDMSv2/Backend/Domain/Entities/MeasurementPointHalfHourEnergyReportEntity.cs) và [`MeasurementPointDailyEnergyReportEntity`](file:///e:/sources/MDMSv2/Backend/Domain/Entities/MeasurementPointDailyEnergyReportEntity.cs), kèm `UNIQUE INDEX (MeasurementPointId, CreatedTime)`.
+     * Hỗ trợ parse chuẩn xác đa định dạng dấu thập phân (`.`, `,`, chuỗi `vi-VN`, `*`, `(Not Topical)`), không nhân nhầm dấu `,` đơn thành hàng nghìn.
+     * AutoMapper Profiles ([`MeasurementPointHalfHourEnergyReportProfile.cs`](file:///e:/sources/MDMSv2/Backend/Infrastructure/MappingProfiles/MeasurementPointHalfHourEnergyReportProfile.cs), [`MeasurementPointDailyEnergyReportProfile.cs`](file:///e:/sources/MDMSv2/Backend/Infrastructure/MappingProfiles/MeasurementPointDailyEnergyReportProfile.cs)) cùng các trình xuất CSV/Excel/PDF bảo toàn 100% định dạng hiển thị `vi-VN` kèm dấu `*` và đơn vị `kWh`/`kVArh` qua `PaginateWithAscMappedAsync`.
+   - **`MeasurementPointHalfHourOperatingReports`**: Giữ nguyên các cột giá trị số hiện hữu (không bổ sung 4 cột `P/Q Max/Min`), **xóa bỏ 9 cột `*Unit` dư thừa** (bổ sung migration idempotent [`20261111_remove_operating_report_unit_columns.sql`](file:///e:/sources/MDMSv2/Installers/Database/20261111_remove_operating_report_unit_columns.sql) và đồng bộ [`20261017_create_operating_parameter_report_table.sql`](file:///e:/sources/MDMSv2/Installers/Database/20261017_create_operating_parameter_report_table.sql), [`20261111_phase1_optimize_metering_schema.sql`](file:///e:/sources/MDMSv2/Installers/Database/20261111_phase1_optimize_metering_schema.sql), `Program.cs`). Đơn vị hiển thị cho API, Export CSV/Excel/PDF và Biểu đồ (Voltage/Load/Power) được resolve thống nhất theo cấu hình `"Liên kết dữ liệu"` (`TagName`) qua [`OperatingReportFallbackHelper.GetConfiguredUnitsAsync`](file:///e:/sources/MDMSv2/Backend/Infrastructure/Helpers/OperatingReportFallbackHelper.cs), bổ sung `UNIQUE INDEX (MeasurementPointId, CreatedTime)` và đồng bộ dữ liệu giờ còn thiếu từ `MeasurementPointMonitoringHourly`.
+   - **Events & Alerts**: Bổ sung `ParameterCode VARCHAR(64)` và chuyển `TagNameId` thành `BIGINT NULL` (`ON DELETE SET NULL`) trên [`MeasurementPointsEventEntity`](file:///e:/sources/MDMSv2/Backend/Domain/Entities/MeasurementPointsEventEntity.cs) & [`MeasurementPointsAlertEntity`](file:///e:/sources/MDMSv2/Backend/Domain/Entities/MeasurementPointsAlertEntity.cs).
+
+3. **Tối ưu Pipeline Tiếp nhận IoT & Tầng Truy vấn / Báo cáo / GCS**:
+   - **Cache định tuyến $O(1)$ ([`TagRoutingCacheService`](file:///e:/sources/MDMSv2/Backend/Infrastructure/Services/TagRoutingCacheService.cs))**: Lưu ánh xạ `(TagName -> MeasurementPointId, Description, Unit, CustomName)` trong `IMemoryCache` (TTL 15 phút, semaphore lock + version race guard); tự động `Invalidate()` tại toàn bộ handlers Thêm/Sửa/Xóa/Đổi trạng thái/Import điểm đo, TagName và [`MeterReplacementService`](file:///e:/sources/MDMSv2/Backend/Infrastructure/Services/MeterReplacementService.cs).
+   - **Micro-Batching & Debounced SignalR ([`BufferedTelemetryIngestionService`](file:///e:/sources/MDMSv2/Backend/Infrastructure/Services/BufferedTelemetryIngestionService.cs))**: Dùng `BoundedChannel` (20.000 items), gom lô 500 items / 500ms ghi SQL tham số hóa (`INSERT ... ON DUPLICATE KEY UPDATE` vào `MeasurementPointCurrentSnapshots`, bulk `INSERT` vào `MeasurementPointTimeSeries`), đồng bộ `_flushGate` cho bộ đệm phát SignalR delta mỗi 2 giây (`ReceiveUpdate`, `ReceiveDetailUpdate`, `ReceiveDetailDateTimeUpdate`), hoàn toàn loại bỏ query `PageSize = 1000` sau mỗi request IoT.
+   - **Refactor toàn bộ Repositories & Charts**:
+     * [`MeasurementPointMonitoringReadOnlyRepository`](file:///e:/sources/MDMSv2/Backend/Infrastructure/Repositories/ReadOnly/MeasurementPointMonitoringReadOnlyRepository.cs), [`MeasurementPointMonitoringHourlyReadOnlyRepository`](file:///e:/sources/MDMSv2/Backend/Infrastructure/Repositories/ReadOnly/MeasurementPointMonitoringHourlyReadOnlyRepository.cs) (`GetLoadChartAsync`, `GetVoltageChartAsync` trên OperatingReports; `GetPowerChartAsync` SQL `MAX`/`MIN` trên TimeSeries 12 tháng + fallback OperatingReports; `GetConsumptionOutputChartAsync` trên EnergyReports), [`EnergyConsumptionReportReadOnlyRepository`](file:///e:/sources/MDMSv2/Backend/Infrastructure/Repositories/ReadOnly/EnergyConsumptionReportReadOnlyRepository.cs), [`GcsCutOffCycleReadOnlyRepository`](file:///e:/sources/MDMSv2/Backend/Infrastructure/Repositories/ReadOnly/GcsCutOffCycleReadOnlyRepository.cs) (chốt GCS đọc trực tiếp Snapshot 1-query).
+
+4. **Script Migration Zero-Data-Loss & Đóng gói Nâng cấp VM**:
+   - Khởi tạo [`20261111_phase1_optimize_metering_schema.sql`](file:///e:/sources/MDMSv2/Installers/Database/20261111_phase1_optimize_metering_schema.sql) (idempotent, backfill toàn bộ bảng mới & báo cáo, kiểm định **Verification Gate** `COUNT`/`SUM` qua `SIGNAL SQLSTATE '45000'` trước khi xóa 5 bảng EAV/Hourly cũ và cột chuỗi cũ).
+   - Nâng cấp [`Update_Hotfix.ps1`](file:///e:/sources/MDMSv2/Installers/Scripts/Update_Hotfix.ps1): tự động sao lưu `mysqldump` trước khi migrate, gỡ bỏ lệnh xóa `*` thủ công cũ, dừng nâng cấp ngay khi script SQL lỗi. Đồng bộ truy vấn kiểm tra sau import trong [`Import_AmrData.ps1`](file:///e:/sources/MDMSv2/Installers/Scripts/Import_AmrData.ps1) và [`Import_MasterData.ps1`](file:///e:/sources/MDMSv2/Installers/Scripts/Import_MasterData.ps1).
+
+---
+
 # [DEV UPDATE] KHẮC PHỤC TRIỆT ĐỂ LỖI IMPORT EXCEL ĐIỂM ĐO DO MERGED BANNER VÀ CHUẨN HÓA BREADCRUMB CHU KỲ PHIẾU BÁO
 
 > **Tài liệu cập nhật phát triển (Developer Changelog)**  

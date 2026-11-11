@@ -1,87 +1,125 @@
 -- ==============================================================================
 -- MDMSv2 Migration: Standardize Energy & Metering Data Types to DECIMAL(18, 4) & DECIMAL(5, 2)
--- Date: 2026-11-09
+-- Date: 2026-11-09 (Idempotent & Fresh-Install Safe)
 -- Purpose:
 --   1. Chuyển đổi toàn bộ số liệu đo đếm, chỉ số công tơ, hệ số nhân và sản lượng
 --      tính tiền từ kiểu số thực (DOUBLE) sang số thập phân chuẩn xác cao DECIMAL(18, 4).
 --   2. Chuẩn hóa hệ số công suất trung bình Cosφ (PF) sang DECIMAL(5, 2).
---   3. Đảm bảo tính toàn vẹn 100% của dữ liệu đo đếm và triệt tiêu sai số dấu phẩy động
---      (floating-point drift) trong lập hóa đơn tiền điện EVN.
+--   3. Tự động bổ sung nếu thiếu các cột mở rộng (NewPreviousReading, CosPhi, PmaxTime...)
+--      để chạy an toàn 100% trên cả môi trường cài mới (amr_full.sql) và nâng cấp VM.
 -- ==============================================================================
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP PROCEDURE IF EXISTS `sp_phase3_ensure_column`;
+
+DELIMITER $$
+
+CREATE PROCEDURE `sp_phase3_ensure_column`(
+    IN p_target_table VARCHAR(128),
+    IN p_column_name VARCHAR(128),
+    IN p_column_def VARCHAR(255)
+)
+BEGIN
+    DECLARE v_tbl VARCHAR(128) DEFAULT NULL;
+    DECLARE v_col_exists INT DEFAULT 0;
+
+    SELECT TABLE_NAME INTO v_tbl
+    FROM INFORMATION_SCHEMA.TABLES
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND LOWER(TABLE_NAME) = LOWER(p_target_table)
+    LIMIT 1;
+
+    IF v_tbl IS NOT NULL THEN
+        SELECT COUNT(*) INTO v_col_exists
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = v_tbl
+          AND COLUMN_NAME = p_column_name;
+
+        IF v_col_exists > 0 THEN
+            SET @sql = CONCAT('ALTER TABLE `', v_tbl, '` MODIFY COLUMN `', p_column_name, '` ', p_column_def);
+        ELSE
+            SET @sql = CONCAT('ALTER TABLE `', v_tbl, '` ADD COLUMN `', p_column_name, '` ', p_column_def);
+        END IF;
+
+        PREPARE stmt FROM @sql;
+        EXECUTE stmt;
+        DEALLOCATE PREPARE stmt;
+    END IF;
+END$$
+
+DELIMITER ;
+
 -- ------------------------------------------------------------------------------
 -- 1. Bảng `measurementpoints` (Điểm đo)
 -- ------------------------------------------------------------------------------
-ALTER TABLE `measurementpoints` 
-    MODIFY COLUMN `MultiplierFactor` DECIMAL(18, 4) NOT NULL DEFAULT 1.0000;
+CALL `sp_phase3_ensure_column`('measurementpoints', 'MultiplierFactor', 'DECIMAL(18, 4) NOT NULL DEFAULT 1.0000');
 
 -- ------------------------------------------------------------------------------
 -- 2. Bảng `gcstemporary` (Số liệu tạm ghi chỉ số trước chốt)
 -- ------------------------------------------------------------------------------
-ALTER TABLE `gcstemporary`
-    MODIFY COLUMN `PreviousReading` DECIMAL(18, 4) DEFAULT NULL,
-    MODIFY COLUMN `CurrentReading` DECIMAL(18, 4) DEFAULT NULL,
-    MODIFY COLUMN `NewCurrentReading` DECIMAL(18, 4) DEFAULT NULL,
-    MODIFY COLUMN `NewPreviousReading` DECIMAL(18, 4) DEFAULT NULL,
-    MODIFY COLUMN `MultiplierFactor` DECIMAL(18, 4) NOT NULL DEFAULT 1.0000,
-    MODIFY COLUMN `Consumption` DECIMAL(18, 4) DEFAULT NULL,
-    MODIFY COLUMN `CosPhi` DECIMAL(5, 2) DEFAULT NULL;
+CALL `sp_phase3_ensure_column`('gcstemporary', 'PreviousReading', 'DECIMAL(18, 4) DEFAULT NULL');
+CALL `sp_phase3_ensure_column`('gcstemporary', 'CurrentReading', 'DECIMAL(18, 4) DEFAULT NULL');
+CALL `sp_phase3_ensure_column`('gcstemporary', 'NewCurrentReading', 'DECIMAL(18, 4) DEFAULT NULL');
+CALL `sp_phase3_ensure_column`('gcstemporary', 'NewPreviousReading', 'DECIMAL(18, 4) DEFAULT NULL');
+CALL `sp_phase3_ensure_column`('gcstemporary', 'MultiplierFactor', 'DECIMAL(18, 4) NOT NULL DEFAULT 1.0000');
+CALL `sp_phase3_ensure_column`('gcstemporary', 'Consumption', 'DECIMAL(18, 4) DEFAULT NULL');
+CALL `sp_phase3_ensure_column`('gcstemporary', 'CosPhi', 'DECIMAL(5, 2) DEFAULT NULL');
+CALL `sp_phase3_ensure_column`('gcstemporary', 'PmaxTime', 'DATETIME(6) DEFAULT NULL');
 
 -- ------------------------------------------------------------------------------
 -- 3. Bảng `gcsmonthlydetail` (Chi tiết chỉ số kỳ chốt đã lưu trữ)
 -- ------------------------------------------------------------------------------
-ALTER TABLE `gcsmonthlydetail`
-    MODIFY COLUMN `PreviousReading` DECIMAL(18, 4) DEFAULT NULL,
-    MODIFY COLUMN `CurrentReading` DECIMAL(18, 4) DEFAULT NULL,
-    MODIFY COLUMN `MultiplierFactor` DECIMAL(18, 4) NOT NULL DEFAULT 1.0000,
-    MODIFY COLUMN `Consumption` DECIMAL(18, 4) DEFAULT NULL,
-    MODIFY COLUMN `CosPhi` DECIMAL(5, 2) DEFAULT NULL;
+CALL `sp_phase3_ensure_column`('gcsmonthlydetail', 'PreviousReading', 'DECIMAL(18, 4) DEFAULT NULL');
+CALL `sp_phase3_ensure_column`('gcsmonthlydetail', 'CurrentReading', 'DECIMAL(18, 4) DEFAULT NULL');
+CALL `sp_phase3_ensure_column`('gcsmonthlydetail', 'MultiplierFactor', 'DECIMAL(18, 4) NOT NULL DEFAULT 1.0000');
+CALL `sp_phase3_ensure_column`('gcsmonthlydetail', 'Consumption', 'DECIMAL(18, 4) DEFAULT NULL');
+CALL `sp_phase3_ensure_column`('gcsmonthlydetail', 'CosPhi', 'DECIMAL(5, 2) DEFAULT NULL');
+CALL `sp_phase3_ensure_column`('gcsmonthlydetail', 'ReadingTime', 'DATETIME(6) DEFAULT NULL');
+CALL `sp_phase3_ensure_column`('gcsmonthlydetail', 'PmaxTime', 'DATETIME(6) DEFAULT NULL');
 
 -- ------------------------------------------------------------------------------
 -- 4. Bảng `periodicenergystatement` (Phiếu báo chỉ số điện năng & sản lượng định kỳ)
 -- ------------------------------------------------------------------------------
-ALTER TABLE `periodicenergystatement`
-    MODIFY COLUMN `Bt` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `Cd` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `Td` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `Sg` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `Vc` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `Pmax` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `PreviousBt` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `PreviousCd` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `PreviousTd` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `PreviousSg` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `PreviousVc` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `PreviousPmax` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `ConsumtionBt` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `ConsumtionCd` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `ConsumtionTd` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `ConsumtionSg` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `ConsumtionVc` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `Multiplier` DECIMAL(18, 4) NOT NULL DEFAULT 1.0000,
-    MODIFY COLUMN `CosPhi` DECIMAL(5, 2) DEFAULT NULL;
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'Bt', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'Cd', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'Td', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'Sg', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'Vc', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'Pmax', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'PreviousBt', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'PreviousCd', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'PreviousTd', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'PreviousSg', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'PreviousVc', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'PreviousPmax', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'ConsumtionBt', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'ConsumtionCd', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'ConsumtionTd', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'ConsumtionSg', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'ConsumtionVc', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'Multiplier', 'DECIMAL(18, 4) NOT NULL DEFAULT 1.0000');
+CALL `sp_phase3_ensure_column`('periodicenergystatement', 'CosPhi', 'DECIMAL(5, 2) DEFAULT NULL');
 
 -- ------------------------------------------------------------------------------
 -- 5. Bảng `meterreplacements` (Biên bản treo tháo & thay thế công tơ)
 -- ------------------------------------------------------------------------------
-ALTER TABLE `meterreplacements`
-    MODIFY COLUMN `OldMeterMultiplier` DECIMAL(18, 4) NOT NULL DEFAULT 1.0000,
-    MODIFY COLUMN `OldBt` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `OldCd` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `OldTd` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `OldSg` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `OldVc` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `OldPmax` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `NewMeterMultiplier` DECIMAL(18, 4) NOT NULL DEFAULT 1.0000,
-    MODIFY COLUMN `NewBt` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `NewCd` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `NewTd` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `NewSg` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `NewVc` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000,
-    MODIFY COLUMN `NewPmax` DECIMAL(18, 4) NOT NULL DEFAULT 0.0000;
+CALL `sp_phase3_ensure_column`('meterreplacements', 'OldMeterMultiplier', 'DECIMAL(18, 4) NOT NULL DEFAULT 1.0000');
+CALL `sp_phase3_ensure_column`('meterreplacements', 'OldBt', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('meterreplacements', 'OldCd', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('meterreplacements', 'OldTd', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('meterreplacements', 'OldSg', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('meterreplacements', 'OldVc', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('meterreplacements', 'OldPmax', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('meterreplacements', 'NewMeterMultiplier', 'DECIMAL(18, 4) NOT NULL DEFAULT 1.0000');
+CALL `sp_phase3_ensure_column`('meterreplacements', 'NewBt', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('meterreplacements', 'NewCd', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('meterreplacements', 'NewTd', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('meterreplacements', 'NewSg', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('meterreplacements', 'NewVc', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
+CALL `sp_phase3_ensure_column`('meterreplacements', 'NewPmax', 'DECIMAL(18, 4) NOT NULL DEFAULT 0.0000');
 
+DROP PROCEDURE IF EXISTS `sp_phase3_ensure_column`;
 SET FOREIGN_KEY_CHECKS = 1;
-

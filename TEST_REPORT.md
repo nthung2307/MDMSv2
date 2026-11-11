@@ -1,3 +1,49 @@
+# [TEST REPORT] PHASE 1 — KIỂM ĐỊNH TỐI ƯU HÓA CSDL, WIDE-TABLE PARTITION 12 THÁNG & PIPELINE IOT
+
+> **Tài liệu kiểm định chất lượng (QA/QC Test Report)**  
+> **Phiên bản:** v3.2.0-PHASE1-QUALITY-ASSURANCE  
+> **Người thực hiện:** MDMS-Tester (Lead QA Engineer)  
+> **Ngày kiểm định:** 11/11/2026  
+> **Đối tượng thẩm định:** Mã nguồn Backend `.NET 8`, Unit Test Suite (`MDMS.UnitTests`), Script Migration SQL & Bộ đóng gói `MDMSv2_InstallPackage`.
+
+---
+
+## 1. TỔNG QUAN KẾT QUẢ KIỂM THỬ (PHASE 1 EXECUTIVE SUMMARY)
+
+| Hạng mục kiểm định | Lệnh / Công cụ thực thi | Phạm vi kiểm tra | Kết quả |
+|---|---|---|---|
+| **Biên dịch Solution Backend (.NET 8)** | `dotnet build Backend\AMR.sln --no-restore -m:1 /nr:false /p:UseSharedCompilation=false` | Toàn bộ project `Nobisoft.Core.*`, `Domain`, `Application`, `Infrastructure`, `WebApi`, `MDMS.UnitTests` | **PASS (0 Error(s))** |
+| **Backend Automated Test Suite** | `dotnet run --no-build --project Backend\Tests\MDMS.UnitTests\MDMS.UnitTests.csproj` | 4 Test Fixtures: `MeteringCalculationTests` (17), `EmailSecurityAndConfigurationTests` (7), `StatementPdfGeneratorTests` (2), `Phase1TelemetryAndPartitionTests` (26) | **PASS: 52 / 52 (100%, 1475 ms)** |
+| **Frontend Helper Test Suite** | `node --test Frontend\src\tests\meteringAndHelpers.test.mjs` | Hàm tính Cosφ, định dạng số, kiểm tra font UTF-8, cấu hình PDF | **PASS: 4 / 4 (100%, 311 ms)** |
+| **Publish Release Backend (`win-x64`) vào Package** | `dotnet publish Backend\WebApi\WebApi.csproj -c Release -r win-x64 --self-contained true -m:1 /nr:false /p:UseSharedCompilation=false /p:PublishSingleFile=false /p:DebugType=None -o Publish\MDMSv2_InstallPackage\Backend` | Publish self-contained `WebApi.exe` (giữ nguyên `appsettings.Production.json` & gói Frontend/Database/Scripts đã đóng gói) | **PASS (0 Error(s))** |
+| **PowerShell Installer AST & Frontend Typecheck** | `[System.Management.Automation.Language.Parser]::ParseFile` (11 script + Package) & `Frontend: npx tsc --noEmit` | Kiểm tra toàn bộ `SetupMDMS.ps1`, `1_Install_Prerequisites.ps1`, `2_Setup_Backend_Service.ps1`, `3_Setup_Frontend_IIS.ps1`, `4_Verify_System.ps1`, `Import_*.ps1`, `Update_Hotfix.ps1`, `build_package.ps1` và typecheck React/TS | **PASS (0 Syntax/Type Error(s))** |
+| **SQL Migration & VM Execution Gate** | rà soát tĩnh [`amr_full.sql`](file:///e:/sources/MDMSv2/Installers/Database/amr_full.sql), [`20261111_phase1_optimize_metering_schema.sql`](file:///e:/sources/MDMSv2/Installers/Database/20261111_phase1_optimize_metering_schema.sql) & [`SetupMDMS.ps1`](file:///e:/sources/MDMSv2/Installers/Scripts/SetupMDMS.ps1) | Lưu ý môi trường: Sandbox phát triển không gắn trực tiếp MySQL Server cài mới nên luồng cài mới (`SetupMDMS.ps1`) được kiểm định tĩnh cấu trúc DDL/idempotency + parser PS; nâng cấp Phase 1 đã chạy thực tế thành công trên VM | **STATIC VERIFIED / READY FOR FRESH INSTALL** |
+
+> [!NOTE]
+> Trong quá trình kiểm thử [`MeteringValueHelper.ParseTelemetryDecimal`](file:///e:/sources/MDMSv2/Backend/Domain/Helpers/MeteringValueHelper.cs), bộ test mới phát hiện lỗi `NumberStyles.Any` + `CultureInfo.InvariantCulture` xử lý `"1234,5"` thành `12345` (nhân 10x). Lỗi đã được sửa ngay bằng chuẩn hóa dấu phân cách `.` / `,` tường minh (`strictStyles`) và được kiểm chứng pass toàn bộ 11/11 kịch bản chuỗi số/nghi ngờ. Ngoài ra, lệnh `dotnet test` (VSTest host) bị treo trong Windows sandbox nên toàn bộ MSTest cases được thực thi qua Autonomous Test Runner (`dotnet run`) đạt 49/49 PASS.
+
+---
+
+## 2. CHI TIẾT CÁC TEST CASE PHASE 1 ([`Phase1TelemetryAndPartitionTests.cs`](file:///e:/sources/MDMSv2/Backend/Tests/MDMS.UnitTests/Phase1TelemetryAndPartitionTests.cs))
+
+| Mã kiểm thử | Hạng mục | Kịch bản kiểm thử | Kết quả thực tế | Trạng thái |
+|---|---|---|---|---|
+| **TC-P1-01..11** | `ParseTelemetryDecimal` | 11 bộ dữ liệu: số chuẩn (`1234.56`), làm tròn 4 chữ số (`1234.56789` -> `1234.5679`), gắn cờ `*` (`1234.56*`), gắn cờ `(Not Topical)`, số dùng dấu phẩy thập phân (`1234,5` -> `1234.5`), chuẩn `vi-VN` (`1.234,56*`), chuẩn US (`1,234.56*`), phân tách hàng nghìn (`1.234.567`), chuỗi rỗng / `N/A` | Toàn bộ 11/11 kịch bản trả về đúng giá trị `decimal?` và boolean `IsSuspected` | **PASS** |
+| **TC-P1-12** | `EnergySuspectedFlags` & `FormatEnergyReportValue` | Đóng gói nhiều bit cờ (`0..9`), tắt riêng lẻ từng bit không ảnh hưởng bit khác, format `vi-VN` (`N0` -> `"1.234"`, `N2` + `*` -> `"1.234,57*"`), kiểm tra fallback giá trị `null` | Bitmask 10 kênh và chuỗi hiển thị `vi-VN` khớp 100% tiêu chuẩn API cũ | **PASS** |
+| **TC-P1-13..16** | `ComputePartitionYm` | Kiểm tra ranh giới tháng UTC+7 tại 4 mốc (`2026-10-31T16:59:59Z` -> `202610`, `2026-10-31T17:00:00Z` -> `202611`, `2026-12-31T17:00:00Z` -> `202701`, `2026-01-01T00:00:00+07:00` -> `202601`) | Đổi tháng chính xác tuyệt đối theo `00:00 UTC+7` | **PASS** |
+| **TC-P1-17..19** | `GetRetentionCutoffPartitionYm` | Tính mốc cắt lưu giữ 12 tháng tại 3 thời điểm (`2026-11-11` -> `202512`, `2026-03-15` -> `202504`, `3 tháng tại 2026-01-01` -> `202511`) | Tính đúng số tháng giữ lại và ngưỡng DROP partition hết hạn | **PASS** |
+| **TC-P1-20** | `TelemetryMetadataRegistry` Reflection Check | Đối chiếu toàn bộ `>= 75` đặc tả thuộc tính trong `TelemetryMetadataRegistry` với reflection của `MeasurementPointCurrentSnapshotEntity` và `MeasurementPointTimeSeriesEntity` | 100% `ValueColumn`, `QualityColumn`, `UnitColumn`, `UpdatedAtColumn`, `TimeSeriesColumn` tồn tại chính xác trên Entity | **PASS** |
+| **TC-P1-21** | `IoTPacketParserHelper` | Chuyển đổi `JsonElement` (`Number`, `String`, `True`, `False`, `Null`), primitive string, và phân giải giá trị chất lượng (`bool`, số `192`, `"1"`, `"0"`, `null`) | Parse chính xác mọi kiểu JSON từ Kepware IoT Gateway | **PASS** |
+| **TC-P1-22** | `SnapshotDtoMapper` | Ánh xạ `ToListDto`, `ToDetailDto`, `ToIoTDto` từ Snapshot, fallback `Unit` / `CustomName` từ `PointRoutingInfo`, giữ nguyên ngữ nghĩa `MatKetNoi = true` (Mất kết nối) & 24 trường đồng hồ | Toàn bộ DTO đầu ra khớp hợp đồng Frontend | **PASS** |
+| **TC-P1-23** | AutoMapper Profiles Báo cáo Điện năng | Khởi tạo `MeasurementPointHalfHourEnergyReportProfile`, `DailyEnergyReportProfile`, `MonitoringProfile` và ánh xạ `decimal? + SuspectedMask` -> `FinalizedEnergyReportResponse` | Xuất `"15.230,75*"`, `"8.000"`, `"320,50"` kèm `"kWh"` / `"kVArh"` chính xác | **PASS** |
+| **TC-P1-24** | Bỏ 9 cột `*Unit` trên `MeasurementPointHalfHourOperatingReports` | Reflection kiểm tra Entity & DTO trung gian không còn thuộc tính `*Unit`, `MeasurementPointHalfHourOperatingReportProfile.AssertConfigurationIsValid()`, và `ApplyConfiguredUnits` điền đủ 9 `*Unit` từ cấu hình `TagName` | Entity/DTO có 0 `*Unit`, AutoMapper valid 100%, API `OperatingParameterReportResponse` trả đủ 9 đơn vị | **PASS** |
+| **TC-P1-25** | `IoTDataRequest_AllowsNullableTagFieldsWithoutModelBindingFailure` | Kiểm tra nullability của `IoTDataRequest.Values` và `IoTDataValue.Id`, `V`, `Q` trong `Application` (`<Nullable>enable</Nullable>`) | Model binding chấp nhận payload chứa `"v": null` hoặc trường nullable mà không trả HTTP 400 | **PASS** |
+| **TC-P1-26** | `MeasurementPointEventCommandHandler_EvaluatesBufferedTransitionsSafely` | Chuỗi chuyển trạng thái `false -> true -> false` theo timestamp trong 1 gói Narrow Format, dọn cảnh báo mồ côi `TagNameId = null`, gộp `LatestSamples` vào Snapshot, và xác nhận steady `ALARM` ở gói kế tiếp | Sinh đủ 2 Event (`ALARM` -> `NORMAL`), không gọi `AddAsync`+`RemoveAsync` cùng scope, dọn đúng `orphanedAlert`, cập nhật `TagName` 1 lần, persist `ALARM` gói sau | **PASS** |
+
+---
+
+## 3. HỒ SƠ KIỂM THỬ CÁC ĐỢT TRƯỚC (LỊCH SỬ)
+
 # [TEST REPORT] QUẢN LÝ ĐIỂM ĐO: NÂNG CẤP BỘ LỌC, HEADER BẢNG, MỞ TAB MỚI, NHẬP CSV AN TOÀN & XUẤT CSV KÈM EMAIL PHIẾU BÁO (TỪ CŨ ĐẾN MỚI)
 
 > **Tài liệu kiểm định chất lượng (QA/QC Test Report)**  

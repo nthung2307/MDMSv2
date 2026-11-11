@@ -2,12 +2,14 @@
 .SYNOPSIS
     Kich ban Wizard cai dat toan dien MDMSv2 tren Windows Server 2019 (All-in-One).
 .DESCRIPTION
-    Kich ban huong dan va thuc hien tu dong toan bo quy trinh:
-    [Buoc 1] Kich hoat IIS, URL Rewrite 2.1, ARR 3.0, ARR Proxy, Java JRE, Edge va Firewall.
-    [Buoc 2] Kiem tra/Huong dan cai dat MySQL Server 8.0, cau hinh mat khau root dong,
-             import database 'amr' tu amr_full.sql va cap nhat appsettings.Production.json.
+    Kich ban huong dan va thuc hien tu dong toan bo quy trinh cai dat moi:
+    [Buoc 1] Kich hoat IIS, URL Rewrite 2.1, ARR 3.0, ARR Proxy, Java JRE, Edge, LibreOffice va Firewall.
+    [Buoc 2] Kiem tra/Huong dan cai dat MySQL Server 8.0/8.4, xac thuc ket noi MySQL,
+             khoi tao CSDL 'amr' tu amr_full.sql, chay day du cac script migration Phase 1
+             (toi uu Wide-Table Snapshot, TimeSeries Partition 12 thang, bo 9 cot *Unit)
+             va tuy chon nap Master Data, cap nhat appsettings.Production.json.
     [Buoc 3] Hoi cau hinh tai khoan Quan tri MDMS (UserName, Password), ma hoa PBKDF2
-             va dong bo vao co so du lieu amr.users cung appsettings.Production.json.
+             va dong bo an toan vao CSDL amr.users & systemconfig (khong trung key).
     [Buoc 4] Kiem tra/Huong dan cai dat Kepware Server tu thu muc bo cai Kepware.
     [Buoc 5] Thiet lap va khoi dong Backend WebApi (.NET 8) dang Windows Background Task.
     [Buoc 6] Trien khai giao dien Frontend (React 18 + Vite) len IIS Website (Port 80).
@@ -43,13 +45,24 @@ if (Test-Path (Join-Path $PSScriptRoot "Backend")) {
 Write-Host "Thu muc cai dat goc: $RootDeployPath" -ForegroundColor Gray
 Write-Host "--------------------------------------------------------------------------------" -ForegroundColor Gray
 
-$backendDir = Join-Path $RootDeployPath "Backend"
+$backendDir  = Join-Path $RootDeployPath "Backend"
 $frontendDir = Join-Path $RootDeployPath "Frontend"
 $databaseDir = Join-Path $RootDeployPath "Database"
-$scriptsDir = Join-Path $RootDeployPath "Scripts"
-$mysqlDir = Join-Path $RootDeployPath "MySQL"
-$kepwareDir = Join-Path $RootDeployPath "Kepware"
-$prereqDir = Join-Path $RootDeployPath "Prerequisites"
+$scriptsDir  = Join-Path $RootDeployPath "Scripts"
+$mysqlDir    = Join-Path $RootDeployPath "MySQL"
+$kepwareDir  = Join-Path $RootDeployPath "Kepware"
+$prereqDir   = Join-Path $RootDeployPath "Prerequisites"
+
+# Ham ghi file JSON UTF-8 khong BOM
+function Write-JsonUtf8NoBom {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)]$Object
+    )
+    $json = $Object | ConvertTo-Json -Depth 10
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($Path, $json, $utf8NoBom)
+}
 
 # Ham ma hoa mat khau PBKDF2 RFC2898 tuong thich 100% voi Backend MDMSv2
 function Hash-MdmsPassword {
@@ -79,15 +92,136 @@ function Find-MySqlExe {
     foreach ($p in $searchPaths) {
         if (Test-Path $p) { return $p }
     }
-    
+
     $found = Get-ChildItem -Path "C:\Program Files\MySQL" -Filter "mysql.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($found) { return $found.FullName }
 
     return $null
 }
 
+# Ham khoi dong MySQL Service neu da cai dat
+function Start-MySqlServiceIfStopped {
+    foreach ($svcName in @("MySQL80", "MySQL84", "MySQL")) {
+        $svc = Get-Service -Name $svcName -ErrorAction SilentlyContinue
+        if ($svc) {
+            if ($svc.Status -ne "Running") {
+                Write-Host "   Dang khoi dong dich vu $svcName..." -ForegroundColor Gray
+                Start-Service -Name $svcName -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 3
+            }
+            return $true
+        }
+    }
+    return $false
+}
+
+# Ham thuc thi file SQL an toan bang MYSQL_PWD va RedirectStandardInput
+# Tranh loi escape mat khau qua file .bat va ho tro day du DELIMITER $$ / multi-line
+function Invoke-MySqlFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$MySqlExe,
+        [Parameter(Mandatory = $true)][string]$HostName,
+        [Parameter(Mandatory = $true)][string]$Port,
+        [Parameter(Mandatory = $true)][string]$UserName,
+        [Parameter(Mandatory = $true)][string]$Password,
+        [Parameter(Mandatory = $true)][string]$SqlFilePath,
+        [string]$Database = ""
+    )
+
+    if (-not (Test-Path $SqlFilePath)) {
+        throw "Khong tim thay file SQL: $SqlFilePath"
+    }
+
+    $mysqlArgs = @(
+        "`"--host=$HostName`"",
+        "`"--port=$Port`"",
+        "`"--user=$UserName`"",
+        "`"--default-character-set=utf8mb4`""
+    )
+    if (-not [string]::IsNullOrWhiteSpace($Database)) {
+        $mysqlArgs += "`"$Database`""
+    }
+
+    $prevPwd = $env:MYSQL_PWD
+    $env:MYSQL_PWD = $Password
+    try {
+        $proc = Start-Process -FilePath $MySqlExe `
+            -ArgumentList $mysqlArgs `
+            -RedirectStandardInput $SqlFilePath `
+            -NoNewWindow -Wait -PassThru
+        if (-not $proc -or $proc.ExitCode -ne 0) {
+            $exitCode = if ($proc) { $proc.ExitCode } else { -1 }
+            throw "Thuc thi script SQL '$(Split-Path $SqlFilePath -Leaf)' that bai (ExitCode: $exitCode)."
+        }
+    } finally {
+        if ($null -ne $prevPwd) {
+            $env:MYSQL_PWD = $prevPwd
+        } else {
+            Remove-Item Env:MYSQL_PWD -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+# Ham thuc thi cau truy van SQL tra ve gia tri don (dung de test ket noi & verify schema)
+function Invoke-MySqlScalar {
+    param(
+        [Parameter(Mandatory = $true)][string]$MySqlExe,
+        [Parameter(Mandatory = $true)][string]$HostName,
+        [Parameter(Mandatory = $true)][string]$Port,
+        [Parameter(Mandatory = $true)][string]$UserName,
+        [Parameter(Mandatory = $true)][string]$Password,
+        [Parameter(Mandatory = $true)][string]$Query,
+        [string]$Database = ""
+    )
+
+    $tempSql = Join-Path $env:TEMP ("mdms_q_" + [guid]::NewGuid().ToString("N") + ".sql")
+    $tempOut = Join-Path $env:TEMP ("mdms_o_" + [guid]::NewGuid().ToString("N") + ".txt")
+    $tempErr = Join-Path $env:TEMP ("mdms_e_" + [guid]::NewGuid().ToString("N") + ".txt")
+    $prevPwd = $env:MYSQL_PWD
+    try {
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllText($tempSql, $Query, $utf8NoBom)
+
+        $mysqlArgs = @(
+            "`"--host=$HostName`"",
+            "`"--port=$Port`"",
+            "`"--user=$UserName`"",
+            "`"--default-character-set=utf8mb4`"",
+            "-N", "-s"
+        )
+        if (-not [string]::IsNullOrWhiteSpace($Database)) {
+            $mysqlArgs += "`"$Database`""
+        }
+
+        $env:MYSQL_PWD = $Password
+        $proc = Start-Process -FilePath $MySqlExe `
+            -ArgumentList $mysqlArgs `
+            -RedirectStandardInput $tempSql `
+            -RedirectStandardOutput $tempOut `
+            -RedirectStandardError $tempErr `
+            -NoNewWindow -Wait -PassThru
+
+        if (-not $proc -or $proc.ExitCode -ne 0) {
+            $errText = if (Test-Path $tempErr) { (Get-Content -Path $tempErr -Raw -ErrorAction SilentlyContinue).Trim() } else { "" }
+            throw "Truy van MySQL that bai (ExitCode: $($proc.ExitCode)): $errText"
+        }
+
+        if (Test-Path $tempOut) {
+            return ((Get-Content -Path $tempOut -Raw -ErrorAction SilentlyContinue) -replace "`r", "").Trim()
+        }
+        return ""
+    } finally {
+        if ($null -ne $prevPwd) {
+            $env:MYSQL_PWD = $prevPwd
+        } else {
+            Remove-Item Env:MYSQL_PWD -ErrorAction SilentlyContinue
+        }
+        Remove-Item -Path $tempSql, $tempOut, $tempErr -Force -ErrorAction SilentlyContinue
+    }
+}
+
 # ==============================================================================
-# [BUOC 1] CAI DAT PREREQUISITES (IIS, URL REWRITE, ARR, JAVA, EDGE, FIREWALL)
+# [BUOC 1] CAI DAT PREREQUISITES (IIS, URL REWRITE, ARR, JAVA, EDGE, LIBREOFFICE, FIREWALL)
 # ==============================================================================
 Write-Host "`n[BUOC 1/7] CAI DAT CAC THANH PHAN PHU TRO (PREREQUISITES)..." -ForegroundColor Yellow
 $script1 = Join-Path $scriptsDir "1_Install_Prerequisites.ps1"
@@ -118,11 +252,7 @@ try {
 } catch {}
 
 if (-not $mysqlRunning) {
-    $svc = Get-Service -Name "MySQL80" -ErrorAction SilentlyContinue
-    if ($svc -and $svc.Status -ne "Running") {
-        Write-Host "   Dang khoi dong dich vu MySQL80..." -ForegroundColor Gray
-        Start-Service -Name "MySQL80" -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 2
+    if (Start-MySqlServiceIfStopped) {
         try {
             $tcp = New-Object System.Net.Sockets.TcpClient
             $tcp.ConnectAsync("127.0.0.1", 3306).Wait(1500) | Out-Null
@@ -134,12 +264,12 @@ if (-not $mysqlRunning) {
 
 if (-not $mysqlRunning) {
     Write-Host "`n   [THONG BAO] Chua phat hien dich vu MySQL Server tren cong 3306." -ForegroundColor Yellow
-    
+
     $installerFiles = @()
     if (Test-Path $mysqlDir) {
         $installerFiles = Get-ChildItem -Path $mysqlDir -Include "*.msi", "*.exe" -Recurse -File -ErrorAction SilentlyContinue
     }
-    
+
     if ($installerFiles.Count -gt 0) {
         $chosenInstaller = $installerFiles[0]
         Write-Host "   -> Tim thay bo cai MySQL: $($chosenInstaller.FullName)" -ForegroundColor Green
@@ -151,123 +281,188 @@ if (-not $mysqlRunning) {
             Write-Host "     2. Cong Port: 3306" -ForegroundColor Gray
             Write-Host "     3. Dat mat khau cho tai khoan 'root' va ghi nho mat khau nay." -ForegroundColor Gray
             Write-Host "     4. Hoan tat cai dat va khoi dong dich vu MySQL80." -ForegroundColor Gray
-            
+
             Start-Process -FilePath $chosenInstaller.FullName -Wait
             Write-Host "   Trinh cai dat MySQL da dong. Kiem tra lai cong 3306..." -ForegroundColor Gray
+            Start-MySqlServiceIfStopped | Out-Null
         }
     } else {
         Write-Host "   -> Chua co file cai dat MySQL trong thu muc: $mysqlDir" -ForegroundColor Yellow
-        Write-Host "      Vui long copy file mysql-installer-*.msi vao thu muc tren." -ForegroundColor White
+        Write-Host "      Vui long cai dat MySQL Server 8.0+ truoc khi tiep tuc." -ForegroundColor White
         Read-Host "   Sau khi hoan tat cai dat MySQL va khoi dong dich vu, nhan Enter de tiep tuc"
+        Start-MySqlServiceIfStopped | Out-Null
     }
 }
 
-# 2.2 Thu thap thong tin dang nhap MySQL
-Write-Host "`n   --- CAU HINH KET NOI MYSQL DATABASE ---" -ForegroundColor Cyan
-$inputHost = Read-Host "   Nhap dia chi may chu MySQL [Mac dinh: 127.0.0.1]"
-if ([string]::IsNullOrWhiteSpace($inputHost)) { $inputHost = "127.0.0.1" }
-
-$inputPort = Read-Host "   Nhap cong ket noi MySQL [Mac dinh: 3306]"
-if ([string]::IsNullOrWhiteSpace($inputPort)) { $inputPort = "3306" }
-
-$inputUser = Read-Host "   Nhap tai khoan quan tri MySQL [Mac dinh: root]"
-if ([string]::IsNullOrWhiteSpace($inputUser)) { $inputUser = "root" }
-
-$mysqlPassword = ""
-while ([string]::IsNullOrWhiteSpace($mysqlPassword)) {
-    $promptSecure = Read-Host "   Nhap mat khau cho user '$inputUser' cua MySQL Server" -AsSecureString
-    $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($promptSecure)
-    $mysqlPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
-    [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
-    if ([string]::IsNullOrWhiteSpace($mysqlPassword)) {
-        Write-Host "   Mat khau MySQL khong duoc de trong! Vui long nhap lai." -ForegroundColor Red
-    }
-}
-
-# 2.3 Khoi tao & Import Co so Du lieu 'amr' (Uu tien amr_full.sql)
+# 2.2 Tim mysql.exe & thu thap thong tin dang nhap MySQL co xac thuc
 $mysqlExe = Find-MySqlExe
-if ($mysqlExe) {
-    Write-Host "   Tim thay cong cu MySQL Client: $mysqlExe" -ForegroundColor Gray
-    
-    $dumpFile = $null
-    $fileFull = "$databaseDir\amr_full.sql"
-    $fileInit = "$databaseDir\init_amr_database.sql"
-    if (Test-Path $fileFull) {
-        $dumpFile = $fileFull
-    } elseif (Test-Path $fileInit) {
-        $dumpFile = $fileInit
+while (-not $mysqlExe) {
+    Write-Host "`n   [CANH BAO] Khong tim thay mysql.exe trong PATH hoac thu muc mac dinh!" -ForegroundColor Red
+    $manualMysql = Read-Host "   Vui long nhap duong dan day du toi mysql.exe (vi du: C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe)"
+    if (-not [string]::IsNullOrWhiteSpace($manualMysql) -and (Test-Path $manualMysql)) {
+        $mysqlExe = (Resolve-Path $manualMysql).Path
+    } else {
+        Write-Host "   Duong dan '$manualMysql' khong ton tai. Vui long kiem tra lai!" -ForegroundColor Red
+    }
+}
+Write-Host "   Tim thay cong cu MySQL Client: $mysqlExe" -ForegroundColor Gray
+
+Write-Host "`n   --- CAU HINH KET NOI MYSQL DATABASE ---" -ForegroundColor Cyan
+$inputHost = ""
+$inputPort = ""
+$inputUser = ""
+$mysqlPassword = ""
+$dbConnected = $false
+
+while (-not $dbConnected) {
+    $inputHost = Read-Host "   Nhap dia chi may chu MySQL [Mac dinh: 127.0.0.1]"
+    if ([string]::IsNullOrWhiteSpace($inputHost)) { $inputHost = "127.0.0.1" } else { $inputHost = $inputHost.Trim() }
+
+    $inputPort = Read-Host "   Nhap cong ket noi MySQL [Mac dinh: 3306]"
+    if ([string]::IsNullOrWhiteSpace($inputPort)) { $inputPort = "3306" } else { $inputPort = $inputPort.Trim() }
+
+    $inputUser = Read-Host "   Nhap tai khoan quan tri MySQL [Mac dinh: root]"
+    if ([string]::IsNullOrWhiteSpace($inputUser)) { $inputUser = "root" } else { $inputUser = $inputUser.Trim() }
+
+    $mysqlPassword = ""
+    while ([string]::IsNullOrWhiteSpace($mysqlPassword)) {
+        $promptSecure = Read-Host "   Nhap mat khau cho user '$inputUser' cua MySQL Server" -AsSecureString
+        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($promptSecure)
+        $mysqlPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+        if ([string]::IsNullOrWhiteSpace($mysqlPassword)) {
+            Write-Host "   Mat khau MySQL khong duoc de trong! Vui long nhap lai." -ForegroundColor Red
+        }
     }
 
-    if ($dumpFile) {
-        $dumpFileName = Split-Path $dumpFile -Leaf
-        Write-Host "   Dang khoi tao co so du lieu 'amr' tu tap tin: $dumpFileName..." -ForegroundColor Yellow
-        try {
-            $importBatch = Join-Path $env:TEMP "import_amr.bat"
-            $batchContent = "@echo off`r`n`"$mysqlExe`" -h $inputHost -P $inputPort -u $inputUser `"-p$mysqlPassword`" --default-character-set=utf8mb4 < `"$dumpFile`""
-            Set-Content -Path $importBatch -Value $batchContent -Encoding ASCII
-            
-            $proc = Start-Process -FilePath $importBatch -Wait -PassThru -NoNewWindow
-            Remove-Item -Path $importBatch -Force -ErrorAction SilentlyContinue
-
-            if ($proc.ExitCode -eq 0) {
-                Write-Host "   -> [PASS] Da import thanh cong co so du lieu 'amr' tu $dumpFileName!" -ForegroundColor Green
-
-                # Tu dong kiem tra va dong bo cac migration bo sung (neu co)
-                $migrationFiles = Get-ChildItem -Path $databaseDir -Filter "2026*.sql" -ErrorAction SilentlyContinue | Sort-Object Name
-                foreach ($mFile in $migrationFiles) {
-                    Write-Host "   -> Dang dong bo bo sung schema tu: $($mFile.Name)..." -ForegroundColor Gray
-                    $migBatch = Join-Path $env:TEMP "mig_$($mFile.BaseName).bat"
-                    $migContent = "@echo off`r`n`"$mysqlExe`" -h $inputHost -P $inputPort -u $inputUser `"-p$mysqlPassword`" --default-character-set=utf8mb4 amr < `"$($mFile.FullName)`""
-                    Set-Content -Path $migBatch -Value $migContent -Encoding ASCII
-                    $migProc = Start-Process -FilePath $migBatch -Wait -PassThru -NoNewWindow
-                    Remove-Item -Path $migBatch -Force -ErrorAction SilentlyContinue
-                }
-
-                # Tu dong kiem tra va nap Master Data (Khach hang, So GCS, Diem do, Tags)
-                $candidateMaster = @(
-                    (Join-Path $databaseDir "amr_master_data.sql"),
-                    (Join-Path $scriptsDir "amr_master_data.sql"),
-                    (Join-Path $RootDeployPath "amr_master_data.sql"),
-                    (Join-Path $databaseDir "amr_data.sql")
-                )
-                $chosenMasterFile = $null
-                foreach ($cm in $candidateMaster) {
-                    if (Test-Path $cm) { $chosenMasterFile = (Resolve-Path $cm).Path; break }
-                }
-
-                if ($chosenMasterFile) {
-                    Write-Host "`n   --- NAP DU LIEU CO SO (KHACH HANG, SO GCS, DIEM DO, LIEN KET DU LIEU) ---" -ForegroundColor Cyan
-                    Write-Host "   Tim thay tap tin Master Data: $(Split-Path $chosenMasterFile -Leaf)" -ForegroundColor Green
-                    $importMaster = Read-Host "   Ban co muon Import danh muc Khach hang & Diem do thuc te vao moi truong trang? (Y/n) [Mac dinh: Y]"
-                    if ([string]::IsNullOrWhiteSpace($importMaster) -or $importMaster.Trim().ToUpper() -eq "Y") {
-                        $importScript = Join-Path $scriptsDir "Import_MasterData.ps1"
-                        if (-not (Test-Path $importScript)) {
-                            $importScript = Join-Path $PSScriptRoot "Import_MasterData.ps1"
-                        }
-                        if (Test-Path $importScript) {
-                            Write-Host "   Dang thuc thi Import_MasterData.ps1..." -ForegroundColor Cyan
-                            & $importScript -MySqlHost $inputHost -MySqlPort ([int]$inputPort) -MySqlUser $inputUser -MySqlPassword $mysqlPassword -DataFile $chosenMasterFile
-                        } else {
-                            Write-Warning "   Khong tim thay script Import_MasterData.ps1 tai: $importScript"
-                        }
-                    }
-                } else {
-                    Write-Host "`n   [LUU Y] Chua tim thay tap tin 'amr_master_data.sql' trong thu muc: $databaseDir" -ForegroundColor Yellow
-                    Write-Host "   CSDL 'amr' vua duoc tao la KHUNG BANG TRANG (chua co Khach hang va Diem do)." -ForegroundColor Gray
-                    Write-Host "   Sau khi copy amr_master_data.sql vao $databaseDir, ban co the chay:" -ForegroundColor White
-                    Write-Host "   cd $scriptsDir; .\Import_MasterData.ps1 de nap du lieu bat cu luc nao!" -ForegroundColor Cyan
-                }
-            } else {
-                Write-Warning "   Lenh import co so du lieu ket thuc voi ma thoat: $($proc.ExitCode)"
-            }
-        } catch {
-            Write-Warning "   Loi khi thuc thi import MySQL: $($_.Exception.Message)"
+    Write-Host "   Dang kiem tra xac thuc ket noi toi MySQL ($inputHost`:$inputPort)..." -ForegroundColor Gray
+    try {
+        $ping = Invoke-MySqlScalar -MySqlExe $mysqlExe -HostName $inputHost -Port $inputPort -UserName $inputUser -Password $mysqlPassword -Query "SELECT 1;"
+        if ($ping -eq "1") {
+            $dbConnected = $true
+            Write-Host "   -> [PASS] Ket noi & xac thuc MySQL thanh cong!" -ForegroundColor Green
         }
-    } else {
-        Write-Warning "   Khong tim thay file SQL khoi tao trong thu muc: $databaseDir"
+    } catch {
+        Write-Host "   -> [LOI] Khong the dang nhap MySQL: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "      Vui long kiem tra lai Host/Port/User/Mat khau va nhap lai." -ForegroundColor Yellow
+    }
+}
+
+# 2.3 Khoi tao Co so Du lieu 'amr' + Chay day du Migration Phase 1
+$fileFull = Join-Path $databaseDir "amr_full.sql"
+$fileInit = Join-Path $databaseDir "init_amr_database.sql"
+$dumpFile = if (Test-Path $fileFull) { $fileFull } elseif (Test-Path $fileInit) { $fileInit } else { $null }
+
+if (-not $dumpFile) {
+    throw "Khong tim thay file SQL khoi tao (amr_full.sql) trong thu muc: $databaseDir"
+}
+
+$existingTablesStr = Invoke-MySqlScalar `
+    -MySqlExe $mysqlExe -HostName $inputHost -Port $inputPort -UserName $inputUser -Password $mysqlPassword `
+    -Query "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'amr';"
+$existingTableCount = 0
+[int]::TryParse($existingTablesStr, [ref]$existingTableCount) | Out-Null
+
+$shouldRunBaseDump = $true
+if ($existingTableCount -gt 0) {
+    Write-Host "`n   [CANH BAO] Phat hien CSDL 'amr' da ton tai voi $existingTableCount bang!" -ForegroundColor Yellow
+    $confirmReset = Read-Host "   Chay lai amr_full.sql se XOA SACH du lieu cu trong 'amr'. Ban co chac chan muon reset trang DB? (y/N) [Mac dinh: N]"
+    if ($confirmReset.Trim().ToUpper() -ne "Y") {
+        $shouldRunBaseDump = $false
+        Write-Host "   -> Giu nguyen CSDL 'amr' hien co va chi chay cac migration dong bo schema." -ForegroundColor Cyan
+    }
+}
+
+if ($shouldRunBaseDump) {
+    $dumpFileName = Split-Path $dumpFile -Leaf
+    Write-Host "   Dang khoi tao co so du lieu 'amr' tu tap tin: $dumpFileName..." -ForegroundColor Yellow
+    Invoke-MySqlFile `
+        -MySqlExe $mysqlExe -HostName $inputHost -Port $inputPort -UserName $inputUser -Password $mysqlPassword `
+        -SqlFilePath $dumpFile
+    Write-Host "   -> [PASS] Da import thanh cong co so du lieu goc 'amr' tu $dumpFileName!" -ForegroundColor Green
+}
+
+# Thuc thi tuan tu cac migration theo ngay (yyyyMMdd_*.sql), bo qua font/encoding scripts
+$migrationFiles = Get-ChildItem -Path $databaseDir -Filter "*.sql" -File -ErrorAction SilentlyContinue | Where-Object {
+    ($_.Name -match "^\d{8}_") -and
+    ($_.Name -notlike "*font*") -and
+    ($_.Name -notlike "*encoding*")
+} | Sort-Object Name
+
+foreach ($mFile in $migrationFiles) {
+    Write-Host "   -> Dang thuc thi migration schema: $($mFile.Name)..." -ForegroundColor Yellow
+    Invoke-MySqlFile `
+        -MySqlExe $mysqlExe -HostName $inputHost -Port $inputPort -UserName $inputUser -Password $mysqlPassword `
+        -SqlFilePath $mFile.FullName -Database "amr"
+    Write-Host "      [OK] Hoan tat $($mFile.Name)" -ForegroundColor Green
+}
+
+# Kiem tra toan ven schema Phase 1 sau khi migrate
+$verifyPhase1Sql = @"
+SELECT CONCAT(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'amr' AND LOWER(TABLE_NAME) IN (
+    'measurementpointcurrentsnapshots',
+    'measurementpointtimeseries',
+    'measurementpointhalfhouroperatingreports',
+    'measurementpointhalfhourenergyreports',
+    'measurementpointdailyenergyreports',
+    'measurementpointevents',
+    'measurementpointalerts',
+    'systememailconfigs',
+    'notificationtemplates',
+    'statementpdftemplates'
+  )), '|',
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'amr' AND LOWER(TABLE_NAME) = 'measurementpointhalfhouroperatingreports' AND COLUMN_NAME LIKE '%Unit'), '|',
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.PARTITIONS WHERE TABLE_SCHEMA = 'amr' AND LOWER(TABLE_NAME) = 'measurementpointtimeseries' AND PARTITION_NAME IS NOT NULL)
+);
+"@
+$schemaVerify = Invoke-MySqlScalar `
+    -MySqlExe $mysqlExe -HostName $inputHost -Port $inputPort -UserName $inputUser -Password $mysqlPassword `
+    -Query $verifyPhase1Sql -Database "amr"
+$parts = $schemaVerify -split "\|"
+if ($parts.Count -eq 3) {
+    $coreTblCnt = [int]$parts[0]
+    $opUnitCnt  = [int]$parts[1]
+    $tsPartCnt  = [int]$parts[2]
+    if ($coreTblCnt -lt 10 -or $opUnitCnt -gt 0 -or $tsPartCnt -lt 2) {
+        throw "Kiem tra schema Phase 1 that bai (CoreTables=$coreTblCnt/10, OpUnitCols=$opUnitCnt, TimeSeriesPartitions=$tsPartCnt)."
+    }
+    Write-Host "   -> [PASS] Xac minh schema Phase 1: $coreTblCnt/10 bang chuan, $opUnitCnt cot Unit du thua, $tsPartCnt partition TimeSeries san sang!" -ForegroundColor Green
+}
+
+# Tu dong kiem tra va nap Master Data (Khach hang, So GCS, Diem do, Tags)
+$candidateMaster = @(
+    (Join-Path $databaseDir "amr_master_data.sql"),
+    (Join-Path $scriptsDir "amr_master_data.sql"),
+    (Join-Path $RootDeployPath "amr_master_data.sql"),
+    (Join-Path $databaseDir "amr_data.sql")
+)
+$chosenMasterFile = $null
+foreach ($cm in $candidateMaster) {
+    if (Test-Path $cm) { $chosenMasterFile = (Resolve-Path $cm).Path; break }
+}
+
+if ($chosenMasterFile) {
+    Write-Host "`n   --- NAP DU LIEU CO SO (KHACH HANG, SO GCS, DIEM DO, LIEN KET DU LIEU) ---" -ForegroundColor Cyan
+    Write-Host "   Tim thay tap tin Master Data: $(Split-Path $chosenMasterFile -Leaf)" -ForegroundColor Green
+    $importMaster = Read-Host "   Ban co muon Import danh muc Khach hang & Diem do thuc te vao moi truong trang? (Y/n) [Mac dinh: Y]"
+    if ([string]::IsNullOrWhiteSpace($importMaster) -or $importMaster.Trim().ToUpper() -eq "Y") {
+        $importScript = Join-Path $scriptsDir "Import_MasterData.ps1"
+        if (-not (Test-Path $importScript)) {
+            $importScript = Join-Path $PSScriptRoot "Import_MasterData.ps1"
+        }
+        if (Test-Path $importScript) {
+            Write-Host "   Dang thuc thi Import_MasterData.ps1..." -ForegroundColor Cyan
+            & $importScript -MySqlHost $inputHost -MySqlPort ([int]$inputPort) -MySqlUser $inputUser -MySqlPassword $mysqlPassword -DataFile $chosenMasterFile
+        } else {
+            Write-Warning "   Khong tim thay script Import_MasterData.ps1 tai: $importScript"
+        }
     }
 } else {
-    Write-Host "   (Khong tim thay file mysql.exe truc tiep tren PATH)." -ForegroundColor Gray
+    Write-Host "`n   [LUU Y] Chua tim thay tap tin 'amr_master_data.sql' trong thu muc: $databaseDir" -ForegroundColor Yellow
+    Write-Host "   CSDL 'amr' vua duoc tao la KHUNG BANG TRANG (chua co Khach hang va Diem do)." -ForegroundColor Gray
+    Write-Host "   Sau khi copy amr_master_data.sql vao $databaseDir, ban co the chay:" -ForegroundColor White
+    Write-Host "   cd $scriptsDir; .\Import_MasterData.ps1 de nap du lieu bat cu luc nao!" -ForegroundColor Cyan
 }
 
 # 2.4 Cap nhat chuoi ket noi MySQL vao Backend appsettings.Production.json
@@ -275,7 +470,7 @@ $appsettingsPath = Join-Path $backendDir "appsettings.Production.json"
 if (Test-Path $appsettingsPath) {
     Write-Host "   Dang cap nhat cau hinh MySQL vao: $appsettingsPath..." -ForegroundColor Yellow
     $configContent = Get-Content -Path $appsettingsPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    
+
     $appDbInfo = [PSCustomObject]@{
         Server   = $inputHost
         Port     = $inputPort
@@ -288,9 +483,8 @@ if (Test-Path $appsettingsPath) {
     } else {
         $configContent | Add-Member -MemberType NoteProperty -Name "AppDb" -Value $appDbInfo -Force
     }
-    
-    $jsonOutput = $configContent | ConvertTo-Json -Depth 10
-    Set-Content -Path $appsettingsPath -Value $jsonOutput -Encoding UTF8
+
+    Write-JsonUtf8NoBom -Path $appsettingsPath -Object $configContent
     Write-Host "   -> [PASS] Da luu thong tin ket noi MySQL vao appsettings.Production.json!" -ForegroundColor Green
 } else {
     Write-Warning "   Khong tim thay file cau hinh: $appsettingsPath"
@@ -305,7 +499,7 @@ Write-Host "====================================================================
 Write-Host "   Tai khoan nay dung de dang nhap vao Web Portal MDMSv2 tren trinh duyet." -ForegroundColor Gray
 
 $mdmsAdminUser = Read-Host "   Nhap ten dang nhap Admin MDMS [Mac dinh: admin]"
-if ([string]::IsNullOrWhiteSpace($mdmsAdminUser)) { $mdmsAdminUser = "admin" }
+if ([string]::IsNullOrWhiteSpace($mdmsAdminUser)) { $mdmsAdminUser = "admin" } else { $mdmsAdminUser = $mdmsAdminUser.Trim() }
 
 $mdmsAdminPass = ""
 do {
@@ -347,49 +541,66 @@ if (Test-Path $appsettingsPath) {
     } else {
         $configContent | Add-Member -MemberType NoteProperty -Name "AdminAccount" -Value $adminInfo -Force
     }
-    
-    $jsonOutput = $configContent | ConvertTo-Json -Depth 10
-    Set-Content -Path $appsettingsPath -Value $jsonOutput -Encoding UTF8
+
+    Write-JsonUtf8NoBom -Path $appsettingsPath -Object $configContent
     Write-Host "   -> [PASS] Da ghi nhan tai khoan admin vao cau hinh." -ForegroundColor Green
 }
 
-# Dong bo vao bang users trong co so du lieu amr
-if ($mysqlExe) {
-    try {
-        $updateSqlFile = "$env:TEMP\update_admin.sql"
-        $sqlTemplate = @'
-USE amr;
+# Dong bo vao bang users & bo sung systemconfig con thieu trong DB amr (khong trung key)
+$safeAdminUser = $mdmsAdminUser -replace "'", "''"
+$safeAdminHash = $mdmsHashedPassword -replace "'", "''"
+$updateSqlFile = Join-Path $env:TEMP ("update_admin_" + [guid]::NewGuid().ToString("N") + ".sql")
+$sqlTemplate = @'
+USE `amr`;
 SET SQL_SAFE_UPDATES = 0;
-INSERT INTO users (Id, UserName, Password, FullName, Email, PhoneNumber, Address, CustomerCode, Description, Status, CountLocked, TimeLocked, IsLocked, RoleName, CreatedTime, ModifiedTime, Deleted)
+
+UPDATE `users`
+SET `UserName` = '{0}',
+    `Password` = '{1}',
+    `RoleName` = 'SUPERADMIN',
+    `Status` = 'ACTIVE',
+    `IsLocked` = 0,
+    `CountLocked` = 0,
+    `ModifiedTime` = NOW()
+WHERE (`Id` = 921946681335811 OR `UserName` = 'admin' OR `UserName` = '{0}')
+  AND `Deleted` = 0;
+
+INSERT INTO `users` (`Id`, `UserName`, `Password`, `FullName`, `Email`, `PhoneNumber`, `Address`, `CustomerCode`, `Description`, `Status`, `CountLocked`, `TimeLocked`, `IsLocked`, `RoleName`, `CreatedTime`, `ModifiedTime`, `Deleted`)
 SELECT 921946681335811, '{0}', '{1}', 'Administrator', 'admin@mdms.local', '', '', '', 'System Administrator', 'ACTIVE', 0, '2026-01-01 00:00:00', 0, 'SUPERADMIN', NOW(), NOW(), 0
-WHERE NOT EXISTS (SELECT 1 FROM users WHERE UserName = '{0}' OR UserName = 'admin' OR RoleName = 'SUPERADMIN');
-UPDATE users SET UserName = '{0}', Password = '{1}', RoleName = 'SUPERADMIN', Status = 'ACTIVE', IsLocked = 0, ModifiedTime = NOW()
-WHERE UserName = '{0}' OR UserName = 'admin' OR RoleName = 'SUPERADMIN' OR Id = 921946681335811;
-INSERT INTO systemconfig (Id, `Key`, `Value`) VALUES
-  (1, 'LOCKLOGIN', '5'),
-  (2, 'NUMBEROFINCORRECTENTRIES', '5'),
-  (3, 'SYSTEMADMINISTRATIONFULLNAME', 'Administrator'),
-  (4, 'SYSTEMADMINISTRATIONPHONE', '0901234567'),
-  (5, 'SYSTEMADMINISTRATIONEMAIL', 'admin@mdms.vn'),
-  (6, 'CUSTOMERCAREFULLNAME', 'CSKH'),
-  (7, 'CUSTOMERCAREPHONE', '19001006'),
-  (8, 'CUSTOMERCAREEMAIL', 'cskh@mdms.vn')
-ON DUPLICATE KEY UPDATE `Value` = VALUES(`Value`);
+FROM DUAL
+WHERE NOT EXISTS (
+    SELECT 1 FROM (SELECT `Id`, `UserName`, `Deleted` FROM `users`) u
+    WHERE u.`Deleted` = 0 AND (u.`Id` = 921946681335811 OR u.`UserName` = '{0}')
+);
+
+INSERT INTO `systemconfig` (`Id`, `Key`, `Value`)
+SELECT d.`Id`, d.`Key`, d.`Value`
+FROM (
+    SELECT 1425540916019200 AS `Id`, 'LOCKLOGIN' AS `Key`, '5' AS `Value`
+    UNION ALL SELECT 1425540916174848, 'NUMBEROFINCORRECTENTRIES', '5'
+    UNION ALL SELECT 1431228722962432, 'SYSTEMADMINISTRATIONFULLNAME', 'Administrator'
+    UNION ALL SELECT 1431228722987008, 'SYSTEMADMINISTRATIONPHONE', '0901234567'
+    UNION ALL SELECT 1431228722995200, 'SYSTEMADMINISTRATIONEMAIL', 'admin@mdms.vn'
+    UNION ALL SELECT 1431228722995201, 'CUSTOMERCAREFULLNAME', 'CSKH'
+    UNION ALL SELECT 1431228722995202, 'CUSTOMERCAREPHONE', '19001006'
+    UNION ALL SELECT 1431228722995203, 'CUSTOMERCAREEMAIL', 'cskh@mdms.vn'
+) d
+WHERE NOT EXISTS (
+    SELECT 1 FROM (SELECT `Key` FROM `systemconfig`) sc WHERE sc.`Key` = d.`Key`
+);
+
 SET SQL_SAFE_UPDATES = 1;
 '@
-        $sqlContent = $sqlTemplate -f $mdmsAdminUser, $mdmsHashedPassword
-        Set-Content -Path $updateSqlFile -Value $sqlContent -Encoding UTF8
-
-        $batchUpdate = "$env:TEMP\update_admin.bat"
-        $updateBatchContent = "@echo off`r`n`"$mysqlExe`" -h $inputHost -P $inputPort -u $inputUser `"-p$mysqlPassword`" < `"$updateSqlFile`""
-        Set-Content -Path $batchUpdate -Value $updateBatchContent -Encoding ASCII
-        
-        $procUpdate = Start-Process -FilePath $batchUpdate -Wait -PassThru -NoNewWindow
-        Remove-Item -Path $updateSqlFile, $batchUpdate -Force -ErrorAction SilentlyContinue
-        Write-Host "   -> [PASS] Da cap nhat tai khoan '$mdmsAdminUser' va khoi tao cau hinh he thong trong DB amr!" -ForegroundColor Green
-    } catch {
-        Write-Host "   (Bang users co the duoc dong bo sau khi khoi dong Backend)." -ForegroundColor Gray
-    }
+$sqlContent = $sqlTemplate -f $safeAdminUser, $safeAdminHash
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText($updateSqlFile, $sqlContent, $utf8NoBom)
+try {
+    Invoke-MySqlFile `
+        -MySqlExe $mysqlExe -HostName $inputHost -Port $inputPort -UserName $inputUser -Password $mysqlPassword `
+        -SqlFilePath $updateSqlFile -Database "amr"
+    Write-Host "   -> [PASS] Da cap nhat tai khoan '$mdmsAdminUser' va xac minh systemconfig trong DB amr!" -ForegroundColor Green
+} finally {
+    Remove-Item -Path $updateSqlFile -Force -ErrorAction SilentlyContinue
 }
 
 # ==============================================================================
@@ -410,7 +621,12 @@ try {
 if ($kepRunning) {
     Write-Host "   -> [PASS] Kepware IoT Gateway REST Server dang lang nghe tren cong 39320." -ForegroundColor Green
 } else {
-    $kepService = Get-Service -Name "KEPServerEXV6" -ErrorAction SilentlyContinue
+    $kepService = $null
+    foreach ($ksName in @("KEPServerEXV6", "KEPServerEX")) {
+        $kepService = Get-Service -Name $ksName -ErrorAction SilentlyContinue
+        if ($kepService) { break }
+    }
+
     if ($kepService) {
         Write-Host "   Dich vu Kepware Server ($($kepService.Name)) da cai dat, trang thai: $($kepService.Status)." -ForegroundColor Cyan
     } else {
@@ -437,6 +653,12 @@ if ($kepRunning) {
     }
 }
 
+$sampleOpf = Join-Path $kepwareDir "Meter Simulation.opf"
+if (Test-Path $sampleOpf) {
+    Write-Host "   * File du an Kepware mau co san tai: $sampleOpf" -ForegroundColor Gray
+    Write-Host "     (Luu y: Trong IoT Gateway > Status, khuyen nghi dung Wide Format hoac Narrow Format voi Publish Rate 5000-10000ms va Send Every Scan = False)." -ForegroundColor Gray
+}
+
 # ==============================================================================
 # [BUOC 5] THIET LAP VA KHOI DONG DICH VU BACKEND (.NET 8 WEBAPI)
 # ==============================================================================
@@ -452,7 +674,7 @@ if (-not (Test-Path $script2)) {
 if (Test-Path $script2) {
     & $script2 -BackendPath $backendDir -ListeningPort $BackendPort
 } else {
-    Write-Error "Khong tim thay file 2_Setup_Backend_Service.ps1!"
+    throw "Khong tim thay file 2_Setup_Backend_Service.ps1!"
 }
 
 # ==============================================================================
@@ -470,7 +692,7 @@ if (-not (Test-Path $script3)) {
 if (Test-Path $script3) {
     & $script3 -FrontendPath $frontendDir -Port $FrontendPort
 } else {
-    Write-Error "Khong tim thay file 3_Setup_Frontend_IIS.ps1!"
+    throw "Khong tim thay file 3_Setup_Frontend_IIS.ps1!"
 }
 
 # ==============================================================================
@@ -486,7 +708,7 @@ if (-not (Test-Path $script4)) {
 }
 
 if (Test-Path $script4) {
-    & $script4
+    & $script4 -BackendPort $BackendPort -FrontendPort $FrontendPort
 }
 
 $localIps = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -ne "127.0.0.1" -and $_.InterfaceAlias -notlike "*Loopback*" }).IPAddress
@@ -496,8 +718,8 @@ Write-Host "`n==================================================================
 Write-Host "           CHUC MUNG! HE THONG MDMSv2 DA DUOC TRIEN KHAI THANH CONG!            " -ForegroundColor Green
 Write-Host "================================================================================" -ForegroundColor Green
 Write-Host " 1. TRUY CAP GIAO DIEN NGUOI DUNG (WEB PORTAL):" -ForegroundColor Cyan
-Write-Host "    - Truy cap tai may chu : http://localhost" -ForegroundColor White
-Write-Host "    - Truy cap qua mang LAN: http://$displayIp" -ForegroundColor White
+Write-Host "    - Truy cap tai may chu : http://localhost:$FrontendPort" -ForegroundColor White
+Write-Host "    - Truy cap qua mang LAN: http://$displayIp`:$FrontendPort" -ForegroundColor White
 Write-Host "    - TAI KHOAN DANG NHAP  : $mdmsAdminUser" -ForegroundColor Yellow
 Write-Host "    - MAT KHAU DANG NHAP   : $mdmsAdminPass" -ForegroundColor Yellow
 Write-Host ""
@@ -520,6 +742,6 @@ if (Test-Path $edgeExe) {
     $openEdge = Read-Host "Ban co muon mo ngay Microsoft Edge de truy cap he thong khong? (Y/n) [Mac dinh: Y]"
     if ([string]::IsNullOrWhiteSpace($openEdge) -or $openEdge.Trim().ToUpper() -eq "Y") {
         Write-Host "Dang khoi chay Microsoft Edge..." -ForegroundColor Green
-        Start-Process -FilePath $edgeExe -ArgumentList "http://localhost"
+        Start-Process -FilePath $edgeExe -ArgumentList "http://localhost:$FrontendPort"
     }
 }

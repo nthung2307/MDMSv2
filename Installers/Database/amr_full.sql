@@ -169,6 +169,9 @@ CREATE TABLE `gcsmonthlydetail` (
   `CreatedTime` datetime(6) DEFAULT NULL,
   `CreatedBy` bigint DEFAULT NULL,
   `CreatedName` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci,
+  `CosPhi` decimal(5,2) DEFAULT NULL,
+  `ReadingTime` datetime(6) DEFAULT NULL,
+  `PmaxTime` datetime(6) DEFAULT NULL,
   PRIMARY KEY (`Id`),
   KEY `IX_GcsMonthlyDetail_GcsCutoffCycleId` (`GcsCutoffCycleId`),
   KEY `IX_GcsMonthlyDetail_MeasurementPointId` (`MeasurementPointId`),
@@ -207,6 +210,11 @@ CREATE TABLE `gcstemporary` (
   `PreviousMonth` int DEFAULT NULL,
   `PreviousPeriodNumber` int DEFAULT NULL,
   `PreviousYear` int DEFAULT NULL,
+  `NewPreviousReading` double DEFAULT NULL,
+  `IsSuspicious` tinyint(1) NOT NULL DEFAULT '0',
+  `SuspiciousReason` varchar(500) DEFAULT NULL,
+  `CosPhi` decimal(5,2) DEFAULT NULL,
+  `PmaxTime` datetime(6) DEFAULT NULL,
   PRIMARY KEY (`Id`),
   KEY `IX_GcsTemporary_GcsId` (`GcsId`),
   KEY `IX_GcsTemporary_MeasurementPointId` (`MeasurementPointId`),
@@ -858,6 +866,7 @@ CREATE TABLE `periodicenergystatement` (
   `PmaxTime` datetime(6) DEFAULT NULL,
   `PreviousPmaxTime` datetime(6) DEFAULT NULL,
   `BillingTimestamp` datetime(6) DEFAULT NULL,
+  `CosPhi` decimal(5,2) DEFAULT NULL,
   `HasMeterReplacement` tinyint(1) NOT NULL DEFAULT '0',
   `MeterReplacementId` bigint DEFAULT NULL,
   `StatementPdfTemplateId` bigint DEFAULT NULL,
@@ -867,29 +876,6 @@ CREATE TABLE `periodicenergystatement` (
   CONSTRAINT `FK_PeriodicEnergyStatement_Gcs_GcsId` FOREIGN KEY (`GcsId`) REFERENCES `gcs` (`Id`) ON DELETE CASCADE,
   CONSTRAINT `FK_PeriodicEnergyStatement_MeasurementPoints_MeasurementPointId` FOREIGN KEY (`MeasurementPointId`) REFERENCES `measurementpoints` (`Id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=1530019139117059 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `notificationtemplates`
---
-
-DROP TABLE IF EXISTS `notificationtemplates`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `notificationtemplates` (
-  `Id` bigint NOT NULL,
-  `Code` varchar(100) NOT NULL,
-  `Name` varchar(255) NOT NULL,
-  `SubjectTemplate` varchar(500) NOT NULL,
-  `BodyHtmlTemplate` longtext NOT NULL,
-  `Description` varchar(1000) DEFAULT NULL,
-  `IsDefault` tinyint(1) NOT NULL DEFAULT '0',
-  `IsActive` tinyint(1) NOT NULL DEFAULT '1',
-  `CreatedTime` datetime(6) NOT NULL,
-  `ModifiedTime` datetime(6) DEFAULT NULL,
-  PRIMARY KEY (`Id`),
-  KEY `IX_NotificationTemplates_Code` (`Code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -910,6 +896,9 @@ CREATE TABLE `statementpdftemplates` (
   `ContactPhone` varchar(255) DEFAULT NULL,
   `LogoBase64` longtext,
   `PaperSize` varchar(50) DEFAULT NULL,
+  `EngineType` varchar(50) DEFAULT 'QUEST_PDF',
+  `ExcelTemplateBase64` longtext,
+  `ExcelTemplateFileName` varchar(255) DEFAULT NULL,
   `DisplayColumnsJson` varchar(1000) DEFAULT NULL,
   `FooterNotes` varchar(2000) DEFAULT NULL,
   `RequireDualSignatures` tinyint(1) NOT NULL DEFAULT '1',
@@ -1078,215 +1067,15 @@ CREATE TABLE `usertokens` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Dumping events for database 'amr'
+-- Cleanup any legacy MySQL events and routines (replaced by Phase 1 Hangfire partition jobs)
 --
-/*!50106 SET @save_time_zone= @@TIME_ZONE */ ;
 /*!50106 DROP EVENT IF EXISTS `evt_clean_measpointmonitoring` */;
-DELIMITER ;;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;;
-/*!50003 SET character_set_client  = utf8mb4 */ ;;
-/*!50003 SET character_set_results = utf8mb4 */ ;;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;;
-/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
-/*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `evt_clean_measpointmonitoring` ON SCHEDULE EVERY 1 DAY STARTS '2025-03-11 00:30:00' ON COMPLETION NOT PRESERVE ENABLE DO CALL amr.sp_clean_measurementpointmonitoring() */ ;;
-/*!50003 SET time_zone             = @saved_time_zone */ ;;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;;
-/*!50003 SET character_set_results = @saved_cs_results */ ;;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;;
-/*!50106 DROP EVENT IF EXISTS `evt_clean_measpointmonitoringbystatus` */;;
-DELIMITER ;;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;;
-/*!50003 SET character_set_client  = utf8mb4 */ ;;
-/*!50003 SET character_set_results = utf8mb4 */ ;;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;;
-/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
-/*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `evt_clean_measpointmonitoringbystatus` ON SCHEDULE EVERY 1 HOUR STARTS '2025-10-24 16:00:00' ON COMPLETION NOT PRESERVE ENABLE DO CALL sp_clean_measurementpointmonitoringbystatus() */ ;;
-/*!50003 SET time_zone             = @saved_time_zone */ ;;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;;
-/*!50003 SET character_set_results = @saved_cs_results */ ;;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;;
-DELIMITER ;
-/*!50106 SET TIME_ZONE= @save_time_zone */ ;
+/*!50106 DROP EVENT IF EXISTS `evt_clean_measpointmonitoringbystatus` */;
+DROP PROCEDURE IF EXISTS `batch_delete_old_records`;
+DROP PROCEDURE IF EXISTS `clean_measurement_batch`;
+DROP PROCEDURE IF EXISTS `sp_clean_measurementpointmonitoring`;
+DROP PROCEDURE IF EXISTS `sp_clean_measurementpointmonitoringbystatus`;
 
---
--- Dumping routines for database 'amr'
---
-/*!50003 DROP PROCEDURE IF EXISTS `batch_delete_old_records` */;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-CREATE DEFINER=`root`@`localhost` PROCEDURE `batch_delete_old_records`()
-BEGIN
-    DECLARE deleted_count INT DEFAULT 200000;
-    DECLARE total_deleted INT DEFAULT 0;
-    DECLARE batch_number INT DEFAULT 0;
-    
-    -- Start the batch deletion loop
-    WHILE deleted_count = 200000 DO
-        SET batch_number = batch_number + 1;
-        
-        -- Delete 100,000 records at a time
-        DELETE FROM amr.measurementpointmonitoringbystatus
-        WHERE createdtime < CURDATE()
-        LIMIT 200000;
-        
-        -- Get the number of rows deleted
-        SET deleted_count = ROW_COUNT();
-        SET total_deleted = total_deleted + deleted_count;
-        
-        -- Display progress
-        SELECT 
-            batch_number AS 'Batch #',
-            deleted_count AS 'Deleted in this batch',
-            total_deleted AS 'Total deleted',
-            NOW() AS 'Timestamp';
-        
-        -- Optional: Add a 1-second delay to reduce load on the database
-        DO SLEEP(1);
-        
-    END WHILE;
-    
-    -- Display final results
-    SELECT 
-        'COMPLETED' AS 'Status',
-        total_deleted AS 'Total Records Deleted',
-        batch_number AS 'Total Batches',
-        NOW() AS 'Completed At';
-        
-END ;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 DROP PROCEDURE IF EXISTS `clean_measurement_batch` */;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-CREATE DEFINER=`root`@`localhost` PROCEDURE `clean_measurement_batch`()
-BEGIN
-  DECLARE rows_affected INT DEFAULT 1;
-
-  WHILE rows_affected > 0 DO
-    DELETE FROM amr.measurementpointmonitoring
-    WHERE CreatedTime < '2025-10-19'
-    LIMIT 100000;
-    SET rows_affected = ROW_COUNT();
-  END WHILE;
-END ;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 DROP PROCEDURE IF EXISTS `sp_clean_measurementpointmonitoring` */;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_clean_measurementpointmonitoring`()
-BEGIN
-    DECLARE rows_affected INT DEFAULT 0;
-    DECLARE total_deleted INT DEFAULT 0;
-    DECLARE batch_size INT DEFAULT 100000;
-    DECLARE utc_offset INT DEFAULT 0;
-    DECLARE expire_time DATETIME;
-
-    SET utc_offset = TIMESTAMPDIFF(HOUR, UTC_TIMESTAMP(), NOW());
-    SET expire_time = DATE_SUB(DATE(NOW()) - INTERVAL 1 DAY, INTERVAL utc_offset HOUR);
-
-    REPEAT
-        DELETE FROM amr.measurementpointmonitoring
-        WHERE CreatedTime < expire_time
-        LIMIT batch_size;
-
-        SET rows_affected = ROW_COUNT();
-        SET total_deleted = total_deleted + rows_affected;
-
-        DO SLEEP(0.1);
-    UNTIL rows_affected = 0 END REPEAT;
-
-    SELECT total_deleted AS deleted_rows, expire_time AS expire_time;
-END ;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 DROP PROCEDURE IF EXISTS `sp_clean_measurementpointmonitoringbystatus` */;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_clean_measurementpointmonitoringbystatus`()
-BEGIN
-    DECLARE rows_affected INT DEFAULT 0;
-    DECLARE total_deleted INT DEFAULT 0;
-    DECLARE batch_size INT DEFAULT 100000;
-    DECLARE utc_offset INT DEFAULT 0;
-    DECLARE expire_time DATETIME;
-    
-    -- Calculate UTC offset
-    SET utc_offset = TIMESTAMPDIFF(HOUR, UTC_TIMESTAMP(), NOW());
-    
-    -- Set expire time to 1 hour ago
-    SET expire_time = DATE_SUB(NOW(), INTERVAL 1 HOUR);
-    
-    -- Delete records in batches
-    REPEAT
-        DELETE FROM amr.measurementpointmonitoringbystatus
-        WHERE CreatedTime < expire_time
-        LIMIT batch_size;
-        
-        SET rows_affected = ROW_COUNT();
-        SET total_deleted = total_deleted + rows_affected;
-        
-        -- Sleep to reduce database load
-        DO SLEEP(0.1);
-    UNTIL rows_affected = 0 END REPEAT;
-    
-    -- Return summary
-    SELECT total_deleted AS deleted_rows, expire_time AS expire_time;
-END ;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -1298,6 +1087,8 @@ DELIMITER ;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2026-03-05 16:41:41
+
+SET NAMES utf8mb4;
 
 -- Khoi tao du lieu mac dinh cho bang systemconfig
 INSERT INTO `amr`.`systemconfig` (`Id`, `Key`, `Value`) VALUES

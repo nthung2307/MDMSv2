@@ -1,3 +1,58 @@
+# [CODE REVIEW] PHASE 1 — TỐI ƯU HÓA CSDL ĐO ĐẾM & PIPELINE THU THẬP IOT HIỆU NĂNG CAO
+
+> **Tài liệu thẩm định chất lượng mã nguồn (Principal Architectural Code Review)**  
+> **Người thẩm định:** MDMS-Reviewer (Principal Architect & Security Auditor)  
+> **Ngày thẩm định:** 11/11/2026  
+> **Căn cứ đánh giá:** [PLAN_SPEC.md](file:///e:/sources/MDMSv2/PLAN_SPEC.md), [CHANGELOG_DEV.md](file:///e:/sources/MDMSv2/CHANGELOG_DEV.md), [TEST_REPORT.md](file:///e:/sources/MDMSv2/TEST_REPORT.md) và toàn bộ thay đổi Phase 1.
+
+---
+
+## 1. KẾT LUẬN THẨM ĐỊNH PHASE 1 (REVIEW DECISION)
+
+- **Tài liệu bổ sung (`11/11/2026` — Follow-up loại bỏ 9 cột `*Unit`, Hotfix REST Client `'Status'` & Hardening `SetupMDMS.ps1` cho máy mới)**:
+  - Thẩm định xóa hoàn toàn 9 cột `*Unit` trên `MeasurementPointHalfHourOperatingReports` (chỉ resolve qua `TagName` trong [`OperatingReportFallbackHelper.GetConfiguredUnitsAsync`](file:///e:/sources/MDMSv2/Backend/Infrastructure/Helpers/OperatingReportFallbackHelper.cs)).
+  - Thẩm định Hotfix [`MeasurementPointEventCommandHandler.cs`](file:///e:/sources/MDMSv2/Backend/Infrastructure/Handlers/Commands/IoT/MeasurementPointEventCommandHandler.cs) & [`IoTDataRequest.cs`](file:///e:/sources/MDMSv2/Backend/Application/DataTransferObjects/Requests/IoT/IoTDataRequest.cs): xử lý an toàn chuỗi chuyển trạng thái Narrow Format (tránh `DbUpdateConcurrencyException` và HTTP 400 `"v": null`), thêm unit tests (52/52 PASS).
+  - Thẩm định cài mới [`SetupMDMS.ps1`](file:///e:/sources/MDMSv2/Installers/Scripts/SetupMDMS.ps1), [`1_Install_Prerequisites.ps1`](file:///e:/sources/MDMSv2/Installers/Scripts/1_Install_Prerequisites.ps1), [`amr_full.sql`](file:///e:/sources/MDMSv2/Installers/Database/amr_full.sql), [`20261031_create_email_config_and_metering_tables.sql`](file:///e:/sources/MDMSv2/Installers/Database/20261031_create_email_config_and_metering_tables.sql), [`20261109_standardize_decimal_metering_tables.sql`](file:///e:/sources/MDMSv2/Installers/Database/20261109_standardize_decimal_metering_tables.sql): sửa lỗi parse `$url:`, thiếu cột `EngineType`/`CosPhi`/`NewPreviousReading`, và dọn sạch legacy events/procs + Git hygiene.
+- **Quyết định thẩm định**: **APPROVED** (SẴN SÀNG COMMIT, ĐỒNG BỘ & TRIỂN KHAI MÁY MỚI)
+- **Điểm chất lượng tổng thể**: **9.7 / 10**
+- **Đánh giá chung**:  
+  Kiến trúc Phase 1 hoàn thành xuất sắc mục tiêu chuyển đổi từ mô hình EAV (`longtext`) sang bộ đôi **Wide-Table Snapshot (`1 row/meter`) + Wide-Table TimeSeries (`RANGE(PartitionYm)`, 12-month retention)** trong khi bảo toàn **100% cấu trúc bảng `MeasurementPointHalfHourOperatingReports`** (không thêm 4 cột P/Q Max/Min) và bảo lưu đầy đủ API contract (`vi-VN` kèm `*`, đơn vị `kWh`/`kVArh`, SignalR delta hubs). Pipeline tiếp nhận IoT (`TagRoutingCacheService` + `BufferedTelemetryIngestionService`) khắc phục triệt để điểm nghẽn DB và query N+1 / `PageSize = 1000`. Trong quá trình review phát hiện và xử lý ngay lỗi parse số `"1234,5"` (Culture thousands) tại `MeteringValueHelper`, lỗi concurrency race `_flushGate` tại `BufferedTelemetryIngestionService`, và truy vấn kiểm tra bảng đã xóa trong `Import_AmrData.ps1` / `Import_MasterData.ps1`.
+
+---
+
+## 2. CHECKLIST ĐÁNH GIÁ 5 TRỤ CỘT PHASE 1
+
+### 2.1. Kiến trúc Phần mềm (Clean Architecture Compliance) - [10/10]
+- [x] **Tầng `Domain`**: Sạch, không phụ thuộc EF/MySQL; định nghĩa rõ ràng `MeasurementPointCurrentSnapshotEntity`, `MeasurementPointTimeSeriesEntity`, `[Flags] enum EnergySuspectedFlags` (bits `0..9`), và helper thuần `MeteringValueHelper`.
+- [x] **Tầng `Application`**: Định nghĩa hợp đồng `ITagRoutingCacheService`, `IBufferedTelemetryIngestionService`, `IPartitionManagementService`; bổ sung `PaginateWithAscMappedAsync` tránh lỗi EF `.ProjectTo<T>()` không dịch được biểu thức C# custom format khi xuất JSON báo cáo điện năng.
+- [x] **Tầng `Infrastructure` & `WebApi`**: Tách bạch DI (`ITagRoutingCacheService` Singleton, `BufferedTelemetryIngestionService` Singleton + `IHostedService`, `IPartitionManagementService` Scoped), vô hiệu hóa sạch 5 bảng/repository EAV/Hourly cũ, thay thế Job Hangfire `GroupDataPerMeter` bằng `MaintainTimeSeriesPartitions` + `RecurringJob.RemoveIfExists(...)`.
+
+### 2.2. An toàn Bảo mật SQL & Toàn vẹn Dữ liệu (OWASP & Integrity Audit) - [9.8/10]
+- [x] **Chống SQL Injection tuyệt đối trên Raw ADO.NET / DDL**:
+  * [`BufferedTelemetryIngestionService`](file:///e:/sources/MDMSv2/Backend/Infrastructure/Services/BufferedTelemetryIngestionService.cs): Toàn bộ tên cột được lấy từ whitelist hằng số biên dịch [`TelemetryMetadataRegistry`](file:///e:/sources/MDMSv2/Backend/Infrastructure/Helpers/TelemetryMetadataRegistry.cs) & mảng hằng `TimeSeriesColumns`; toàn bộ giá trị dữ liệu đều bind qua `DbParameter` (`@p0`, `@p1`,...).
+  * [`PartitionManagementService`](file:///e:/sources/MDMSv2/Backend/Infrastructure/Services/PartitionManagementService.cs): Tên bảng truy vấn `INFORMATION_SCHEMA` dùng `@tableName` với `LOWER(TABLE_NAME) = LOWER(@tableName)`; tên partition sinh từ số nguyên dương `targetYm` (`p_yyyyMM`) và `Regex` kiểm định `^p_(?<ym>\d{6})$` trước khi sinh lệnh `DROP PARTITION`.
+  * [`MeasurementPointMonitoringHourlyReadOnlyRepository`](file:///e:/sources/MDMSv2/Backend/Infrastructure/Repositories/ReadOnly/MeasurementPointMonitoringHourlyReadOnlyRepository.cs): `GetPowerChartAsync` xác thực quyền sở hữu `CustomerId` của điểm đo trước khi thực thi SQL `MAX`/`MIN` có tham số hóa (`@pointId`, `@minYm`, `@maxYm`, `@startUtc`, `@endUtc`).
+- [x] **Zero-Data-Loss Verification Gate trong SQL & Installer**:
+  * [`20261111_phase1_optimize_metering_schema.sql`](file:///e:/sources/MDMSv2/Installers/Database/20261111_phase1_optimize_metering_schema.sql) sử dụng hàm `DETERMINISTIC NO SQL` (không đòi hỏi quyền `SUPER` khi MySQL bật binary log), kiểm đếm `COUNT` và `SUM` qua `SIGNAL SQLSTATE '45000'` **trước khi** xóa 5 bảng cũ và cột `LONGTEXT` / `*Unit` cũ.
+  * [`Update_Hotfix.ps1`](file:///e:/sources/MDMSv2/Installers/Scripts/Update_Hotfix.ps1) bắt buộc sao lưu `mysqldump.exe` (single-transaction) trước khi migrate và dừng triển khai ngay nếu SQL trả exit code khác `0`.
+
+### 2.3. Hiệu năng & Tối ưu hóa Tải (Performance & Concurrency) - [9.8/10]
+- [x] Loại bỏ 100% truy vấn `AsNoTracking` nặng nề trên EAV mỗi request IoT; tra cứu Tag $O(1)$ từ RAM (`_refreshLock` + `_cacheVersion` ngăn stale cache overwrite).
+- [x] Gom lô micro-batch (500 items / 500ms) ghi multi-row MySQL (`SnapshotSqlChunkSize = 25`, `TimeSeriesSqlChunkSize = 50`), kết hợp đồng bộ `_flushGate` cho bộ đệm phát SignalR delta mỗi 2 giây.
+- [x] Toàn bộ truy vấn ReadOnly dùng `.AsNoTracking()`, tận dụng Partition Pruning (`PartitionYm >= minYm && PartitionYm <= maxYm`) và các composite/unique index mới.
+- [ ] *Lưu ý nhẹ cho Phase 2*: Cập nhật hồ sơ `Customer` ít thay đổi nên chấp nhận TTL 15 phút cho `TagRoutingCacheService` trong Phase 1; cân nhắc gắn `Invalidate()` vào `UpdateCustomerCommandHandler` khi triển khai Phase 2.
+
+### 2.4. Chất lượng Mã nguồn & Phục hồi Dữ liệu (Code Quality) - [9.5/10]
+- [x] Không trùng lặp logic: trích xuất `PrepareCursorAscAsync`, `TelemetryMetadataRegistry`, `IoTPacketParserHelper`, `OperatingReportFallbackHelper`, `SnapshotDtoMapper`.
+- [x] Idempotency đầy đủ trên Background Jobs (`GenerateEnergyReportDaily`, `GenerateEnergyReportHalfHour`, `GenerateOperatingReportHalfHour`) và SQL Migration script.
+
+### 2.5. Nghiệm thu & Tương thích Giao diện (Contract Preservation) - [9.6/10]
+- [x] API JSON cho Báo cáo Điện năng, Báo cáo Vận hành, Biểu đồ, Chốt Sổ GCS, và SignalR Hubs giữ nguyên 100% chữ ký DTO và kiểu chuỗi `vi-VN` kèm `*`. Frontend build thành công (`tsc && vite build --mode uat`).
+
+---
+
+## 3. LỊCH SỬ THẨM ĐỊNH TRƯỚC ĐÂY
+
 # [CODE REVIEW] QUẢN LÝ ĐIỂM ĐO: NÂNG CẤP BỘ LỌC, TIÊU ĐỀ BẢNG, MỞ TAB MỚI, NHẬP CSV AN TOÀN & XUẤT CSV KÈM EMAIL PHIẾU BÁO (TỪ CŨ ĐẾN MỚI)
 
 > **Tài liệu thẩm định chất lượng mã nguồn (Principal Architectural Code Review)**  

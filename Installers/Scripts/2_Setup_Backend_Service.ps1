@@ -58,9 +58,15 @@ if ($mysqlRunning) {
 } else {
     Write-Host "   -> [CANH BAO] Khong the ket noi toi MySQL Server tren cong $mysqlPort!" -ForegroundColor Red
     Write-Host "      Backend WebApi va Hangfire bat buoc phai ket noi toi MySQL de khoi dong." -ForegroundColor Yellow
-    Write-Host "      Dang thu khoi dong dich vu MySQL80..." -ForegroundColor Gray
-    Start-Service -Name MySQL80 -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
+    Write-Host "      Dang thu khoi dong dich vu MySQL..." -ForegroundColor Gray
+    foreach ($svcName in @("MySQL80", "MySQL84", "MySQL")) {
+        $svc = Get-Service -Name $svcName -ErrorAction SilentlyContinue
+        if ($svc) {
+            Start-Service -Name $svcName -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+            break
+        }
+    }
 }
 
 # 2. Don dep tien trinh cu va dich vu cu
@@ -141,11 +147,11 @@ if (-not $fwRule) {
 Write-Host "`n5. Dang khoi dong dich vu $ServiceName..." -ForegroundColor Green
 Start-ScheduledTask -TaskName $ServiceName
 
-# 6. Kiem tra trang thai cong (Thu lap lai toi da 12 lan x 2 giay)
+# 6. Kiem tra trang thai cong (Thu lap lai toi da 30 lan x 2 giay - lan dau can thoi gian tao schema/partition)
 Write-Host "`n6. Dang kiem tra cong lang nghe $ListeningPort..." -ForegroundColor Yellow
 $backendRunning = $false
-for ($i = 1; $i -le 12; $i++) {
-    Write-Host "   Kiem tra lan $i/12..." -NoNewline
+for ($i = 1; $i -le 30; $i++) {
+    Write-Host "   Kiem tra lan $i/30..." -NoNewline
     $tcpBackend = New-Object System.Net.Sockets.TcpClient
     try {
         $tcpBackend.ConnectAsync("127.0.0.1", $ListeningPort).Wait(1500) | Out-Null

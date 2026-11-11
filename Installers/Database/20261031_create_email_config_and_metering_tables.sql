@@ -55,6 +55,9 @@ CREATE TABLE IF NOT EXISTS `StatementPdfTemplates` (
   `ContactPhone` varchar(255) DEFAULT NULL,
   `LogoBase64` longtext,
   `PaperSize` varchar(50) DEFAULT NULL,
+  `EngineType` varchar(50) DEFAULT 'QUEST_PDF',
+  `ExcelTemplateBase64` longtext,
+  `ExcelTemplateFileName` varchar(255) DEFAULT NULL,
   `DisplayColumnsJson` varchar(1000) DEFAULT NULL,
   `FooterNotes` varchar(2000) DEFAULT NULL,
   `RequireDualSignatures` tinyint(1) NOT NULL DEFAULT '1',
@@ -213,7 +216,36 @@ SELECT
 FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM (SELECT Code FROM `NotificationTemplates`) AS nt WHERE UPPER(nt.Code) = 'USER_CREDENTIAL');
 
--- 8. Insert mau khoi tao StatementPdfTemplates chi khi bang chua co mau nao
+-- 8. Dam bao cac cot EngineType/ExcelTemplate ton tai va insert mau StatementPdfTemplates mac dinh
+SET @stmt_tbl = (SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = @dbname AND LOWER(TABLE_NAME) = 'statementpdftemplates' LIMIT 1);
+SET @preparedStatement = (SELECT IF(
+  @stmt_tbl IS NULL OR (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = @stmt_tbl AND COLUMN_NAME = 'EngineType') > 0,
+  'SELECT 1',
+  CONCAT('ALTER TABLE `', @stmt_tbl, '` ADD COLUMN `EngineType` varchar(50) DEFAULT \'QUEST_PDF\'')
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
+
+SET @preparedStatement = (SELECT IF(
+  @stmt_tbl IS NULL OR (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = @stmt_tbl AND COLUMN_NAME = 'ExcelTemplateBase64') > 0,
+  'SELECT 1',
+  CONCAT('ALTER TABLE `', @stmt_tbl, '` ADD COLUMN `ExcelTemplateBase64` longtext')
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
+
+SET @preparedStatement = (SELECT IF(
+  @stmt_tbl IS NULL OR (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = @stmt_tbl AND COLUMN_NAME = 'ExcelTemplateFileName') > 0,
+  'SELECT 1',
+  CONCAT('ALTER TABLE `', @stmt_tbl, '` ADD COLUMN `ExcelTemplateFileName` varchar(255) DEFAULT NULL')
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
+
+-- Insert mau khoi tao StatementPdfTemplates chi khi bang chua co mau nao
 INSERT IGNORE INTO `StatementPdfTemplates` 
 (`Id`, `Code`, `Name`, `HeaderTitle`, `SubHeaderTitle`, `CompanyName`, `CompanyAddress`, `ContactPhone`, `PaperSize`, `EngineType`, `DisplayColumnsJson`, `FooterNotes`, `RequireDualSignatures`, `IsDefault`, `IsActive`, `CreatedTime`)
 SELECT 1, 'A5_VSIP_STANDARD', 'Mẫu phiếu báo A5 Ngang - Chuẩn VSIP Hải Phòng', 

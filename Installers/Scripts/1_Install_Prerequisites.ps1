@@ -324,7 +324,7 @@ function Install-LibreOfficeIfMissing {
                     break
                 }
             } catch {
-                Write-Host "      Khong the tai tu $url: $($_.Exception.Message)" -ForegroundColor Gray
+                Write-Host "      Khong the tai tu ${url}: $($_.Exception.Message)" -ForegroundColor Gray
             }
         }
     }
