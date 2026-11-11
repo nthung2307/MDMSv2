@@ -68,6 +68,7 @@ const GCSCheck = () => {
     pageSize = size,
     before,
     after,
+    pageNumber,
     searchByFields = [],
     sortByFields = [],
     gcsId,
@@ -78,6 +79,7 @@ const GCSCheck = () => {
       pageSize: pageSize,
       ...(before && { before }),
       ...(after && { after }),
+      ...(pageNumber && { pageNumber }),
       ...(month && { month }),
       ...(year && { year }),
       searchByFields: searchByFields.length > 0 ? searchByFields : [],
@@ -151,20 +153,26 @@ const GCSCheck = () => {
               setSize(newSize);
               setGetGCSCutOffCycleRequest((prev) => {
                 const updatedParams = { ...prev, pageSize: newSize };
-                return deleteParams(updatedParams, ['before', 'after']);
+                return deleteParams(updatedParams, ['before', 'after', 'pageNumber']);
               });
             }}
             hasPrevious={paginationData?.hasPrevious}
             onClickPrevious={() => {
               setGetGCSCutOffCycleRequest((prev) => {
                 const updatedParams = { ...prev, before: firstPointID };
-                return deleteParams(updatedParams, ['after']); // Remove 'after' parameter
+                return deleteParams(updatedParams, ['after', 'pageNumber']);
               });
             }}
             onClickNext={() => {
               setGetGCSCutOffCycleRequest((prev) => {
                 const updatedParams = { ...prev, after: lastPointID };
-                return deleteParams(updatedParams, ['before']); // Remove 'before' parameter
+                return deleteParams(updatedParams, ['before', 'pageNumber']);
+              });
+            }}
+            onChangePage={(page) => {
+              setGetGCSCutOffCycleRequest((prev) => {
+                const updatedParams = { ...prev, pageNumber: page };
+                return deleteParams(updatedParams, ['before', 'after']);
               });
             }}
           />

@@ -9,5 +9,7 @@ public interface INotificationTemplateReadWriteRepository : IRepository<Notifica
 {
     Task<NotificationTemplateEntity?> GetByIdAsync(long id, CancellationToken cancellationToken = default);
     Task<NotificationTemplateEntity?> GetDefaultByCodeAsync(string code, CancellationToken cancellationToken = default);
+    Task<NotificationTemplateEntity?> GetAnyByCodeAsync(string code, CancellationToken cancellationToken = default);
     Task SetDefaultAsync(long id, string code, CancellationToken cancellationToken = default);
+    Task<int> DeduplicateTemplatesAsync(CancellationToken cancellationToken = default);
 }

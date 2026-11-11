@@ -72,8 +72,7 @@ public static class QueryableExtensions
         }
 
         IQueryable<TSourceEntity> finalQuery;
-        var hasNext = false;
-        var hasPrevious = false;
+        var totalCount = await queryable.CountAsync(cancellationToken);
 
         // Handle before: going to previous page in default ASC order
         if (cursorPaginationRequest.Before != null)
@@ -109,42 +108,12 @@ public static class QueryableExtensions
             }
         }
 
-        // Hit to the db to get data back to client side
-        var result = await finalQuery
-            .ProjectTo<TTargetEntity>(mapper.ConfigurationProvider)
-            .Take(cursorPaginationRequest.PageSize + 1)
-            .ToListAsync(cancellationToken);
-
-        // Handle first request with all null
-        if (cursorPaginationRequest.After == null && cursorPaginationRequest.Before == null)
-        {
-            hasPrevious = false;
-            hasNext = result.Count == cursorPaginationRequest.PageSize + 1;
-            result = result.Take(cursorPaginationRequest.PageSize).ToList();
-        }
-
-        // Recalculate next, previous
-        if (cursorPaginationRequest.After != null)
-        {
-            hasPrevious = true;
-            hasNext = result.Count == cursorPaginationRequest.PageSize + 1;
-            result = result.Take(cursorPaginationRequest.PageSize).ToList();
-        }
-
-        if (cursorPaginationRequest.Before != null)
-        {
-            hasNext = true;
-            hasPrevious = result.Count == cursorPaginationRequest.PageSize + 1;
-            result = result.Take(cursorPaginationRequest.PageSize).ToList();
-            result.Reverse();
-        }
-
-        return new CursorPaginationResponse<TTargetEntity>()
-        {
-            HasNext = hasNext,
-            HasPrevious = hasPrevious,
-            Data = result
-        };
+        return await QueryableWithAndExtensions.FetchCursorOrJumpPageAsync<TSourceEntity, TTargetEntity>(
+            finalQuery,
+            cursorPaginationRequest,
+            totalCount,
+            mapper,
+            cancellationToken);
     }
 
     /// <summary>

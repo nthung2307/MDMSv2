@@ -125,19 +125,37 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
         var fullQuery = pointQuery;
         var totalCount = await fullQuery.CountAsync(cancellationToken);
 
+        var pageSize = request.PageSize > 0 ? request.PageSize : 10;
+        List<MeasurementPointsEntity> pagedPoints;
+
         if (request.After.HasValue)
         {
-            pointQuery = (IOrderedQueryable<MeasurementPointsEntity>)pointQuery.Where(x => x.Id > request.After.Value);
+            pagedPoints = await pointQuery
+                .Where(x => x.Id > request.After.Value)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
         }
         else if (request.Before.HasValue)
         {
-            pointQuery = (IOrderedQueryable<MeasurementPointsEntity>)pointQuery.Where(x => x.Id < request.Before.Value).OrderByDescending(x => x.Id);
-        }
-
-        var pagedPoints = await pointQuery.Take(request.PageSize).ToListAsync(cancellationToken);
-        if (request.Before.HasValue)
-        {
+            pagedPoints = await pointQuery
+                .Where(x => x.Id < request.Before.Value)
+                .OrderByDescending(x => x.Id)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
             pagedPoints.Reverse();
+        }
+        else if (request.PageNumber is > 0)
+        {
+            pagedPoints = await pointQuery
+                .Skip((request.PageNumber.Value - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
+        }
+        else
+        {
+            pagedPoints = await pointQuery
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
         }
 
         var measurementPointDtos = await PopulateMonitoringDtosAsync(pagedPoints, cultureInfo, cancellationToken);
@@ -150,6 +168,10 @@ public class MeasurementPointMonitoringReadOnlyRepository : RestfulRepository<Me
             var maxId = pagedPoints.Max(x => x.Id);
             hasPrevious = await fullQuery.AnyAsync(x => x.Id < minId, cancellationToken);
             hasNext = await fullQuery.AnyAsync(x => x.Id > maxId, cancellationToken);
+        }
+        else if (request.PageNumber is > 1 && totalCount > 0)
+        {
+            hasPrevious = true;
         }
 
         return new CursorPaginationResponse<ListMeasurementPointMonitoringDto>

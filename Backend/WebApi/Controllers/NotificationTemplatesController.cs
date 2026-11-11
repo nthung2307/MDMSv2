@@ -65,6 +65,16 @@ public class NotificationTemplatesController : ControllerBase
                 await SeedDefaultTemplatesAsync(cancellationToken);
                 list = await _readOnlyRepository.GetAllTemplatesAsync(code, cancellationToken);
             }
+            else if (list.GroupBy(x => (x.Code ?? string.Empty).Trim().ToUpperInvariant())
+                .Any(g => g.Count(t => t.IsDefault) > 1 || g.GroupBy(t => (t.Name ?? string.Empty).Trim(), StringComparer.OrdinalIgnoreCase).Any(ng => ng.Count() > 1)))
+            {
+                var removed = await _readWriteRepository.DeduplicateTemplatesAsync(cancellationToken);
+                if (removed > 0)
+                {
+                    _logger.LogInformation("Đã tự động dọn {Count} mẫu email mặc định bị trùng lặp trong CSDL.", removed);
+                    list = await _readOnlyRepository.GetAllTemplatesAsync(code, cancellationToken);
+                }
+            }
 
             foreach (var t in list)
             {

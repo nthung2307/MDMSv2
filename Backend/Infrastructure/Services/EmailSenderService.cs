@@ -295,6 +295,15 @@ public class EmailSenderService
             ["CarePhone"] = carePhone
         };
 
+        var publicBaseUrl = systemConfig.FirstOrDefault(x => x.Key == Constants.SystemConfig.PublicBaseUrl)?.Value;
+        if (!string.IsNullOrWhiteSpace(publicBaseUrl))
+        {
+            var cleanUrl = publicBaseUrl.Trim().TrimEnd('/');
+            templateContext["PublicBaseUrl"] = cleanUrl;
+            templateContext["PortalUrl"] = cleanUrl;
+            templateContext["LoginUrl"] = $"{cleanUrl}/login";
+        }
+
         // Render Email Subject và HTML Body thông qua NotificationTemplateService
         var (renderedSubject, renderedBodyHtml) = await _notificationTemplateService.RenderNotificationAsync(
             Constants.NotificationTemplateCode.StatementNotification,

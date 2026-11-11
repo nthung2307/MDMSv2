@@ -112,6 +112,11 @@ export class Endpoint {
     static PreviewStatementPdfTemplate: string = 'statement-pdf-templates/preview-pdf';
     static ResetDefaultStatementPdfTemplates: string = 'statement-pdf-templates/reset-defaults';
     static DownloadDefaultExcelTemplate: string = 'statement-pdf-templates/download-default-excel';
+
+    // IoT Gateway Configuration
+    static GetIoTConfig: string = 'iot/get-config';
+    static UpdateIoTConfig: string = 'iot/update-config';
+    static GenerateIoTKey: string = 'iot/generate-api-key';
   };
 
   static Report = class {
@@ -157,5 +162,18 @@ export class Endpoint {
   static Export = class {
     static ExportAllPdf: string = 'export-pdf';
     static ExportAllCsv: string = 'export-csv';
+  };
+
+  static MeterReplacement = class {
+    static GetList: string = 'Meter-Replacements/Get-List';
+    static GetDetail: string = 'Meter-Replacements/Get-Detail/:id';
+    static Create: string = 'Meter-Replacements/Create';
+    static Update: string = 'Meter-Replacements/Update/:id';
+    static Delete: string = 'Meter-Replacements/Delete/:id';
+    static Approve: string = 'Meter-Replacements/Approve/:id';
+    static Cancel: string = 'Meter-Replacements/Cancel/:id';
+    static PointMeterInfo: string = 'Meter-Replacements/Get-Point-Meter-Info/:pointId';
+    static UploadDocument: string = 'Meter-Replacements/Upload-Document';
+    static ExtractOcr: string = 'Meter-Replacements/Extract-Ocr';
   };
 }

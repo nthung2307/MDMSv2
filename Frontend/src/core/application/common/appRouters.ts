@@ -27,6 +27,7 @@ export const ROUTE_PATH = {
 
   // Measurement point Management
   POINT_MANAGEMENT: `${PREFIX}/point-management`,
+  METER_REPLACEMENTS: `${PREFIX}/meter-replacements`,
   ADD_POINT: `${PREFIX}/point-management/add`,
   EDIT_POINT: `${PREFIX}/point-management/:id/edit`,
   POINT_DETAIL: `${PREFIX}/point-management/:id/detail`,
@@ -74,5 +75,7 @@ export const ROUTE_PATH = {
   EMAIL_CONFIG: `${PREFIX}/email-config`,
   NOTIFICATION_TEMPLATES: `${PREFIX}/notification-templates`,
   STATEMENT_PDF_TEMPLATES: `${PREFIX}/statement-pdf-templates`,
+  IOT_CONFIG: `${PREFIX}/iot-config`,
+  IOT_REST_SERVER: `${PREFIX}/iot-config/rest-server`,
   DATA_MEASUREMENT_POINT: `${PREFIX}/configuration/list-tag-name/:id`,
 };

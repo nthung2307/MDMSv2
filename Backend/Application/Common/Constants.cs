@@ -122,6 +122,14 @@ namespace Application.Common
             public const string CompanyAddressDetail = "COMPANY_ADDRESS_DETAIL";
             public const string CompanyCountry = "COMPANY_COUNTRY";
             public const string CompanyAddress = "COMPANY_ADDRESS";
+
+            // Đường dẫn công khai của hệ thống (Cloudflare Tunnel, Domain hoặc WAN IP)
+            public const string PublicBaseUrl = "PUBLIC_BASE_URL";
+
+            // Cấu hình bảo mật Kepware IoT Gateway
+            public const string IoT_ApiKey = "IOT_API_KEY";
+            public const string IoT_AllowedIps = "IOT_ALLOWED_IPS";
+            public const string IoT_RequireApiKey = "IOT_REQUIRE_API_KEY";
         }
     }
 }

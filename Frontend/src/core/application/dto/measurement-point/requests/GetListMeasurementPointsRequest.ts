@@ -2,6 +2,7 @@ export class GetListMeasurementPointsRequest {
   pageSize?: number;
   after?: number;
   before?: number;
+  pageNumber?: number;
   searchByFields?: {
     searchFieldName: string;
     searchValue: string;
@@ -16,6 +17,7 @@ export class GetListMeasurementPointsRequest {
     this.pageSize = args.pageSize;
     this.after = args.after;
     this.before = args.before;
+    this.pageNumber = args.pageNumber;
     if (args.searchByFields) {
       this.searchByFields = args.searchByFields;
     }

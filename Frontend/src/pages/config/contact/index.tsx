@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Col, Divider, Row, Typography } from 'antd';
+import { Card, Col, Row, Typography } from 'antd';
 import { TbBook2 } from 'react-icons/tb';
-import { BankOutlined, CustomerServiceOutlined, UserOutlined } from '@ant-design/icons';
+import { BankOutlined, CustomerServiceOutlined, GlobalOutlined, UserOutlined } from '@ant-design/icons';
 
 import Constants from '@/core/application/common/constants';
 import { systemConfigRequest } from '@/core/application/dto/tag-name/requests/SystemConfigRequest';
@@ -89,6 +89,9 @@ const ContactConfig = () => {
           supporterName: findVal(Constants.LockAuth.CUSTOMERCAREFULLNAME, 'CSKH'),
           supporterNumber: findVal(Constants.LockAuth.CUSTOMERCAREPHONE, '19001006'),
           supporterEmail: findVal(Constants.LockAuth.CUSTOMERCAREEMAIL, 'cskh@mdms.vn'),
+
+          // Đường dẫn công khai của hệ thống (Cloudflare Tunnel, Domain hoặc WAN IP)
+          publicBaseUrl: findVal(Constants.LockAuth.PUBLIC_BASE_URL, ''),
         };
         setDataForm(resultData);
       },
@@ -185,6 +188,12 @@ const ContactConfig = () => {
         {
           key: Constants.LockAuth.CUSTOMERCAREEMAIL,
           value: dataForm.supporterEmail || '',
+        },
+
+        // 3. Đường dẫn công khai của hệ thống (Cloudflare Tunnel, Domain hoặc WAN IP)
+        {
+          key: Constants.LockAuth.PUBLIC_BASE_URL,
+          value: dataForm.publicBaseUrl || '',
         },
       ],
     });
@@ -332,10 +341,6 @@ const ContactConfig = () => {
                 />
               </Col>
             </Row>
-
-            <Divider orientation='left' style={{ margin: '16px 0 8px 0', fontSize: 13, color: '#64748b' }}>
-              Địa chỉ đơn vị (Tự động hiển thị 2 dòng trên Phiếu báo: Dòng 1 [Địa chỉ] & Dòng 2 [Phường/Xã, Tỉnh/TP, Quốc gia])
-            </Divider>
 
             <Row gutter={16}>
               <Col xs={24} md={8}>
@@ -526,6 +531,35 @@ const ContactConfig = () => {
                   },
                 ]}
                 placeholder={'Ví dụ: cskh@mdms.vn'}
+              />
+            </Col>
+          </Row>
+        </Card>
+
+        {/* KHỐI 4: ĐƯỜNG DẪN TRUY CẬP HỆ THỐNG */}
+        <Card
+          className='shadow-custom'
+          title={
+            <div className='flex items-center gap-2'>
+              <GlobalOutlined style={{ color: '#003366', fontSize: 18 }} />
+              <span className='font-bold text-16-20 text-[#003366]'>
+                Đường dẫn truy cập hệ thống
+              </span>
+            </div>
+          }
+        >
+          <Row gutter={16}>
+            <Col xs={24} md={24}>
+              <InputTextCommon
+                label={_t('URL hệ thống')}
+                attribute={'publicBaseUrl'}
+                setData={setDataForm}
+                dataAttribute={dataForm?.publicBaseUrl}
+                isRequired={false}
+                validate={validate}
+                setValidate={setValidate}
+                submittedTime={submittedTime}
+                placeholder={'Ví dụ: https://my-subdomain.trycloudflare.com hoặc https://mdms.vsip.com.vn'}
               />
             </Col>
           </Row>

@@ -9,6 +9,8 @@ interface Props {
   hasPrevious?: boolean;
   onClickPrevious: (callback?: () => void) => void;
   onClickNext: (callback?: () => void) => void;
+  onChangePage?: (page: number) => void;
+  currentPage?: number;
   total?: number;
   currentCount?: number;
   className?: string;
@@ -22,20 +24,23 @@ const PaginationCommon = ({
   hasPrevious = false,
   onClickNext,
   onClickPrevious,
+  onChangePage,
+  currentPage: controlledCurrentPage,
   setSize,
   total,
   currentCount = 0,
   className = '',
   pageSizeOptions = ['10', '20', '50', '100'],
 }: Props) => {
-  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [internalPage, setInternalPage] = useState<number>(1);
+  const currentPage = controlledCurrentPage ?? internalPage;
 
   // Reset về trang 1 khi hasPrevious trở về false (ví dụ: khi tìm kiếm mới hoặc reset bộ lọc)
   useEffect(() => {
-    if (!hasPrevious) {
-      setCurrentPage(1);
+    if (!hasPrevious && controlledCurrentPage === undefined) {
+      setInternalPage(1);
     }
-  }, [hasPrevious]);
+  }, [hasPrevious, controlledCurrentPage]);
 
   // Tính total cho Antd Pagination:
   // Nếu có total thực tế truyền vào thì dùng total đó.
@@ -63,13 +68,18 @@ const PaginationCommon = ({
         showTotal={() => `Tổng số: ${displayTotal} bản ghi`}
         onChange={(newPage, newPageSize) => {
           if (newPageSize !== pageSize) {
-            setCurrentPage(1);
+            setInternalPage(1);
             setSize(newPageSize);
+          } else if (newPage === currentPage) {
+            return;
+          } else if (onChangePage && (newPage === 1 || Math.abs(newPage - currentPage) > 1)) {
+            setInternalPage(newPage);
+            onChangePage(newPage);
           } else if (newPage > currentPage) {
-            setCurrentPage(newPage);
+            setInternalPage(newPage);
             onClickNext();
           } else if (newPage < currentPage) {
-            setCurrentPage(newPage);
+            setInternalPage(newPage);
             onClickPrevious();
           }
         }}

@@ -1,0 +1,32 @@
+;,,,,,,
+; IOTItem,,,,,,
+;,,,,,,
+Server Tag,Scan Rate,Data Type,Deadband,Send Every Scan,Enabled,Use Scan Rate
+_AdvancedTags.M010.Energy.PBR1,60000,Word,0,1,1,1
+_AdvancedTags.M010.Energy.PBR2,60000,Word,0,1,1,1
+_AdvancedTags.M010.Energy.PBR3,60000,Word,0,1,1,1
+_AdvancedTags.M010.Energy.PBRU,60000,Word,0,1,1,1
+_AdvancedTags.M010.Energy.PTR1,60000,Word,0,1,1,1
+_AdvancedTags.M010.Energy.PTR2,60000,Word,0,1,1,1
+_AdvancedTags.M010.Energy.PTR3,60000,Word,0,1,1,1
+_AdvancedTags.M010.Energy.PTRU,60000,Word,0,1,1,1
+_AdvancedTags.M010.Energy.QBRU,60000,Word,0,1,1,1
+_AdvancedTags.M010.Energy.QTRU,60000,Word,0,1,1,1
+_AdvancedTags.M010.MD.Current,60000,Double,0,1,1,1
+_AdvancedTags.M010.MD.Previous,60000,Double,0,1,1,1
+_AdvancedTags.M010.Meas.Hz,60000,Double,0,1,1,1
+_AdvancedTags.M010.Meas.Ia,60000,Double,0,1,1,1
+_AdvancedTags.M010.Meas.Ib,60000,Double,0,1,1,1
+_AdvancedTags.M010.Meas.Ic,60000,Double,0,1,1,1
+_AdvancedTags.M010.Meas.Pa,60000,Double,0,1,1,1
+_AdvancedTags.M010.Meas.Pb,60000,Double,0,1,1,1
+_AdvancedTags.M010.Meas.Pc,60000,Double,0,1,1,1
+_AdvancedTags.M010.Meas.PF,60000,Double,0,1,1,1
+_AdvancedTags.M010.Meas.Pt,60000,Double,0,1,1,1
+_AdvancedTags.M010.Meas.Qa,60000,Double,0,1,1,1
+_AdvancedTags.M010.Meas.Qb,60000,Double,0,1,1,1
+_AdvancedTags.M010.Meas.Qc,60000,Double,0,1,1,1
+_AdvancedTags.M010.Meas.Qt,60000,Double,0,1,1,1
+_AdvancedTags.M010.Meas.Va,60000,Double,0,1,1,1
+_AdvancedTags.M010.Meas.Vb,60000,Double,0,1,1,1
+_AdvancedTags.M010.Meas.Vc,60000,Double,0,1,1,1

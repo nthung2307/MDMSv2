@@ -198,14 +198,18 @@ WHERE CreatedTime >= NOW() - INTERVAL 7 DAY;
         Write-Warning "   Khong the tu dong don dep du lieu cu qua mysql.exe: $_"
     }
 
-    # Tu dong thuc thi file SQL migration neu co trong goi Hotfix
+    # Tu dong thuc thi file SQL migration neu co trong goi Hotfix (Loai bo script sua font Tieng Viet de bao toan mau tuy bien cua nguoi dung)
     $sqlSearchDirs = @(
         (Join-Path $SourcePackageDir "Database"),
         $SourcePackageDir
     )
     foreach ($dir in $sqlSearchDirs) {
         if (Test-Path $dir) {
-            $migrationFiles = Get-ChildItem -Path $dir -Filter "*.sql" -File | Where-Object { $_.Name -like "*email*" -or $_.Name -like "*migration*" -or $_.Name -like "*table*" -or $_.Name -like "*decimal*" -or $_.Name -like "*font*" -or $_.Name -like "*encoding*" -or $_.Name -match "^\d{8}_" } | Sort-Object Name
+            $migrationFiles = Get-ChildItem -Path $dir -Filter "*.sql" -File | Where-Object { 
+                ($_.Name -like "*email*" -or $_.Name -like "*migration*" -or $_.Name -like "*table*" -or $_.Name -like "*decimal*" -or $_.Name -match "^\d{8}_") -and
+                $_.Name -notlike "*font*" -and
+                $_.Name -notlike "*encoding*"
+            } | Sort-Object Name
             foreach ($sqlFile in $migrationFiles) {
                 Write-Host "   Dang thuc thi script migration CSDL: $($sqlFile.Name)..." -ForegroundColor Yellow
                 try {

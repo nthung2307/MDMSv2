@@ -46,7 +46,7 @@ const TableSummary = (props: Props) => {
     //   },
     // },
     {
-      title: 'Tên KH',
+      title: 'Tên khách hàng',
       dataIndex: 'customerName',
       width: 200,
       render: (record) => {

@@ -2,6 +2,7 @@ export class GetListGCSRequest {
   pageSize?: number;
   after?: number;
   before?: number;
+  pageNumber?: number;
   searchByFields?:
     | [
         {
@@ -23,6 +24,7 @@ export class GetListGCSRequest {
     pageSize: number;
     after?: number;
     before?: number;
+    pageNumber?: number;
     searchByFields?:
       | [
           {
@@ -47,6 +49,9 @@ export class GetListGCSRequest {
     }
     if (args.before) {
       this.before = args.before;
+    }
+    if (args.pageNumber) {
+      this.pageNumber = args.pageNumber;
     }
     if (args.searchByFields) {
       this.searchByFields = args.searchByFields;

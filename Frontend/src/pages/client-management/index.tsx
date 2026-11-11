@@ -91,14 +91,14 @@ const ClientManagement = () => {
   const addListCustomerParams = (params: GetListCustomerRequest) => {
     setGetListCustomerParamsRequest((prev) => {
       const updatedParams = { ...prev, ...params };
-      return deleteParams(updatedParams, ['before', 'after']);
+      return deleteParams(updatedParams, ['before', 'after', 'pageNumber']);
     });
   };
 
   const updateParamsValueFromListCustomerParams = (paramsToUpdate: any) => {
     setGetListCustomerParamsRequest((prev: any) => {
       const updatedParams = { ...prev, ...paramsToUpdate };
-      return deleteParams(updatedParams, ['before', 'after']);
+      return deleteParams(updatedParams, ['before', 'after', 'pageNumber']);
     });
   };
 
@@ -195,6 +195,7 @@ const ClientManagement = () => {
     before,
     pageSize = size,
     after,
+    pageNumber,
     searchByFields = [],
     sortByFields = [],
   }: GetListCustomerRequest) => {
@@ -202,6 +203,7 @@ const ClientManagement = () => {
       pageSize: pageSize,
       ...(before && { before }),
       ...(after && { after }),
+      ...(pageNumber && { pageNumber }),
       ...(searchByFields.length > 0 && { searchByFields }),
       ...(sortByFields.length > 0 && { sortByFields }),
     };
@@ -339,7 +341,7 @@ const ClientManagement = () => {
             setSize(newSize);
             setGetListCustomerParamsRequest((prev) => {
               const updatedParams = { ...prev, pageSize: newSize };
-              return deleteParams(updatedParams, ['before', 'after']); // Remove 'before' and 'after' parameters
+              return deleteParams(updatedParams, ['before', 'after', 'pageNumber']);
             });
           }}
           hasPrevious={paginationData?.hasPrevious}
@@ -347,14 +349,20 @@ const ClientManagement = () => {
             // When clicking on Previous, remove the 'after' and set 'before'
             setGetListCustomerParamsRequest((prev) => {
               const updatedParams = { ...prev, before: firstCustomerID };
-              return deleteParams(updatedParams, ['after']); // Remove 'after' parameter
+              return deleteParams(updatedParams, ['after', 'pageNumber']);
             });
           }}
           onClickNext={() => {
             // When clicking on Next, remove the 'before' and set 'after'
             setGetListCustomerParamsRequest((prev) => {
               const updatedParams = { ...prev, after: lastCustomerID };
-              return deleteParams(updatedParams, ['before']); // Remove 'before' parameter
+              return deleteParams(updatedParams, ['before', 'pageNumber']);
+            });
+          }}
+          onChangePage={(page) => {
+            setGetListCustomerParamsRequest((prev) => {
+              const updatedParams = { ...prev, pageNumber: page };
+              return deleteParams(updatedParams, ['before', 'after']);
             });
           }}
         />

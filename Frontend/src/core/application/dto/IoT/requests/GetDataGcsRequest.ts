@@ -2,6 +2,7 @@ export class GetListDataGCSRequest {
   pageSize?: number;
   after?: number;
   before?: number;
+  pageNumber?: number;
   searchByFields?:
     | [
         {
@@ -37,6 +38,7 @@ export class GetListDataGCSRequest {
     pageSize: number;
     after?: number;
     before?: number;
+    pageNumber?: number;
     searchByFields?: [{ searchFieldName: 'string'; searchValue: 'string' }];
     sortByFields?: [{ colName: 'string'; sortDirection: 'string' }];
     gcsId: number;
@@ -54,6 +56,9 @@ export class GetListDataGCSRequest {
     }
     if (args.before) {
       this.before = args.before;
+    }
+    if (args.pageNumber) {
+      this.pageNumber = args.pageNumber;
     }
     if (args.searchByFields) {
       this.searchByFields = args.searchByFields;

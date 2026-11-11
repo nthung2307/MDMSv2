@@ -22,6 +22,7 @@ import ContactConfig from '@/pages/config/contact';
 import EmailConfigPage from '@/pages/config/email';
 import NotificationTemplatesPage from '@/pages/config/notification-templates';
 import StatementPdfTemplatesPage from '@/pages/config/statement-pdf-templates';
+import IoTConfigPage from '@/pages/config/iot';
 import DataMeasurementPoint from '@/pages/config/detail';
 import DashBoardPage from '@/pages/dashboard';
 import AddGCS from '@/pages/gcs-management/add';
@@ -37,6 +38,7 @@ import AddPoint from '@/pages/point-management/add-point';
 import PointDetail from '@/pages/point-management/detail';
 import EditPoint from '@/pages/point-management/edit-client';
 import PointManagement from '@/pages/point-management/index';
+import MeterReplacementPage from '@/pages/meter-replacement';
 import PointMonitoringEvent from '@/pages/point-monitoring/point-event';
 import PointMonitoringWarning from '@/pages/point-monitoring/point-warning';
 import PointMonitoring from '@/pages/point-monitoring/summary-parameter';
@@ -416,6 +418,19 @@ export const AdminPage = () => {
               />
             }
           />
+          <Route
+            path={ROUTE_PATH.METER_REPLACEMENTS}
+            element={
+              <PrivateRoute
+                component={MeterReplacementPage}
+                roles={[
+                  Constants.Role.SuperAdmin.value,
+                  Constants.Role.Admin.value,
+                  Constants.Role.Staff.value,
+                ]}
+              />
+            }
+          />
           {/* End of Point Management */}
 
           {/* GCS Management */}
@@ -608,6 +623,19 @@ export const AdminPage = () => {
             element={
               <PrivateRoute
                 component={StatementPdfTemplatesPage}
+                roles={[Constants.Role.SuperAdmin.value]}
+              />
+            }
+          />
+          <Route
+            path={ROUTE_PATH.IOT_CONFIG}
+            element={<Navigate to={ROUTE_PATH.IOT_REST_SERVER} replace />}
+          />
+          <Route
+            path={ROUTE_PATH.IOT_REST_SERVER}
+            element={
+              <PrivateRoute
+                component={IoTConfigPage}
                 roles={[Constants.Role.SuperAdmin.value]}
               />
             }

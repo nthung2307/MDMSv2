@@ -71,6 +71,7 @@ const Configuration = () => {
     pageSize = size,
     before,
     after,
+    pageNumber,
     searchByFields = [],
     sortByFields = [],
   }: GetListMeasurementPointsRequest) => {
@@ -78,6 +79,7 @@ const Configuration = () => {
       pageSize,
       ...(before && { before }),
       ...(after && { after }),
+      ...(pageNumber && { pageNumber }),
       searchByFields: searchByFields.length > 0 ? searchByFields : [],
       sortByFields: sortByFields.length > 0 ? sortByFields : [],
     };
@@ -162,19 +164,24 @@ const Configuration = () => {
           setSize={(newSize) => {
             setSize(newSize);
             setGetListMeasurementParamsRequest((prev) =>
-              deleteParams({ ...prev, pageSize: newSize }, ['before', 'after'])
+              deleteParams({ ...prev, pageSize: newSize }, ['before', 'after', 'pageNumber'])
             );
           }}
           hasNext={paginationData?.hasNext}
           hasPrevious={paginationData?.hasPrevious}
           onClickPrevious={() => {
             setGetListMeasurementParamsRequest((prev) =>
-              deleteParams({ ...prev, before: firstCustomerID }, ['after'])
+              deleteParams({ ...prev, before: firstCustomerID }, ['after', 'pageNumber'])
             );
           }}
           onClickNext={() => {
             setGetListMeasurementParamsRequest((prev) =>
-              deleteParams({ ...prev, after: lastCustomerID }, ['before'])
+              deleteParams({ ...prev, after: lastCustomerID }, ['before', 'pageNumber'])
+            );
+          }}
+          onChangePage={(page) => {
+            setGetListMeasurementParamsRequest((prev) =>
+              deleteParams({ ...prev, pageNumber: page }, ['before', 'after'])
             );
           }}
         />

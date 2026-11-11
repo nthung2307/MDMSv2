@@ -310,14 +310,32 @@ public class MeasurementPointHalfHourOperatingReportReadOnlyRepository :
         OperatingParameterReportRequest request)
     {
         var pageSize = request.PageSize > 0 ? request.PageSize : 48;
-        var pagedItems = items.Take(pageSize).ToList();
-        var hasNext = items.Count > pageSize;
+        var startIndex = 0;
+
+        if (request.PageNumber is > 0 && !request.After.HasValue && !request.Before.HasValue)
+        {
+            startIndex = (request.PageNumber.Value - 1) * pageSize;
+        }
+        else if (request.After.HasValue)
+        {
+            var idx = items.FindIndex(x => x.Id == request.After.Value);
+            if (idx >= 0) startIndex = idx + 1;
+        }
+        else if (request.Before.HasValue)
+        {
+            var idx = items.FindIndex(x => x.Id == request.Before.Value);
+            if (idx >= 0) startIndex = Math.Max(0, idx - pageSize);
+        }
+
+        var pagedItems = items.Skip(startIndex).Take(pageSize).ToList();
+        var hasPrevious = startIndex > 0 && items.Count > 0;
+        var hasNext = (startIndex + pagedItems.Count) < items.Count;
 
         return new CursorPaginationResponse<OperatingParameterReportResponse>
         {
             Data = pagedItems,
             HasNext = hasNext,
-            HasPrevious = false,
+            HasPrevious = hasPrevious,
             TotalCount = items.Count
         };
     }

@@ -41,8 +41,7 @@ public static class QueryableAndFilterExtensions
         }
 
         IQueryable<TSourceEntity> finalQuery;
-        var hasNext = false;
-        var hasPrevious = false;
+        var totalCount = await queryable.CountAsync(cancellationToken);
 
         // Handle before: going to previous page in default ASC order
         if (cursorPaginationWithAndRequest.Before != null)
@@ -78,42 +77,12 @@ public static class QueryableAndFilterExtensions
             }
         }
 
-        // Hit to the db to get data back to client side
-        var result = await finalQuery
-            .ProjectTo<TTargetEntity>(mapper.ConfigurationProvider)
-            .Take(cursorPaginationWithAndRequest.PageSize + 1)
-            .ToListAsync(cancellationToken);
-
-        // Handle first request with all null
-        if (cursorPaginationWithAndRequest.After == null && cursorPaginationWithAndRequest.Before == null)
-        {
-            hasPrevious = false;
-            hasNext = result.Count == cursorPaginationWithAndRequest.PageSize + 1;
-            result = result.Take(cursorPaginationWithAndRequest.PageSize).ToList();
-        }
-
-        // Recalculate next, previous
-        if (cursorPaginationWithAndRequest.After != null)
-        {
-            hasPrevious = true;
-            hasNext = result.Count == cursorPaginationWithAndRequest.PageSize + 1;
-            result = result.Take(cursorPaginationWithAndRequest.PageSize).ToList();
-        }
-
-        if (cursorPaginationWithAndRequest.Before != null)
-        {
-            hasNext = true;
-            hasPrevious = result.Count == cursorPaginationWithAndRequest.PageSize + 1;
-            result = result.Take(cursorPaginationWithAndRequest.PageSize).ToList();
-            result.Reverse();
-        }
-
-        return new CursorPaginationResponse<TTargetEntity>()
-        {
-            HasNext = hasNext,
-            HasPrevious = hasPrevious,
-            Data = result
-        };
+        return await QueryableWithAndExtensions.FetchCursorOrJumpPageAsync<TSourceEntity, TTargetEntity>(
+            finalQuery,
+            cursorPaginationWithAndRequest,
+            totalCount,
+            mapper,
+            cancellationToken);
     }
 
     /// <summary>

@@ -114,7 +114,7 @@ const TableDetailGcs = (props: Props) => {
         return (
           <ActionDetailLink
             href={url}
-            title={`Chi tiết cảnh báo: Sổ ${GCSName} - Kì ${record.periodNumber}`}
+            title={`Chi tiết phiếu báo: Sổ ${GCSName} - Kì ${record.periodNumber}`}
             onClick={() => {
               handlePrepareStorage();
               navigate(url, { state: { record, GCSName, gcsId, breadcumbDate: date } });

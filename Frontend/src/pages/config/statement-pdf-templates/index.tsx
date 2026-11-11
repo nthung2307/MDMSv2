@@ -471,7 +471,7 @@ export const StatementPdfTemplatesPage: React.FC = () => {
       <PageTitle title={'Cài đặt hệ thống'} />
       <div className='flex flex-wrap justify-between items-center gap-3'>
         <BreadcrumbUI
-          items={[{ name: 'Cài đặt hệ thống' }, { name: 'Mẫu Phiếu chỉ số điện' }]}
+          items={[{ name: 'Cài đặt hệ thống' }, { name: 'Cài đặt mẫu' }, { name: 'Mẫu Phiếu chỉ số điện' }]}
         />
         <div className='flex items-center gap-2'>
           <ButtonCommonCustomizable

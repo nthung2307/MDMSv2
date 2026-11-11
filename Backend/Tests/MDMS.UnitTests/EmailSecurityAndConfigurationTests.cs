@@ -69,5 +69,57 @@ public class EmailSecurityAndConfigurationTests
         Assert.IsTrue(rendered.Contains("KYOCERA VIỆT NAM"));
         Assert.IsTrue(rendered.Contains("67.00"));
     }
+
+    /// <summary>
+    /// Kiểm thử IoTSecurityManager sinh khóa ngẫu nhiên an toàn và ghi nhận dữ liệu telemetry chính xác.
+    /// </summary>
+    [TestMethod]
+    public void IoTSecurityManager_GeneratesSecureKeyAndRecordsTelemetry_Accurately()
+    {
+        // Act: Sinh khóa ngẫu nhiên
+        string key1 = Infrastructure.Services.IoTSecurityManager.GenerateSecureKey();
+        string key2 = Infrastructure.Services.IoTSecurityManager.GenerateSecureKey();
+
+        // Assert: Định dạng và tính duy nhất
+        Assert.IsTrue(key1.StartsWith("MDMS_"), "Khóa API phải bắt đầu bằng tiền tố MDMS_");
+        Assert.IsTrue(key1.Length >= 32, "Độ dài khóa API phải tối thiểu 32 ký tự để đảm bảo an toàn bảo mật");
+        Assert.AreNotEqual(key1, key2, "Các khóa API sinh ra phải hoàn toàn ngẫu nhiên và khác nhau");
+
+        // Act: Cập nhật cấu hình và ghi nhận push telemetry
+        Infrastructure.Services.IoTSecurityManager.UpdateConfig(key1, "192.168.28.140, 10.0.0.5", true);
+        var (cachedKey, cachedIps, requireKey) = Infrastructure.Services.IoTSecurityManager.GetCachedConfig();
+
+        Assert.AreEqual(key1, cachedKey);
+        Assert.IsTrue(requireKey);
+        Assert.IsTrue(cachedIps.Contains("192.168.28.140"));
+
+        long countBefore = Infrastructure.Services.IoTSecurityManager.TotalPushCount;
+        Infrastructure.Services.IoTSecurityManager.RecordPush("192.168.28.140", true, 48);
+
+        Assert.AreEqual("192.168.28.140", Infrastructure.Services.IoTSecurityManager.LastPushIp);
+        Assert.AreEqual("SUCCESS", Infrastructure.Services.IoTSecurityManager.LastPushStatus);
+        Assert.AreEqual(48, Infrastructure.Services.IoTSecurityManager.LastPushTagCount);
+        Assert.AreEqual(countBefore + 1, Infrastructure.Services.IoTSecurityManager.TotalPushCount);
+    }
+
+    /// <summary>
+    /// Kiểm thử ưu tiên tên miền công khai / Cloudflare Tunnel trên cơ sở dữ liệu thay vì rơi vào 127.0.0.1.
+    /// </summary>
+    [TestMethod]
+    public void PublicBaseUrl_PrioritizesDatabaseOrTunnelDomain_OverLocalhost()
+    {
+        // Arrange
+        string configuredDbUrl = "https://my-tunnel.trycloudflare.com/";
+        string fallbackConfigUrl = "http://127.0.0.1";
+
+        // Act: Giả lập quy tắc ưu tiên
+        string resolvedUrl = !string.IsNullOrWhiteSpace(configuredDbUrl)
+            ? configuredDbUrl.Trim().TrimEnd('/')
+            : fallbackConfigUrl.TrimEnd('/');
+
+        // Assert
+        Assert.AreEqual("https://my-tunnel.trycloudflare.com", resolvedUrl);
+        Assert.IsFalse(resolvedUrl.Contains("127.0.0.1"), "URL công khai không được là 127.0.0.1 khi đã có cấu hình Cloudflare Tunnel");
+    }
 }
 

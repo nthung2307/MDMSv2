@@ -64,6 +64,7 @@ const AccountManagement = () => {
     before,
     pageSize = size,
     after,
+    pageNumber,
     searchByFields = [],
     sortByFields = [],
   }: GetListAccountRequest) => {
@@ -71,6 +72,7 @@ const AccountManagement = () => {
       pageSize: pageSize,
       ...(before && { before }),
       ...(after && { after }),
+      ...(pageNumber && { pageNumber }),
       ...(searchByFields.length > 0 && { searchByFields }),
       ...(sortByFields.length > 0 && { sortByFields }),
     };
@@ -144,7 +146,7 @@ const AccountManagement = () => {
         ...prev,
         searchByFields: searchByFields.length > 0 ? searchByFields : [],
       };
-      return deleteParams(updatedParams, ['before', 'after']);
+      return deleteParams(updatedParams, ['before', 'after', 'pageNumber']);
     });
   }, [debounceClientName, dataForm?.roleName, dataForm?.status]);
 
@@ -393,7 +395,7 @@ const AccountManagement = () => {
             setSize(newSize);
             setGetListAccountParamsRequest((prev) => {
               const updatedParams = { ...prev, pageSize: newSize };
-              return deleteParams(updatedParams, ['before', 'after']); // Remove 'before' and 'after' parameters
+              return deleteParams(updatedParams, ['before', 'after', 'pageNumber']);
             });
           }}
           hasPrevious={paginationData?.hasPrevious}
@@ -401,14 +403,20 @@ const AccountManagement = () => {
             // When clicking on Previous, remove the 'after' and set 'before'
             setGetListAccountParamsRequest((prev) => {
               const updatedParams = { ...prev, before: firstAccountID };
-              return deleteParams(updatedParams, ['after']); // Remove 'after' parameter
+              return deleteParams(updatedParams, ['after', 'pageNumber']);
             });
           }}
           onClickNext={() => {
             // When clicking on Next, remove the 'before' and set 'after'
             setGetListAccountParamsRequest((prev) => {
               const updatedParams = { ...prev, after: lastAccountID };
-              return deleteParams(updatedParams, ['before']); // Remove 'before' parameter
+              return deleteParams(updatedParams, ['before', 'pageNumber']);
+            });
+          }}
+          onChangePage={(page) => {
+            setGetListAccountParamsRequest((prev) => {
+              const updatedParams = { ...prev, pageNumber: page };
+              return deleteParams(updatedParams, ['before', 'after']);
             });
           }}
         />

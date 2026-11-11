@@ -8,6 +8,7 @@ using Application.Handlers.Commands.Gcs;
 using Application.Repositories.ReadOnly;
 using Application.Repositories.ReadWrite;
 using Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 using Nobisoft.Core.Authorization.Interfaces;
 using Nobisoft.Core.Interfaces;
 using Nobisoft.Core.Logger.Interfaces;
@@ -28,8 +29,9 @@ public class FinalMeterReadingCommandHandler : IFinalMeterReadingCommandHandler
     private readonly IMeasurementPointsReadWriteRepository _measurementPointsReadWriteRepository;
     private readonly IGcsReadWriteRepository _gcsReadWriteRepository;
     private readonly IGcsCutOffCycleReadOnlyRepository _gcsCutOffCycleReadOnlyRepository;
+    private readonly IMeterReplacementReadOnlyRepository _meterReplacementReadOnlyRepository;
 
-    public FinalMeterReadingCommandHandler(ISnowflakeIdService snowflakeIdService, ILoggerService loggerService, ICurrentUserService currentUserService, IGcsMonthlyDetailReadWriteRepository gcsMonthlyDetailReadWriteRepository, IGcsCutOffCycleReadWriteRepository gcsCutOffCycleReadWriteRepository, IGcsTemporaryReadWriteRepository gcsTemporaryReadWriteRepository, IPeriodicEnergyStatementReadWriteRepository periodicEnergyStatementReadWriteRepository, IPeriodicEnergyStatementReadOnlyRepository periodicEnergyStatementReadOnlyRepository, IGcsReadOnlyRepository gcsReadOnlyRepository, IMeasurementPointsReadWriteRepository measurementPointsReadWriteRepository, IGcsReadWriteRepository gcsReadWriteRepository, IGcsCutOffCycleReadOnlyRepository gcsCutOffCycleReadOnlyRepository)
+    public FinalMeterReadingCommandHandler(ISnowflakeIdService snowflakeIdService, ILoggerService loggerService, ICurrentUserService currentUserService, IGcsMonthlyDetailReadWriteRepository gcsMonthlyDetailReadWriteRepository, IGcsCutOffCycleReadWriteRepository gcsCutOffCycleReadWriteRepository, IGcsTemporaryReadWriteRepository gcsTemporaryReadWriteRepository, IPeriodicEnergyStatementReadWriteRepository periodicEnergyStatementReadWriteRepository, IPeriodicEnergyStatementReadOnlyRepository periodicEnergyStatementReadOnlyRepository, IGcsReadOnlyRepository gcsReadOnlyRepository, IMeasurementPointsReadWriteRepository measurementPointsReadWriteRepository, IGcsReadWriteRepository gcsReadWriteRepository, IGcsCutOffCycleReadOnlyRepository gcsCutOffCycleReadOnlyRepository, IMeterReplacementReadOnlyRepository meterReplacementReadOnlyRepository)
     {
         _snowflakeIdService = snowflakeIdService;
         _loggerService = loggerService;
@@ -43,6 +45,7 @@ public class FinalMeterReadingCommandHandler : IFinalMeterReadingCommandHandler
         _measurementPointsReadWriteRepository = measurementPointsReadWriteRepository;
         _gcsReadWriteRepository = gcsReadWriteRepository;
         _gcsCutOffCycleReadOnlyRepository = gcsCutOffCycleReadOnlyRepository;
+        _meterReplacementReadOnlyRepository = meterReplacementReadOnlyRepository;
     }
 
     public async Task<RequestResult<GcsResponse>> Handle(FinalMeterReadingCommand request, CancellationToken cancellationToken)
@@ -99,6 +102,20 @@ public class FinalMeterReadingCommandHandler : IFinalMeterReadingCommandHandler
                 Infrastructure.Repositories.ReadWrite.GcsTemporaryReadWriteRepository.RecalculatePointConsumptionAndCosPhi(ptGroup);
             }
 
+            // Lấy danh sách biên bản treo tháo APPROVED trong chu kỳ để tính sản lượng phân đoạn (nếu có)
+            var pointIds = gcsTemporary.Select(x => x.MeasurementPointId).Distinct().ToList();
+            var billingYear = request.Request.Year > 2000 ? request.Request.Year : DateTime.Now.Year;
+            var billingMonth = request.Request.Month >= 1 && request.Request.Month <= 12 ? request.Request.Month : DateTime.Now.Month;
+            var fromPeriod = new DateTimeOffset(new DateTime(billingYear, billingMonth, 1), TimeSpan.FromHours(7)).AddDays(-35);
+            var toPeriod = fromPeriod.AddDays(70);
+
+            var approvedReplacements = await _meterReplacementReadOnlyRepository.Entity.AsNoTracking()
+                .Where(r => pointIds.Contains(r.MeasurementPointId) &&
+                            r.Status == "APPROVED" &&
+                            r.ReplacementDate >= fromPeriod &&
+                            r.ReplacementDate <= toPeriod)
+                .ToListAsync(cancellationToken);
+
             var groupedTemporary = gcsTemporary.GroupBy(x => x.MeasurementPointId)
                 .Select(group =>
                 {
@@ -131,6 +148,30 @@ public class FinalMeterReadingCommandHandler : IFinalMeterReadingCommandHandler
                     var consSg = sgRec?.Consumption ?? ((sgCurr - sgPrev) * mult);
                     var consVc = vcRec?.Consumption ?? ((vcCurr - vcPrev) * mult);
 
+                    var replacement = approvedReplacements
+                        .Where(r => r.MeasurementPointId == group.Key)
+                        .OrderByDescending(r => r.ReplacementDate)
+                        .FirstOrDefault();
+
+                    bool hasMeterReplacement = false;
+                    long? meterReplacementId = null;
+
+                    if (replacement != null)
+                    {
+                        hasMeterReplacement = true;
+                        meterReplacementId = replacement.Id;
+                        var oldMult = replacement.OldMeterMultiplier > 0m ? replacement.OldMeterMultiplier : mult;
+                        var newMult = replacement.NewMeterMultiplier > 0m ? replacement.NewMeterMultiplier : mult;
+
+                        // Công thức phân tách sản lượng EVN khi thay công tơ giữa kỳ:
+                        // SL = (CS_tháo - CS_đầu_kỳ) * HSN_cũ + (CS_cuối_kỳ - CS_treo) * HSN_mới
+                        consBt = Math.Max(0m, (replacement.OldBt - btPrev) * oldMult) + Math.Max(0m, (btCurr - replacement.NewBt) * newMult);
+                        consCd = Math.Max(0m, (replacement.OldCd - cdPrev) * oldMult) + Math.Max(0m, (cdCurr - replacement.NewCd) * newMult);
+                        consTd = Math.Max(0m, (replacement.OldTd - tdPrev) * oldMult) + Math.Max(0m, (tdCurr - replacement.NewTd) * newMult);
+                        consSg = Math.Max(0m, (replacement.OldSg - sgPrev) * oldMult) + Math.Max(0m, (sgCurr - replacement.NewSg) * newMult);
+                        consVc = Math.Max(0m, (replacement.OldVc - vcPrev) * oldMult) + Math.Max(0m, (vcCurr - replacement.NewVc) * newMult);
+                    }
+
                     decimal? effectiveAp = consSg > 0m ? consSg : ((consBt + consCd + consTd) > 0m ? (consBt + consCd + consTd) : consSg);
                     var cosPhi = group.FirstOrDefault(x => x.CosPhi.HasValue)?.CosPhi
                                  ?? Infrastructure.Repositories.ReadWrite.GcsTemporaryReadWriteRepository.CalculateAverageCosPhi(effectiveAp, consVc);
@@ -162,6 +203,8 @@ public class FinalMeterReadingCommandHandler : IFinalMeterReadingCommandHandler
                         CosPhi = cosPhi,
                         BillingTimestamp = billingTimestamp,
                         PmaxTime = pmaxTime,
+                        HasMeterReplacement = hasMeterReplacement,
+                        MeterReplacementId = meterReplacementId,
                         PreviousDay = group.FirstOrDefault()?.PreviousDay,
                         PreviousMonth = group.FirstOrDefault()?.PreviousMonth,
                         PreviousYear = group.FirstOrDefault()?.PreviousYear,
@@ -288,6 +331,8 @@ public class FinalMeterReadingCommandHandler : IFinalMeterReadingCommandHandler
                     Status = "",
                     CreatedTime = DateTimeOffset.Now,
                     SerialNumber = maxSerialNumberPeriodicEnergyStatementAsync.ToString("D8"),
+                    HasMeterReplacement = group.HasMeterReplacement,
+                    MeterReplacementId = group.MeterReplacementId,
                 }, cancellationToken);
                 var measurementPoint = await _measurementPointsReadWriteRepository.GetMeasurementPointByIdAsync(group.MeasurementPointId, cancellationToken);
                 if (measurementPoint != null && measurementPoint.IsNewChange)

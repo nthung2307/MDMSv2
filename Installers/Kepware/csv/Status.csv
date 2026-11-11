@@ -1,0 +1,12 @@
+;
+; IOTItem
+;
+Server Tag,Scan Rate,Data Type,Deadband,Send Every Scan,Enabled,Use Scan Rate,
+"_AdvancedTags.M010.Status.Efa01",60000,Boolean,0.000000,1,1,1
+"_AdvancedTags.M010.Status.Efa02",60000,Boolean,0.000000,1,1,1
+"_AdvancedTags.M010.Status.Efa03",60000,Boolean,0.000000,1,1,1
+"_AdvancedTags.M010.Status.Efa04",60000,Boolean,0.000000,1,1,1
+"_AdvancedTags.M010.Status.Efa05",60000,Boolean,0.000000,1,1,1
+"_AdvancedTags.M010.Status.Efa06",60000,Boolean,0.000000,1,1,1
+"_AdvancedTags.M010.Status.Efa07",60000,Boolean,0.000000,1,1,1
+"_AdvancedTags.M010.Status.Error",60000,Boolean,0.000000,1,1,1

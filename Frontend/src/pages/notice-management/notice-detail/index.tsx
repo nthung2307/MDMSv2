@@ -172,7 +172,7 @@ const NoticeDetail = () => {
         searchByFields,
         gcsId: prev?.gcsId ?? gcsId,
       };
-      return deleteParams(updatedParams, ['before', 'after']);
+      return deleteParams(updatedParams, ['before', 'after', 'pageNumber']);
     });
   }, [debounceCustomerCode, debounceMeasurementPoint, dataForm?.status]);
 
@@ -245,6 +245,7 @@ const NoticeDetail = () => {
     pageSize = size,
     before,
     after,
+    pageNumber,
     searchByFields = [],
     sortByFields = [],
     gcsId,
@@ -256,6 +257,7 @@ const NoticeDetail = () => {
       pageSize: pageSize,
       ...(before && { before }),
       ...(after && { after }),
+      ...(pageNumber && { pageNumber }),
       ...(month && { month }),
       ...(year && { year }),
       searchByFields: searchByFields.length > 0 ? searchByFields : [],
@@ -525,20 +527,26 @@ const NoticeDetail = () => {
               setSize(newSize);
               setGetListNoticeRequest((prev) => {
                 const updatedParams = { ...prev, pageSize: newSize };
-                return deleteParams(updatedParams, ['before', 'after']);
+                return deleteParams(updatedParams, ['before', 'after', 'pageNumber']);
               });
             }}
             hasPrevious={paginationData?.hasPrevious}
             onClickPrevious={() => {
               setGetListNoticeRequest((prev) => {
                 const updatedParams = { ...prev, before: firstPointID };
-                return deleteParams(updatedParams, ['after']);
+                return deleteParams(updatedParams, ['after', 'pageNumber']);
               });
             }}
             onClickNext={() => {
               setGetListNoticeRequest((prev) => {
                 const updatedParams = { ...prev, after: lastPointID };
-                return deleteParams(updatedParams, ['before']);
+                return deleteParams(updatedParams, ['before', 'pageNumber']);
+              });
+            }}
+            onChangePage={(page) => {
+              setGetListNoticeRequest((prev) => {
+                const updatedParams = { ...prev, pageNumber: page };
+                return deleteParams(updatedParams, ['before', 'after']);
               });
             }}
           />

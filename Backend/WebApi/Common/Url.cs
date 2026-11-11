@@ -20,6 +20,7 @@ public static class Url
         public const string EmailConfig = "EmailConfig";
         public const string NotificationTemplates = "NotificationTemplates";
         public const string StatementPdfTemplates = "StatementPdfTemplates";
+        public const string MeterReplacements = "MeterReplacements";
     }
 
     public static class Default
@@ -135,6 +136,9 @@ public static class Url
             public const string MeasurementPointAlert = "IoT/Get-Data-Measurement-Point-Alert";
             public const string GetDataGcs = "IoT/Get-Data-Gcs";
             public const string GetDataTest = "IoT/test";
+            public const string GetConfig = "IoT/Get-Config";
+            public const string UpdateConfig = "IoT/Update-Config";
+            public const string GenerateKey = "IoT/Generate-Api-Key";
         }
 
         public static class MeasurementPoints
@@ -227,6 +231,21 @@ public static class Url
             public const string GetActive = "Email-Config/Get-Active-Email-Config";
             public const string Update = "Email-Config/Update-Email-Config";
             public const string TestConnection = "Email-Config/Test-Connection";
+        }
+
+        public static class MeterReplacements
+        {
+            public const string List = "Meter-Replacements/Get-List";
+            public const string View = "Meter-Replacements/Get-Detail/{id}";
+            public const string Create = "Meter-Replacements/Create";
+            public const string Update = "Meter-Replacements/Update/{id}";
+            public const string Delete = "Meter-Replacements/Delete/{id}";
+            public const string Approve = "Meter-Replacements/Approve/{id}";
+            public const string Cancel = "Meter-Replacements/Cancel/{id}";
+            public const string PointMeterInfo = "Meter-Replacements/Get-Point-Meter-Info/{pointId}";
+            public const string UploadDocument = "Meter-Replacements/Upload-Document";
+            public const string ViewDocument = "Meter-Replacements/Documents/{fileName}";
+            public const string ExtractOcr = "Meter-Replacements/Extract-Ocr";
         }
     }
 }

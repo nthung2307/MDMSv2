@@ -58,6 +58,7 @@ export const CustomerPreviewCard: React.FC<CustomerPreviewCardProps> = ({
             href={detailUrl}
             title={`Hồ sơ khách hàng: ${customer.fullName || customer.customerCode}`}
             label='Xem hồ sơ'
+            showLabel={true}
             className='text-blue-600 hover:text-blue-800 text-12-16 font-medium hover:underline inline-flex items-center gap-1 cursor-pointer'
             icon={<FiExternalLink size={13} />}
           />

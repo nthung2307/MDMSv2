@@ -83,6 +83,7 @@ const GCSManagement = () => {
     before,
     pageSize = size,
     after,
+    pageNumber,
     searchByFields = [],
     sortByFields = [],
   }: GetListGCSRequest) => {
@@ -90,6 +91,7 @@ const GCSManagement = () => {
       pageSize: pageSize,
       ...(before && { before }),
       ...(after && { after }),
+      ...(pageNumber && { pageNumber }),
       ...(searchByFields.length > 0 && { searchByFields }),
       ...(sortByFields.length > 0 && { sortByFields }),
     };
@@ -129,7 +131,7 @@ const GCSManagement = () => {
         ...prev,
         searchByFields: searchByFields.length > 0 ? searchByFields : [],
       };
-      return deleteParams(updated, ['before', 'after']);
+      return deleteParams(updated, ['before', 'after', 'pageNumber']);
     });
   }, [debounceCode, dataForm?.status]);
 
@@ -174,7 +176,7 @@ const GCSManagement = () => {
       key: 'action',
       align: 'center',
       fixed: 'right',
-      width: 170,
+      width: 100,
       render: (_, record) => {
         const detailUrl = ROUTE_PATH.GCS_DETAILS.replace(
           Constants.ReplaceRouterConfig.id,
@@ -183,18 +185,16 @@ const GCSManagement = () => {
         const checkUrl = `${ROUTE_PATH.GCS_CHECK}?id=${record.id}&name=${encodeURIComponent(record.name || '')}&code=${encodeURIComponent(record.code || '')}`;
 
         return (
-          <div className='flex items-center justify-center gap-3'>
+          <div className='flex items-center justify-center gap-2'>
             <ActionDetailLink
               href={detailUrl}
               title={`Chi tiết sổ: ${record.name || record.code}`}
-              label='Chi tiết'
             />
             <ActionDetailLink
               href={checkUrl}
               title={`Tra soát sổ: ${record.name || record.code}`}
-              label='Tra soát'
-              className='text-emerald-600 hover:text-emerald-800 font-medium hover:underline inline-flex items-center gap-1.5 cursor-pointer select-none text-13-18'
-              icon={<FiCheckSquare size={14} className='flex-shrink-0' />}
+              className='text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 p-1.5 rounded transition-colors inline-flex items-center justify-center cursor-pointer select-none'
+              icon={<FiCheckSquare size={16} className='flex-shrink-0' />}
             />
           </div>
         );
@@ -311,7 +311,7 @@ const GCSManagement = () => {
             setSize(newSize);
             setGetListGCSParamsRequest((prev) => {
               const updatedParams = { ...prev, pageSize: newSize };
-              return deleteParams(updatedParams, ['before', 'after']);
+              return deleteParams(updatedParams, ['before', 'after', 'pageNumber']);
             });
           }}
           hasNext={data?.hasNext || false}
@@ -319,13 +319,19 @@ const GCSManagement = () => {
           onClickPrevious={() => {
             setGetListGCSParamsRequest((prev) => {
               const updatedParams = { ...prev, before: firstRecordId };
-              return deleteParams(updatedParams, ['after']);
+              return deleteParams(updatedParams, ['after', 'pageNumber']);
             });
           }}
           onClickNext={() => {
             setGetListGCSParamsRequest((prev) => {
               const updatedParams = { ...prev, after: lastRecordId };
-              return deleteParams(updatedParams, ['before']);
+              return deleteParams(updatedParams, ['before', 'pageNumber']);
+            });
+          }}
+          onChangePage={(page) => {
+            setGetListGCSParamsRequest((prev) => {
+              const updatedParams = { ...prev, pageNumber: page };
+              return deleteParams(updatedParams, ['before', 'after']);
             });
           }}
         />

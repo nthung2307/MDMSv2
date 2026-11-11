@@ -159,6 +159,19 @@ public class NotificationTemplateService : INotificationTemplateService
                 var companyTaxCode = sysConfigs.Find(x => x.Key == Constants.SystemConfig.CompanyTaxCode)?.Value;
                 if (!string.IsNullOrWhiteSpace(companyTaxCode))
                     context["TaxCode"] = companyTaxCode;
+
+                // Nạp đường dẫn công khai của hệ thống (Cloudflare Tunnel, Domain hoặc WAN IP)
+                var publicBaseUrl = sysConfigs.Find(x => x.Key == Constants.SystemConfig.PublicBaseUrl)?.Value;
+                if (!string.IsNullOrWhiteSpace(publicBaseUrl))
+                {
+                    var cleanUrl = publicBaseUrl.Trim().TrimEnd('/');
+                    context["PublicBaseUrl"] = cleanUrl;
+                    context["PortalUrl"] = cleanUrl;
+                    if (!context.ContainsKey("LoginUrl") || string.IsNullOrWhiteSpace(context["LoginUrl"]?.ToString()) || context["LoginUrl"]?.ToString()?.Contains("127.0.0.1") == true)
+                    {
+                        context["LoginUrl"] = $"{cleanUrl}/login";
+                    }
+                }
             }
             catch (Exception ex)
             {

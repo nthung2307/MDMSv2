@@ -169,6 +169,12 @@ $webConfigContent = @"
           <action type="Rewrite" url="http://127.0.0.1:19089/{R:0}" appendQueryString="true" />
         </rule>
 
+        <!-- Rule 2.1: Chuyen tiep truc tiep cac tai lieu PDF, anh scan sang Backend port 19089 bat ke Accept header -->
+        <rule name="ReverseProxyDocuments" stopProcessing="true">
+          <match url="^.*meter-replacements/documents/.*$" ignoreCase="true" />
+          <action type="Rewrite" url="http://127.0.0.1:19089/{R:0}" appendQueryString="true" />
+        </rule>
+
         <!-- Rule 3: Chuyen tiep cac API GET nghiep vu sang Backend (chi khi khong phai yeu cau tai trang HTML cua trinh duyet) -->
         <rule name="ReverseProxyGetApi" stopProcessing="true">
           <match url="^(api|auth|user|customers|customer|measurement-points|measurement-point-monitoring|gcs|gcs-cutoff-cycle|gcs-monthly-detail|periodic-energy-statement|email-config|notification-templates|statement-pdf-templates|meter-replacements|tag-name|system-config|report|iot|half-hour-finalized-energy|daily-finalized-energy|export-pdf|export-csv)(/.*)?$" ignoreCase="true" />

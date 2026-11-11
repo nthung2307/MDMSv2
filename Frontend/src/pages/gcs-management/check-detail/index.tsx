@@ -89,6 +89,7 @@ const GCSCheckDetail = () => {
     pageSize = size,
     before,
     after,
+    pageNumber,
     searchByFields = [],
     sortByFields = [],
     gcsCutOffCycleId = Number(record.id),
@@ -98,6 +99,7 @@ const GCSCheckDetail = () => {
       pageSize: pageSize,
       ...(before && { before }),
       ...(after && { after }),
+      ...(pageNumber && { pageNumber }),
       searchByFields: searchByFields.length > 0 ? searchByFields : [],
       sortByFields: sortByFields.length > 0 ? sortByFields : [],
       gcsCutOffCycleId: gcsCutOffCycleId ?? 0,
@@ -115,7 +117,7 @@ const GCSCheckDetail = () => {
           totalCount: data.totalCount,
         });
       },
-      () => {},
+      () => { },
       setLoading
     );
   };
@@ -129,14 +131,14 @@ const GCSCheckDetail = () => {
       previousReading:
         item.previousReading !== null && item.previousReading !== undefined
           ? (item.meterReadingSet === 'Pmax'
-              ? Number(item.previousReading).toFixed(2)
-              : Math.round(Number(item.previousReading)))
+            ? Number(item.previousReading).toFixed(2)
+            : Math.round(Number(item.previousReading)))
           : '',
       currentReading:
         item.currentReading !== null && item.currentReading !== undefined
           ? (item.meterReadingSet === 'Pmax'
-              ? Number(item.currentReading).toFixed(2)
-              : Math.round(Number(item.currentReading)))
+            ? Number(item.currentReading).toFixed(2)
+            : Math.round(Number(item.currentReading)))
           : '',
       multiplierFactor: item.multiplierFactor !== null && item.multiplierFactor !== undefined ? Math.round(Number(item.multiplierFactor)) : '',
       consumption: item.consumption !== null && item.consumption !== undefined ? Math.round(Number(item.consumption)) : (item.meterReadingSet === 'Pmax' ? 'N/A' : ''),
@@ -181,7 +183,7 @@ const GCSCheckDetail = () => {
               dataForm={dataForm}
               setDataForm={setDataForm}
               handleClearSearch={handleClearSearch}
-              handleSearch={() => {}}
+              handleSearch={() => { }}
             />
           </div>
           <div ref={tableRef}>
@@ -197,20 +199,26 @@ const GCSCheckDetail = () => {
               setSize(newSize);
               setGCSMonthlyDetailRequest((prev) => {
                 const updatedParams = { ...prev, pageSize: newSize };
-                return deleteParams(updatedParams, ['before', 'after']);
+                return deleteParams(updatedParams, ['before', 'after', 'pageNumber']);
               });
             }}
             hasPrevious={paginationData?.hasPrevious}
             onClickPrevious={() => {
               setGCSMonthlyDetailRequest((prev) => {
                 const updatedParams = { ...prev, before: firstPointID };
-                return deleteParams(updatedParams, ['after']); // Remove 'after' parameter
+                return deleteParams(updatedParams, ['after', 'pageNumber']);
               });
             }}
             onClickNext={() => {
               setGCSMonthlyDetailRequest((prev) => {
                 const updatedParams = { ...prev, after: lastPointID };
-                return deleteParams(updatedParams, ['before']); // Remove 'before' parameter
+                return deleteParams(updatedParams, ['before', 'pageNumber']);
+              });
+            }}
+            onChangePage={(page) => {
+              setGCSMonthlyDetailRequest((prev) => {
+                const updatedParams = { ...prev, pageNumber: page };
+                return deleteParams(updatedParams, ['before', 'after']);
               });
             }}
           />

@@ -65,7 +65,7 @@ const PointMonitoringWarning = () => {
         ...prev,
         ...paramsToUpdate,
       };
-      return deleteParams(updated, ['before', 'after']);
+      return deleteParams(updated, ['before', 'after', 'pageNumber']);
     });
   };
 
@@ -128,6 +128,7 @@ const PointMonitoringWarning = () => {
     pageSize = size,
     before,
     after,
+    pageNumber,
     searchByFields = [],
     sortByFields = [],
     measurementpointCode,
@@ -138,6 +139,7 @@ const PointMonitoringWarning = () => {
       pageSize,
       ...(before && { before }),
       ...(after && { after }),
+      ...(pageNumber && { pageNumber }),
       ...(measurementpointCode && {
         measurementpointCode,
         measurementPointCode: measurementpointCode,
@@ -176,6 +178,7 @@ const PointMonitoringWarning = () => {
       pageSize: currentParams.pageSize || currentSize,
       ...(currentParams.before && { before: currentParams.before }),
       ...(currentParams.after && { after: currentParams.after }),
+      ...(currentParams.pageNumber && { pageNumber: currentParams.pageNumber }),
       ...(measurementpointCode && {
         measurementpointCode,
         measurementPointCode,
@@ -328,19 +331,24 @@ const PointMonitoringWarning = () => {
             setSize={(newSize) => {
               setSize(newSize);
               setGetListMeasurementParamsRequest((prev) =>
-                deleteParams({ ...prev, pageSize: newSize }, ['before', 'after'])
+                deleteParams({ ...prev, pageSize: newSize }, ['before', 'after', 'pageNumber'])
               );
             }}
             hasNext={paginationData?.hasNext}
             hasPrevious={paginationData?.hasPrevious}
             onClickPrevious={() => {
               setGetListMeasurementParamsRequest((prev) =>
-                deleteParams({ ...prev, before: firstCustomerID }, ['after'])
+                deleteParams({ ...prev, before: firstCustomerID }, ['after', 'pageNumber'])
               );
             }}
             onClickNext={() => {
               setGetListMeasurementParamsRequest((prev) =>
-                deleteParams({ ...prev, after: lastCustomerID }, ['before'])
+                deleteParams({ ...prev, after: lastCustomerID }, ['before', 'pageNumber'])
+              );
+            }}
+            onChangePage={(page) => {
+              setGetListMeasurementParamsRequest((prev) =>
+                deleteParams({ ...prev, pageNumber: page }, ['before', 'after'])
               );
             }}
           />

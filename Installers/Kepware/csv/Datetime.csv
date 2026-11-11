@@ -1,0 +1,28 @@
+;
+; IOTItem
+;
+Server Tag,Scan Rate,Data Type,Deadband,Send Every Scan,Enabled,Use Scan Rate,
+"_AdvancedTags.M010.DT.Current.Day",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.Current.Hour",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.Current.Minute",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.Current.Month",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.Current.Second",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.Current.Year",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.MDC.Day",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.MDC.Hour",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.MDC.Minute",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.MDC.Month",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.MDC.Second",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.MDC.Year",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.MDP.Day",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.MDP.Hour",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.MDP.Minute",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.MDP.Month",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.MDP.Second",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.MDP.Year",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.Reset.Day",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.Reset.Hour",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.Reset.Minute",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.Reset.Month",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.Reset.Second",60000,Short,0.000000,1,1,1
+"_AdvancedTags.M010.DT.Reset.Year",60000,Short,0.000000,1,1,1

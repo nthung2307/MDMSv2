@@ -57,6 +57,7 @@ builder.Services.AddMemoryCache();
 builder.Services.AddScoped<Application.Services.IEmailProviderFactory, Infrastructure.Services.EmailProviders.EmailProviderFactory>();
 builder.Services.AddScoped<Application.Services.INotificationTemplateService, Infrastructure.Services.Templates.NotificationTemplateService>();
 builder.Services.AddScoped<Application.Services.IStatementPdfGenerator, Infrastructure.Services.Templates.StatementPdfGenerator>();
+builder.Services.AddScoped<Application.Services.IMeterReplacementService, Infrastructure.Services.MeterReplacementService>();
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 builder.Services.AddControllers()
     .AddJsonOptions(options => { options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles; });
@@ -822,10 +823,16 @@ CREATE TABLE IF NOT EXISTS `MeterReplacements` (
         var snowflake = notifSp.GetService<Nobisoft.Core.Interfaces.ISnowflakeIdService>();
         if (notifRwRepo != null)
         {
+            var removedDupes = await notifRwRepo.DeduplicateTemplatesAsync(CancellationToken.None);
+            if (removedDupes > 0)
+            {
+                app.Logger.LogInformation("Đã tự động dọn {Count} bản ghi mẫu email bị trùng lặp trước khi đồng bộ.", removedDupes);
+            }
+
             var prebuilts = Infrastructure.Services.Templates.NotificationTemplateService.GetPrebuiltDefaultTemplates();
             foreach (var template in prebuilts)
             {
-                var existing = await notifRwRepo.GetDefaultByCodeAsync(template.Code, CancellationToken.None);
+                var existing = await notifRwRepo.GetAnyByCodeAsync(template.Code, CancellationToken.None);
                 if (existing != null)
                 {
                     existing.Name = template.Name;

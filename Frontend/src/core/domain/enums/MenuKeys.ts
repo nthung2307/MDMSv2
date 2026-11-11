@@ -28,6 +28,7 @@ export enum MenuKeys {
 
   // management
   ManagePoints = 'point-management',
+  MeterReplacements = 'meter-replacements',
   ManageGCS = 'gcs-management',
   ManageReports = 'report-management',
 
@@ -41,8 +42,11 @@ export enum MenuKeys {
   authLock = 'auth-lock',
   Contact = 'contact',
   EmailConfig = 'email-config',
+  ConfigTemplates = 'config-templates',
   NotificationTemplates = 'notification-templates',
   StatementPdfTemplates = 'statement-pdf-templates',
+  IoTConfig = 'iot-config',
+  IoTRestServer = 'iot-rest-server',
 }
 
 export const MenuSubKeys = [];

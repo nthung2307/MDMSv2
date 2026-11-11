@@ -266,6 +266,7 @@ const GCSSum = () => {
     pageSize = size,
     before,
     after,
+    pageNumber,
     searchByFields = [],
     sortByFields = [],
     gcsId,
@@ -279,6 +280,7 @@ const GCSSum = () => {
       pageSize: pageSize,
       ...(before && { before }),
       ...(after && { after }),
+      ...(pageNumber && { pageNumber }),
       ...(quanlity !== undefined && { quanlity }),
       ...(isSuspicious !== undefined && { isSuspicious }),
       searchByFields: searchByFields.length > 0 ? searchByFields : [],
@@ -360,8 +362,32 @@ const GCSSum = () => {
           : (currVal != null ? formatNumberWithCommas(item.consumption) : 'N/A'),
     };
   });
+  const prevFilterKeyRef = useRef<string>('');
   useEffect(() => {
     if (gcsParams) {
+      const filterKey = JSON.stringify([
+        gcsParams.gcsId,
+        gcsParams.periodNumber,
+        gcsParams.month,
+        gcsParams.year,
+        debounceMeasurementPointId,
+        debounceFullName,
+        dataForm?.statusFilter,
+      ]);
+      if (prevFilterKeyRef.current !== filterKey) {
+        prevFilterKeyRef.current = filterKey;
+        if (
+          getListDataGCSRequest?.before ||
+          getListDataGCSRequest?.after ||
+          getListDataGCSRequest?.pageNumber
+        ) {
+          setGetListDataGCSRequest((prev) =>
+            deleteParams({ ...prev }, ['before', 'after', 'pageNumber'])
+          );
+          return;
+        }
+      }
+
       const searchByFields: any = [];
       if (debounceMeasurementPointId) {
         searchByFields.push({
@@ -544,20 +570,26 @@ const GCSSum = () => {
                 setSize(newSize);
                 setGetListDataGCSRequest((prev) => {
                   const updatedParams = { ...prev, pageSize: newSize };
-                  return deleteParams(updatedParams, ['before', 'after']);
+                  return deleteParams(updatedParams, ['before', 'after', 'pageNumber']);
                 });
               }}
               hasPrevious={paginationData?.hasPrevious}
               onClickPrevious={() => {
                 setGetListDataGCSRequest((prev) => {
                   const updatedParams = { ...prev, before: firstPointID };
-                  return deleteParams(updatedParams, ['after']); // Remove 'after' parameter
+                  return deleteParams(updatedParams, ['after', 'pageNumber']);
                 });
               }}
               onClickNext={() => {
                 setGetListDataGCSRequest((prev) => {
                   const updatedParams = { ...prev, after: lastPointID };
-                  return deleteParams(updatedParams, ['before']); // Remove 'before' parameter
+                  return deleteParams(updatedParams, ['before', 'pageNumber']);
+                });
+              }}
+              onChangePage={(page) => {
+                setGetListDataGCSRequest((prev) => {
+                  const updatedParams = { ...prev, pageNumber: page };
+                  return deleteParams(updatedParams, ['before', 'after']);
                 });
               }}
             />
@@ -697,7 +729,7 @@ const GCSSum = () => {
                 month: gcsParams?.month ?? 0,
                 year: gcsParams?.year ?? 0,
               };
-              return deleteParams(updated, ['before', 'after']);
+              return deleteParams(updated, ['before', 'after', 'pageNumber']);
             });
           }}
           gcsParams={gcsParams}

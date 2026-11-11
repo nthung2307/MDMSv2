@@ -2,6 +2,7 @@ export class GetListAccountRequest {
   pageSize?: number;
   after?: number;
   before?: number;
+  pageNumber?: number;
   searchByFields?: Array<{ searchFieldName: string; searchValue: string }>;
   sortByFields?: Array<{ colName: string; sortDirection: string }>;
 
@@ -9,6 +10,7 @@ export class GetListAccountRequest {
     pageSize: number;
     after?: number;
     before?: number;
+    pageNumber?: number;
     searchByFields?: Array<{ searchFieldName: string; searchValue: string }>;
     sortByFields?: Array<{ colName: string; sortDirection: string }>;
   }) {
@@ -19,6 +21,9 @@ export class GetListAccountRequest {
     }
     if (args.before) {
       this.before = args.before;
+    }
+    if (args.pageNumber) {
+      this.pageNumber = args.pageNumber;
     }
     if (args.searchByFields) {
       this.searchByFields = args.searchByFields;

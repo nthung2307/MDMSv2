@@ -41,8 +41,6 @@ public static class QueryableWithAndExtensions
         }
 
         IQueryable<TSourceEntity> finalQuery;
-        var hasNext = false;
-        var hasPrevious = false;
         var totalCount = await queryable.CountAsync(cancellationToken);
 
         // Handle before: going to previous page in default DESC order
@@ -80,34 +78,67 @@ public static class QueryableWithAndExtensions
             }
         }
 
-        // Hit to the db to get data back to client side
-        var result = await finalQuery
-            .ProjectTo<TTargetEntity>(mapper.ConfigurationProvider)
-            .Take(cursorPaginationWithAndRequest.PageSize + 1)
-            .ToListAsync(cancellationToken);
+        return await FetchCursorOrJumpPageAsync<TSourceEntity, TTargetEntity>(
+            finalQuery,
+            cursorPaginationWithAndRequest,
+            totalCount,
+            mapper,
+            cancellationToken);
+    }
 
-        // Handle first request with all null
-        if (cursorPaginationWithAndRequest.After == null && cursorPaginationWithAndRequest.Before == null)
+    internal static async Task<CursorPaginationResponse<TTargetEntity>> FetchCursorOrJumpPageAsync<TSourceEntity, TTargetEntity>(
+        IQueryable<TSourceEntity> finalQuery,
+        CursorPaginationRequest request,
+        int totalCount,
+        IMapper mapper,
+        CancellationToken cancellationToken) where TSourceEntity : IEntity<long>
+    {
+        var pageSize = request.PageSize > 0 ? request.PageSize : 10;
+        var isJump = request.After == null && request.Before == null && request.PageNumber is > 0;
+
+        List<TTargetEntity> result;
+        bool hasNext;
+        bool hasPrevious;
+
+        if (isJump)
         {
-            hasPrevious = false;
-            hasNext = result.Count == cursorPaginationWithAndRequest.PageSize + 1;
-            result = result.Take(cursorPaginationWithAndRequest.PageSize).ToList();
+            var pageNum = request.PageNumber!.Value;
+            result = await finalQuery
+                .ProjectTo<TTargetEntity>(mapper.ConfigurationProvider)
+                .Skip((pageNum - 1) * pageSize)
+                .Take(pageSize + 1)
+                .ToListAsync(cancellationToken);
+
+            hasPrevious = pageNum > 1 && totalCount > 0;
+            hasNext = result.Count == pageSize + 1;
+            result = result.Take(pageSize).ToList();
         }
-
-        // Recalculate next, previous
-        if (cursorPaginationWithAndRequest.After != null)
+        else
         {
-            hasPrevious = true;
-            hasNext = result.Count == cursorPaginationWithAndRequest.PageSize + 1;
-            result = result.Take(cursorPaginationWithAndRequest.PageSize).ToList();
-        }
+            result = await finalQuery
+                .ProjectTo<TTargetEntity>(mapper.ConfigurationProvider)
+                .Take(pageSize + 1)
+                .ToListAsync(cancellationToken);
 
-        if (cursorPaginationWithAndRequest.Before != null)
-        {
-            hasNext = true;
-            hasPrevious = result.Count == cursorPaginationWithAndRequest.PageSize + 1;
-            result = result.Take(cursorPaginationWithAndRequest.PageSize).ToList();
-            result.Reverse();
+            if (request.Before != null)
+            {
+                hasNext = true;
+                hasPrevious = result.Count == pageSize + 1;
+                result = result.Take(pageSize).ToList();
+                result.Reverse();
+            }
+            else if (request.After != null)
+            {
+                hasPrevious = true;
+                hasNext = result.Count == pageSize + 1;
+                result = result.Take(pageSize).ToList();
+            }
+            else
+            {
+                hasPrevious = false;
+                hasNext = result.Count == pageSize + 1;
+                result = result.Take(pageSize).ToList();
+            }
         }
 
         return new CursorPaginationResponse<TTargetEntity>()
@@ -296,8 +327,6 @@ public static class QueryableWithAndExtensions
         }
 
         IQueryable<TSourceEntity> finalQuery;
-        var hasNext = false;
-        var hasPrevious = false;
         var totalCount = await queryable.CountAsync(cancellationToken);
 
         // Handle before: going to previous page in default ASC order
@@ -335,43 +364,12 @@ public static class QueryableWithAndExtensions
             }
         }
 
-        // Hit to the db to get data back to client side
-        var result = await finalQuery
-            .ProjectTo<TTargetEntity>(mapper.ConfigurationProvider)
-            .Take(cursorPaginationWithAndRequest.PageSize + 1)
-            .ToListAsync(cancellationToken);
-
-        // Handle first request with all null
-        if (cursorPaginationWithAndRequest.After == null && cursorPaginationWithAndRequest.Before == null)
-        {
-            hasPrevious = false;
-            hasNext = result.Count == cursorPaginationWithAndRequest.PageSize + 1;
-            result = result.Take(cursorPaginationWithAndRequest.PageSize).ToList();
-        }
-
-        // Recalculate next, previous
-        if (cursorPaginationWithAndRequest.After != null)
-        {
-            hasPrevious = true;
-            hasNext = result.Count == cursorPaginationWithAndRequest.PageSize + 1;
-            result = result.Take(cursorPaginationWithAndRequest.PageSize).ToList();
-        }
-
-        if (cursorPaginationWithAndRequest.Before != null)
-        {
-            hasNext = true;
-            hasPrevious = result.Count == cursorPaginationWithAndRequest.PageSize + 1;
-            result = result.Take(cursorPaginationWithAndRequest.PageSize).ToList();
-            result.Reverse();
-        }
-
-        return new CursorPaginationResponse<TTargetEntity>()
-        {
-            HasNext = hasNext,
-            HasPrevious = hasPrevious,
-            TotalCount = totalCount,
-            Data = result
-        };
+        return await FetchCursorOrJumpPageAsync<TSourceEntity, TTargetEntity>(
+            finalQuery,
+            cursorPaginationWithAndRequest,
+            totalCount,
+            mapper,
+            cancellationToken);
     }
 }
 

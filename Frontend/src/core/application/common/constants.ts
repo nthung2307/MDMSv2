@@ -1,5 +1,5 @@
 import { CgSignal } from 'react-icons/cg';
-import { FiBookOpen, FiMonitor, FiUser, FiUsers } from 'react-icons/fi';
+import { FiBookOpen, FiMonitor, FiRefreshCw, FiUser, FiUsers } from 'react-icons/fi';
 import { GrDocumentPerformance } from 'react-icons/gr';
 import { IoSettingsOutline } from 'react-icons/io5';
 import { MdOutlineMonitorHeart } from 'react-icons/md';
@@ -390,6 +390,16 @@ export default class Constants {
       ),
       new MenuItem(
         [],
+        MenuKeys.MeterReplacements,
+        FiRefreshCw,
+        'Quản lý treo tháo',
+        'Quản lý treo tháo',
+        [Constants.Role.Admin.value, Constants.Role.SuperAdmin.value, Constants.Role.Staff.value],
+        ROUTE_PATH.METER_REPLACEMENTS,
+        null
+      ),
+      new MenuItem(
+        [],
         MenuKeys.ManageGCS,
         FiBookOpen,
         'Quản lý sổ GCS',
@@ -470,31 +480,61 @@ export default class Constants {
             [],
             MenuKeys.EmailConfig,
             null,
-            'Cấu hình Email',
-            'Cấu hình Email',
+            'Cài đặt dịch vụ Email',
+            'Cài đặt dịch vụ Email',
             [Constants.Role.SuperAdmin.value],
             ROUTE_PATH.EMAIL_CONFIG,
-            MenuKeys.MonitoringPoints
+            MenuKeys.ConfigSysTem
           ),
-          new MenuItem(
+          new GroupedMenuItem(
             [],
-            MenuKeys.NotificationTemplates,
+            MenuKeys.ConfigTemplates,
             null,
-            'Mẫu Email',
-            'Mẫu Email',
+            'Cài đặt mẫu',
+            'Cài đặt mẫu',
             [Constants.Role.SuperAdmin.value],
-            ROUTE_PATH.NOTIFICATION_TEMPLATES,
-            MenuKeys.MonitoringPoints
+            [
+              new MenuItem(
+                [],
+                MenuKeys.NotificationTemplates,
+                null,
+                'Mẫu Email',
+                'Mẫu Email',
+                [Constants.Role.SuperAdmin.value],
+                ROUTE_PATH.NOTIFICATION_TEMPLATES,
+                MenuKeys.ConfigTemplates
+              ),
+              new MenuItem(
+                [],
+                MenuKeys.StatementPdfTemplates,
+                null,
+                'Mẫu Phiếu chỉ số điện',
+                'Mẫu Phiếu chỉ số điện',
+                [Constants.Role.SuperAdmin.value],
+                ROUTE_PATH.STATEMENT_PDF_TEMPLATES,
+                MenuKeys.ConfigTemplates
+              ),
+            ]
           ),
-          new MenuItem(
+          new GroupedMenuItem(
             [],
-            MenuKeys.StatementPdfTemplates,
+            MenuKeys.IoTConfig,
             null,
-            'Mẫu Phiếu chỉ số điện',
-            'Mẫu Phiếu chỉ số điện',
+            'Cài đặt IOT Gateway',
+            'Cài đặt IOT Gateway',
             [Constants.Role.SuperAdmin.value],
-            ROUTE_PATH.STATEMENT_PDF_TEMPLATES,
-            MenuKeys.MonitoringPoints
+            [
+              new MenuItem(
+                [],
+                MenuKeys.IoTRestServer,
+                null,
+                'Cài đặt REST Server',
+                'Cài đặt REST Server',
+                [Constants.Role.SuperAdmin.value],
+                ROUTE_PATH.IOT_REST_SERVER,
+                MenuKeys.IoTConfig
+              ),
+            ]
           ),
         ]
       ),
@@ -539,6 +579,7 @@ export default class Constants {
     static ReceiveEvent: string = 'ReceiveEvent';
     static ReceiveAlert: string = 'ReceiveAlert';
     static ReceiveUpdate: string = 'ReceiveUpdate';
+    static ReceiveIoTTelemetry: string = 'ReceiveIoTTelemetry';
   };
 
   static ToastMessage = class {
@@ -593,6 +634,9 @@ export default class Constants {
     static COMPANY_ADDRESS_DETAIL = 'COMPANY_ADDRESS_DETAIL';
     static COMPANY_COUNTRY = 'COMPANY_COUNTRY';
     static COMPANY_ADDRESS = 'COMPANY_ADDRESS';
+
+    // Đường dẫn công khai của hệ thống (Cloudflare Tunnel, Domain hoặc WAN IP)
+    static PUBLIC_BASE_URL = 'PUBLIC_BASE_URL';
   };
 
   // Tag Name list

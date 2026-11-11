@@ -66,6 +66,7 @@ const PointMonitoring = () => {
     pageSize = size,
     before,
     after,
+    pageNumber,
     searchByFields = [],
     sortByFields = [],
     measurementPointCode,
@@ -74,6 +75,7 @@ const PointMonitoring = () => {
       pageSize: pageSize,
       ...(before && { before }),
       ...(after && { after }),
+      ...(pageNumber && { pageNumber }),
       ...(measurementPointCode && { measurementPointCode }),
       searchByFields: searchByFields.length > 0 ? searchByFields : [],
       sortByFields: sortByFields.length > 0 ? sortByFields : [],
@@ -112,6 +114,7 @@ const PointMonitoring = () => {
       pageSize: currentParams.pageSize || currentSize,
       ...(currentParams.before && { before: currentParams.before }),
       ...(currentParams.after && { after: currentParams.after }),
+      ...(currentParams.pageNumber && { pageNumber: currentParams.pageNumber }),
       ...(currentParams.measurementPointCode && { measurementPointCode: currentParams.measurementPointCode }),
       searchByFields: currentParams.searchByFields?.length ? currentParams.searchByFields : [],
       sortByFields: currentParams.sortByFields?.length ? currentParams.sortByFields : [],
@@ -188,7 +191,7 @@ const PointMonitoring = () => {
         ...(debounceSearchCode && { measurementPointCode: debounceSearchCode }),
       };
       if (!debounceSearchCode) delete updated.measurementPointCode;
-      return deleteParams(updated, ['before', 'after']);
+      return deleteParams(updated, ['before', 'after', 'pageNumber']);
     });
   }, [debounceSearchCode, dataForm.connectionStatus]);
 
@@ -309,7 +312,7 @@ const PointMonitoring = () => {
               setSize(newSize);
               setGetListMeasurementParamsRequest((prev) => {
                 const updatedParams = { ...prev, pageSize: newSize };
-                return deleteParams(updatedParams, ['before', 'after']);
+                return deleteParams(updatedParams, ['before', 'after', 'pageNumber']);
               });
             }}
             hasNext={paginationData?.hasNext}
@@ -317,13 +320,19 @@ const PointMonitoring = () => {
             onClickPrevious={() => {
               setGetListMeasurementParamsRequest((prev) => {
                 const updatedParams = { ...prev, before: firstCustomerID };
-                return deleteParams(updatedParams, ['after']);
+                return deleteParams(updatedParams, ['after', 'pageNumber']);
               });
             }}
             onClickNext={() => {
               setGetListMeasurementParamsRequest((prev) => {
                 const updatedParams = { ...prev, after: lastCustomerID };
-                return deleteParams(updatedParams, ['before']);
+                return deleteParams(updatedParams, ['before', 'pageNumber']);
+              });
+            }}
+            onChangePage={(page) => {
+              setGetListMeasurementParamsRequest((prev) => {
+                const updatedParams = { ...prev, pageNumber: page };
+                return deleteParams(updatedParams, ['before', 'after']);
               });
             }}
           />

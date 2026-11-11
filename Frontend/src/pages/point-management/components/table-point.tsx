@@ -1,5 +1,6 @@
 import { TableProps, Tooltip } from 'antd';
 import { FaRegTrashCan } from 'react-icons/fa6';
+import { FiRefreshCw } from 'react-icons/fi';
 
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
 import Constants from '@/core/application/common/constants.ts';
@@ -89,14 +90,21 @@ const TablePointManagement = (props: Props) => {
       key: 'action',
       fixed: 'right',
       align: 'center',
-      width: 90,
+      width: 100,
       render: (_, record) => {
         const url = ROUTE_PATH.POINT_DETAIL.replace(':id', record.key.toString());
+        const replacementUrl = `${ROUTE_PATH.METER_REPLACEMENTS}?pointId=${record.key}`;
         return (
-          <div className='flex items-center justify-center'>
+          <div className='flex items-center justify-center gap-2'>
             <ActionDetailLink
               href={url}
               title={`Chi tiết điểm đo: ${record.code}`}
+            />
+            <ActionDetailLink
+              href={replacementUrl}
+              title={`Lập biên bản treo tháo cho điểm đo: ${record.code}`}
+              className='text-amber-600 hover:text-amber-800 hover:bg-amber-50 p-1.5 rounded transition-colors inline-flex items-center justify-center cursor-pointer'
+              icon={<FiRefreshCw size={16} className='flex-shrink-0' />}
             />
           </div>
         );

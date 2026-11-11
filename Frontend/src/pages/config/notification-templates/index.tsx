@@ -797,7 +797,7 @@ export const NotificationTemplatesPage: React.FC = () => {
     <div className="w-full max-w-full overflow-x-hidden">
       <PageTitle title="Mẫu Email" />
       <div className="flex justify-between items-center mb-3">
-        <BreadcrumbUI items={[{ name: 'Cài đặt hệ thống' }, { name: 'Mẫu Email' }]} />
+        <BreadcrumbUI items={[{ name: 'Cài đặt hệ thống' }, { name: 'Cài đặt mẫu' }, { name: 'Mẫu Email' }]} />
 
         {/* Top Action Bar */}
         <div className="flex items-center gap-2">

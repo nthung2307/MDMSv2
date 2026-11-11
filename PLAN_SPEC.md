@@ -268,11 +268,34 @@ sequenceDiagram
 - [ ] **Task 2.4 [Frontend]**: Cập nhật trang `statement-pdf-templates/index.tsx`: Bổ sung nút "Tải tệp mẫu Excel chuẩn (.xlsx)", Upload file Excel template tùy biến, và Preview trực tiếp PDF chuyển đổi qua LibreOffice.
 
 ### Phase 3: Nghiệp Vụ Treo / Tháo Công Tơ EDMI MK6 & Tính Sản Lượng Phân Đoạn
-- [ ] **Task 3.1 [Backend/Application]**: Thiết kế DTOs, Command và Validator cho nghiệp vụ Lập Biên Bản Treo/Tháo Công Tơ.
-- [ ] **Task 3.2 [Backend/Infrastructure]**: Hiện thực hóa thuật toán tính sản lượng phân đoạn khi có phát sinh thay thế công tơ trong kỳ:
-  $$\text{Sản lượng kỳ} = (CS_{tháo} - CS_{đầu\ kỳ}) \times HS_{cũ} + (CS_{cuối\ kỳ} - CS_{treo}) \times HS_{mới}$$
-- [ ] **Task 3.3 [Backend/WebApi]**: Tạo `MeterReplacementController`.
-- [ ] **Task 3.4 [Frontend]**: Xây dựng màn hình Lập Biên Bản Treo / Tháo Công Tơ và hiển thị chi tiết 2 dòng trên bảng chốt kỳ.
+- [ ] **Task 3.1 [Backend/Application]**: 
+  * Thiết kế DTOs: `CreateMeterReplacementRequest`, `UpdateMeterReplacementRequest`, `GetListMeterReplacementRequest`, `MeterReplacementDto`.
+  * Thiết kế Service & Repository Interfaces: `IMeterReplacementReadOnlyRepository`, `IMeterReplacementReadWriteRepository`, `IMeterReplacementService`.
+- [ ] **Task 3.2 [Backend/Infrastructure]**: 
+  * Hiện thực hóa Repositories: `MeterReplacementReadOnlyRepository`, `MeterReplacementReadWriteRepository`.
+  * Hiện thực hóa `MeterReplacementService` xử lý nghiệp vụ CRUD, xác thực dữ liệu và phê duyệt biên bản (Cập nhật `MultiplierFactor`, `IsNewChange` trên `MeasurementPointsEntity`).
+  * Tích hợp thuật toán tính sản lượng phân đoạn khi có phát sinh thay thế công tơ trong kỳ chốt GCS:
+    $$\text{Sản lượng kỳ} = (CS_{tháo} - CS_{đầu\ kỳ}) \times HS_{cũ} + (CS_{cuối\ kỳ} - CS_{treo}) \times HS_{mới}$$
+    và liên kết `HasMeterReplacement = true`, `MeterReplacementId = replacement.Id` vào `PeriodicEnergyStatementEntity`.
+- [ ] **Task 3.3 [Backend/WebApi]**: 
+  * Xây dựng `MeterReplacementController` với các API:
+    - `GET /api/v1/meter-replacements`: Danh sách phân trang, tìm kiếm & bộ lọc
+    - `GET /api/v1/meter-replacements/{id}`: Chi tiết biên bản
+    - `POST /api/v1/meter-replacements`: Tạo biên bản mới (Hỗ trợ lưu DRAFT hoặc APPROVED ngay)
+    - `PUT /api/v1/meter-replacements/{id}`: Chỉnh sửa biên bản DRAFT
+    - `DELETE /api/v1/meter-replacements/{id}`: Xóa biên bản DRAFT
+    - `POST /api/v1/meter-replacements/{id}/approve`: Phê duyệt biên bản & cập nhật điểm đo
+    - `POST /api/v1/meter-replacements/{id}/cancel`: Hủy biên bản
+    - `GET /api/v1/meter-replacements/point-meter-info/{pointId}`: Lấy thông tin công tơ & chỉ số hiện tại của điểm đo để tự động điền form.
+- [ ] **Task 3.4 [Frontend/UI & Services]**: 
+  * Khai báo Route `METER_REPLACEMENTS = '/meter-replacements'` và bổ sung mục Menu chính **"Quản lý treo tháo"** trên thanh Sidebar.
+  * Hiện thực hóa `meterReplacement.service.ts` gọi Backend API.
+  * Xây dựng trang danh sách biên bản `Frontend/src/pages/meter-replacement/index.tsx`: Tìm kiếm, lọc theo Điểm đo/Trạng thái/Ngày tháng, bảng dữ liệu hiển thị rõ ràng thông số công tơ cũ và mới.
+  * Xây dựng Modal Lập/Sửa/Xem chi tiết biên bản `replacement-modal.tsx`: Tự động điền dữ liệu điểm đo, nhập bộ chỉ số tháo/treo, tải link biên bản hiện trường.
+  * Bổ sung nút thao tác nhanh "Treo tháo công tơ" trên bảng Quản lý điểm đo (`point-management/index.tsx`).
+- [ ] **Task 3.5 [Verification & Unit Tests]**:
+  * Bổ sung Unit Tests kiểm thử nghiệp vụ tính toán phân đoạn và luồng trạng thái biên bản trong `MDMS.UnitTests`.
+  * Build kiểm tra Backend (`dotnet build`) và Frontend (`npm run build:uat`) đạt 0 lỗi (`0 Error(s)`).
 
 ### Phase 4: Tái Cấu Trúc Nghiệp Vụ Chốt Chỉ Số GCS (Mô hình Pure PUSH & Rà soát Số liệu Nghi ngờ)
 - [ ] **Task 4.1 [Backend/WebApi & Infrastructure]**:

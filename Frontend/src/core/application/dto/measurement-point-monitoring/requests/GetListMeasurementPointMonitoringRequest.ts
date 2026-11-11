@@ -2,6 +2,7 @@ export class GetListMeasurementPointMonitoringRequest {
   pageSize?: number;
   after?: number;
   before?: number;
+  pageNumber?: number;
   searchByFields?: Array<{ searchFieldName: string; searchValue: string }> | [];
   sortByFields?: Array<{ colName: string; sortDirection: string }> | [];
   customerName?: string;
@@ -14,6 +15,7 @@ export class GetListMeasurementPointMonitoringRequest {
     pageSize?: number;
     after?: number;
     before?: number;
+    pageNumber?: number;
     searchByFields: Array<{ searchFieldName: string; searchValue: string }> | [];
     sortByFields: Array<{ colName: string; sortDirection: string }> | [];
     customerName?: string;
@@ -28,6 +30,9 @@ export class GetListMeasurementPointMonitoringRequest {
     }
     if (args.before) {
       this.before = args.before;
+    }
+    if (args.pageNumber) {
+      this.pageNumber = args.pageNumber;
     }
     if (args.searchByFields) {
       this.searchByFields = args.searchByFields;

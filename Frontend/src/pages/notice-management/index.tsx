@@ -64,12 +64,16 @@ const NoticeManagement = () => {
 
   const handelSubmit = (params: GcsParams) => {
     setGcsParams(params);
+    setGetGCSCutOffCycleRequest((prev) =>
+      deleteParams({ ...prev }, ['before', 'after', 'pageNumber'])
+    );
   };
 
   const getGCSCutOffCycleAsync = async ({
     pageSize = size,
     before,
     after,
+    pageNumber,
     searchByFields = [],
     sortByFields = [],
     gcsId,
@@ -80,6 +84,7 @@ const NoticeManagement = () => {
       pageSize,
       ...(before && { before }),
       ...(after && { after }),
+      ...(pageNumber && { pageNumber }),
       ...(month && { month }),
       ...(year && { year }),
       searchByFields: searchByFields.length > 0 ? searchByFields : [],
@@ -169,19 +174,24 @@ const NoticeManagement = () => {
               setSize={(newSize) => {
                 setSize(newSize);
                 setGetGCSCutOffCycleRequest((prev) =>
-                  deleteParams({ ...prev, pageSize: newSize }, ['before', 'after'])
+                  deleteParams({ ...prev, pageSize: newSize }, ['before', 'after', 'pageNumber'])
                 );
               }}
               hasNext={paginationData?.hasNext}
               hasPrevious={paginationData?.hasPrevious}
               onClickPrevious={() => {
                 setGetGCSCutOffCycleRequest((prev) =>
-                  deleteParams({ ...prev, before: firstPointID }, ['after'])
+                  deleteParams({ ...prev, before: firstPointID }, ['after', 'pageNumber'])
                 );
               }}
               onClickNext={() => {
                 setGetGCSCutOffCycleRequest((prev) =>
-                  deleteParams({ ...prev, after: lastPointID }, ['before'])
+                  deleteParams({ ...prev, after: lastPointID }, ['before', 'pageNumber'])
+                );
+              }}
+              onChangePage={(page) => {
+                setGetGCSCutOffCycleRequest((prev) =>
+                  deleteParams({ ...prev, pageNumber: page }, ['before', 'after'])
                 );
               }}
             />

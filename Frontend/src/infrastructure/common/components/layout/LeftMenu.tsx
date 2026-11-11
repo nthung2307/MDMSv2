@@ -24,24 +24,89 @@ const LeftMenu = () => {
     return allowedPermissions.includes(role);
   };
 
-  const findKeyByHyperlink = (menu: any, targetHyperlink: string): string | any => {
-    for (const item of menu.items) {
-      if (item.hyperlink && `${targetHyperlink}`.includes(item.hyperlink)) {
-        return {
-          key: item.key,
-          parentKey: item.parentKey,
-        };
-      }
-      // If the item has sub-items, search recursively
-      if (item.items && item.items.length > 0) {
-        const result = findKeyByHyperlink({ items: item.items }, targetHyperlink);
-        if (result) {
-          return result;
+  const findKeyByHyperlink = (
+    items: (MenuItem | GroupedMenuItem)[],
+    targetHyperlink: string,
+    ancestors: string[] = []
+  ): { key: string; ancestorKeys: string[] } | null => {
+    for (const rawItem of items) {
+      if (rawItem.type === 'item') {
+        const item = rawItem as MenuItem;
+        if (item.hyperlink && `${targetHyperlink}`.includes(item.hyperlink)) {
+          return {
+            key: item.key,
+            ancestorKeys: ancestors,
+          };
+        }
+      } else if (rawItem.type === 'group') {
+        const group = rawItem as GroupedMenuItem;
+        if (group.items && group.items.length > 0) {
+          const result = findKeyByHyperlink(group.items, targetHyperlink, [
+            ...ancestors,
+            group.key,
+          ]);
+          if (result) {
+            return result;
+          }
         }
       }
     }
-    return null; // Return null if no matching hyperlink is found
+    return null;
   };
+
+  const renderMenuNode = (node: MenuItem | GroupedMenuItem, isNested: boolean = false): any => {
+    if (node.type === 'item') {
+      const item = node as MenuItem;
+      if (!isAllowed(item.allowedPermissions)) {
+        return null;
+      }
+
+      return (
+        <Menu.Item
+          className={isNested ? 'flex items-center' : undefined}
+          key={item.key}
+          icon={item.icon && <item.icon size={20} />} // react-icons
+          onClick={() => navigate(item.hyperlink)}
+        >
+          <NavContextMenu
+            href={item.hyperlink}
+            title={item.displayText}
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(item.hyperlink);
+            }}
+          >
+            <span className='text-14-20 select-none'>{item.displayText}</span>
+          </NavContextMenu>
+        </Menu.Item>
+      );
+    }
+
+    if (node.type === 'group') {
+      const group = node as GroupedMenuItem;
+      const children = group.items
+        .map((subItem) => renderMenuNode(subItem, true))
+        .filter((child) => child !== null);
+
+      if (children.length === 0) {
+        return null;
+      }
+
+      return (
+        <SubMenu
+          key={group.key}
+          icon={group.icon && <group.icon size={20} />} // react-icons
+          title={group.displayText}
+        >
+          {children}
+        </SubMenu>
+      );
+    }
+
+    return null;
+  };
+
+  const activeMenuMatch = findKeyByHyperlink(root.items, location.pathname);
 
   return (
     <Sider
@@ -56,8 +121,8 @@ const LeftMenu = () => {
       <div className='flex flex-col h-full justify-between'>
         <Menu
           mode={root.mode}
-          selectedKeys={[findKeyByHyperlink(root, location.pathname)?.key || null]}
-          defaultOpenKeys={[findKeyByHyperlink(root, location.pathname)?.parentKey || null]}
+          selectedKeys={activeMenuMatch ? [activeMenuMatch.key] : []}
+          defaultOpenKeys={activeMenuMatch ? activeMenuMatch.ancestorKeys : []}
           className={'mt-5 overflow-y-auto'}
         >
           <div className='flex pl-7 mb-3'>
@@ -75,75 +140,7 @@ const LeftMenu = () => {
               )}
             </div>
           </div>
-          {root.items.map((value) => {
-            if (value.type === 'item') {
-              const item = value as MenuItem;
-
-              // Hide menu items that are not allowed
-              if (!isAllowed(item.allowedPermissions)) {
-                return null;
-              }
-
-              return (
-                <Menu.Item
-                  key={item.key}
-                  icon={item.icon && <item.icon size={20} />} // react-icons
-                  onClick={() => navigate(item.hyperlink)}
-                >
-                  <NavContextMenu
-                    href={item.hyperlink}
-                    title={item.displayText}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(item.hyperlink);
-                    }}
-                  >
-                    <span className='text-14-20 select-none'>{item.displayText}</span>
-                  </NavContextMenu>
-                </Menu.Item>
-              );
-            } else if (value.type === 'group') {
-              const group = value as GroupedMenuItem;
-
-              // Filter child items based on permissions
-              const allowedSubItems = group.items.filter((subItem) =>
-                isAllowed(subItem.allowedPermissions)
-              );
-
-              // Hide group if no allowed items
-              if (allowedSubItems.length === 0) {
-                return null;
-              }
-
-              return (
-                <SubMenu
-                  key={group.key}
-                  icon={group.icon && <group.icon size={20} />} // react-icons
-                  title={group.displayText}
-                >
-                  {allowedSubItems.map((subItem) => (
-                    <Menu.Item
-                      className='flex items-center'
-                      key={subItem.key}
-                      icon={subItem.icon && <subItem.icon size={20} />}
-                      onClick={() => navigate(subItem.hyperlink)}
-                    >
-                      <NavContextMenu
-                        href={subItem.hyperlink}
-                        title={subItem.displayText}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(subItem.hyperlink);
-                        }}
-                      >
-                        <span className='text-14-20 select-none'>{subItem.displayText}</span>
-                      </NavContextMenu>
-                    </Menu.Item>
-                  ))}
-                </SubMenu>
-              );
-            }
-          })}
+          {root.items.map((value) => renderMenuNode(value, false))}
         </Menu>
       </div>
     </Sider>

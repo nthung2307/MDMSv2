@@ -8,7 +8,7 @@ export default class GroupedMenuItem {
     displayText: string,
     title: string,
     allowedPermissions: string[],
-    children: MenuItem[]
+    children: (MenuItem | GroupedMenuItem)[]
   ) {
     this.roleAction = roleAction;
     this.icon = icon;
@@ -25,5 +25,5 @@ export default class GroupedMenuItem {
   displayText: string;
   title: string;
   allowedPermissions: string[];
-  items: MenuItem[]; // list of menu items in the group
+  items: (MenuItem | GroupedMenuItem)[]; // list of menu items or nested groups in the group
 }

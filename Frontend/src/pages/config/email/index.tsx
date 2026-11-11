@@ -183,7 +183,7 @@ const EmailConfigPage = () => {
     <div>
       <PageTitle title={'Cài đặt hệ thống'} />
       <div className='flex justify-between items-center'>
-        <BreadcrumbUI items={[{ name: 'Cài đặt hệ thống' }, { name: 'Cấu hình Email' }]} />
+        <BreadcrumbUI items={[{ name: 'Cài đặt hệ thống' }, { name: 'Cài đặt dịch vụ Email' }]} />
         <div className='flex'>
           <ButtonCommonCustomizable
             title={''}
@@ -201,10 +201,6 @@ const EmailConfigPage = () => {
       <div className='mt-10'>
         <Card className={'shadow-custom'}>
           <div>
-            <div className={'flex justify-between items-center mb-6'}>
-              <h1 className='font-bold text-20-20'>{'Cấu hình dịch vụ Email'}</h1>
-            </div>
-
             <Form
               form={form}
               layout='vertical'
@@ -257,12 +253,12 @@ const EmailConfigPage = () => {
               {/* 2. Thông Tin Người Gửi */}
               <div className='mb-6'>
                 <Text strong className='text-16-20 text-gray-800 block mb-4'>
-                  2. Thông tin hộp thư gửi (Sender Information)
+                  2. Thông tin hộp thư
                 </Text>
                 <Row gutter={24}>
                   <Col xs={24} md={12}>
                     <Form.Item
-                      label='Email'
+                      label='Hộp thư (Email)'
                       name='senderEmail'
                       rules={[
                         { required: true, message: 'Vui lòng nhập địa chỉ email người gửi' },
@@ -279,7 +275,7 @@ const EmailConfigPage = () => {
                   </Col>
                   <Col xs={24} md={12}>
                     <Form.Item
-                      label='Tên hiển thị người gửi (Sender Display Name)'
+                      label='Người gửi (Display name)'
                       name='senderDisplayName'
                       tooltip='Tên hiển thị trên hộp thư người nhận (Ví dụ: VSIP Hải Phòng - AMR/MDMS)'
                     >
@@ -298,7 +294,7 @@ const EmailConfigPage = () => {
               {providerType === 'MICROSOFT_GRAPH' ? (
                 <div className='mb-6'>
                   <Text strong className='text-16-20 text-gray-800 block mb-4'>
-                    3. Thông số xác thực Microsoft Azure Entra ID (OAuth 2.0)
+                    3. Thông số xác thực Microsoft Azure (OAuth 2.0)
                   </Text>
                   <Row gutter={24}>
                     <Col xs={24} md={12}>
@@ -350,12 +346,12 @@ const EmailConfigPage = () => {
               ) : (
                 <div className='mb-6'>
                   <Text strong className='text-16-20 text-gray-800 block mb-4'>
-                    3. Thông số máy chủ SMTP
+                    3. Thông số máy chủ
                   </Text>
                   <Row gutter={24}>
                     <Col xs={24} md={14}>
                       <Form.Item
-                        label='Địa chỉ máy chủ SMTP (Host)'
+                        label='Địa chỉ máy chủ (Host)'
                         name='smtpHost'
                         rules={[{ required: true, message: 'Vui lòng nhập máy chủ SMTP' }]}
                       >
@@ -381,12 +377,12 @@ const EmailConfigPage = () => {
                       </Form.Item>
                     </Col>
                     <Col xs={24} md={12}>
-                      <Form.Item label='Yêu cầu xác thực tài khoản (Require Auth)' name='requireAuth' valuePropName='checked'>
+                      <Form.Item label='Yêu cầu xác thực (Require authentication)' name='requireAuth' valuePropName='checked'>
                         <Switch
                           checked={requireAuth}
                           onChange={(checked) => setRequireAuth(checked)}
-                          checkedChildren='Bắt buộc đăng nhập'
-                          unCheckedChildren='Không cần đăng nhập'
+                          checkedChildren='Yêu cầu'
+                          unCheckedChildren='Không yêu cầu'
                         />
                       </Form.Item>
                     </Col>
@@ -395,7 +391,7 @@ const EmailConfigPage = () => {
                       <>
                         <Col xs={24} md={12}>
                           <Form.Item
-                            label='Tên đăng nhập SMTP (Username)'
+                            label='Tên đăng nhập (Username)'
                             name='smtpUsername'
                             rules={[{ required: requireAuth, message: 'Vui lòng nhập tên đăng nhập' }]}
                           >
@@ -404,7 +400,7 @@ const EmailConfigPage = () => {
                         </Col>
                         <Col xs={24} md={12}>
                           <Form.Item
-                            label={providerType === 'GMAIL' ? 'Mật khẩu ứng dụng Google (16 ký tự)' : 'Mật khẩu SMTP (Password)'}
+                            label='Mật khẩu (Password)'
                             name='smtpPassword'
                             required={!hasSmtpPassword}
                             rules={
@@ -423,7 +419,7 @@ const EmailConfigPage = () => {
                               placeholder={
                                 hasSmtpPassword
                                   ? '•••••••••••••••••••• (Đã có mật khẩu được lưu - Để trống nếu giữ nguyên)'
-                                  : 'Nhập mật khẩu SMTP'
+                                  : 'Nhập mật khẩu'
                               }
                             />
                           </Form.Item>
@@ -439,12 +435,9 @@ const EmailConfigPage = () => {
                 <div className='flex items-center gap-2 mb-3'>
                   <IoCheckmarkCircleOutline className='text-blue-600 text-xl' />
                   <Text strong className='text-16-20 text-blue-900'>
-                    Kiểm tra kết nối (Test Connection)
+                    Kiểm tra kết nối (Test connection)
                   </Text>
                 </div>
-                <p className='text-gray-600 text-sm mb-4'>
-                  Gửi một email kiểm tra tức thời đến địa chỉ bất kỳ để xác nhận cấu hình máy chủ và quyền hạn tài khoản hoạt động ổn định.
-                </p>
                 <div className='flex flex-col sm:flex-row gap-3 items-stretch sm:items-center'>
                   <Input
                     size='large'
