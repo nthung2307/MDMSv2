@@ -121,31 +121,26 @@ public class IoTController : ControllerBase
         return null;
     }
 
-    private async Task RecordPushAndBroadcastAsync(string ip, bool authorized, int tagCount, CancellationToken cancellationToken)
+    private void RecordPushAndBroadcast(string ip, bool authorized, int tagCount, string? statusOverride = null)
     {
-        IoTSecurityManager.RecordPush(ip, authorized, tagCount);
+        IoTSecurityManager.RecordPush(ip, authorized, tagCount, statusOverride);
         if (!IoTSecurityManager.TryClaimTelemetryBroadcastSlot(TimeSpan.FromSeconds(2)))
         {
             return;
         }
 
-        try
+        var lastPush = IoTSecurityManager.LastPushTime;
+        var payload = new
         {
-            var lastPush = IoTSecurityManager.LastPushTime;
-            await _listHubContext.Clients.All.SendAsync("ReceiveIoTTelemetry", new
-            {
-                lastPushTime = lastPush,
-                lastPushIp = IoTSecurityManager.LastPushIp,
-                lastPushStatus = IoTSecurityManager.LastPushStatus,
-                lastPushTagCount = IoTSecurityManager.LastPushTagCount,
-                totalPushCount = IoTSecurityManager.TotalPushCount,
-                isActiveRecently = lastPush.HasValue && (DateTimeOffset.Now - lastPush.Value).TotalMinutes < 5
-            }, cancellationToken);
-        }
-        catch
-        {
-            // Keep REST client ingestion fast even if SignalR broadcast fails
-        }
+            lastPushTime = lastPush,
+            lastPushIp = IoTSecurityManager.LastPushIp,
+            lastPushStatus = IoTSecurityManager.LastPushStatus,
+            lastPushTagCount = IoTSecurityManager.LastPushTagCount,
+            totalPushCount = IoTSecurityManager.TotalPushCount,
+            isActiveRecently = lastPush.HasValue && (DateTimeOffset.Now - lastPush.Value).TotalMinutes < 5
+        };
+
+        _ = _listHubContext.Clients.All.SendAsync("ReceiveIoTTelemetry", payload, CancellationToken.None);
     }
 
     private async Task EnsureIoTSecurityConfigLoadedAsync(CancellationToken cancellationToken = default)
@@ -210,7 +205,7 @@ public class IoTController : ControllerBase
             !string.IsNullOrWhiteSpace(allowedIps) &&
             !IsTrustedNetworkIp(remoteIp, ipStr, allowedIps, allowPrivateLanWhenUnconfigured: false, globalApiKey))
         {
-            await RecordPushAndBroadcastAsync(ipStr, false, tagCount, cancellationToken);
+            RecordPushAndBroadcast(ipStr, false, tagCount, $"UNAUTHORIZED (IP {ipStr})");
             return (false, $"IP nguồn '{ipStr}' không nằm trong danh sách IP được phép (AllowedIps).");
         }
 
@@ -221,14 +216,14 @@ public class IoTController : ControllerBase
             if (point == null || !string.Equals(point.Status, EntityStatus.Active, StringComparison.OrdinalIgnoreCase))
             {
                 IoTSecurityManager.RecordUnmatchedSerial(meterSerial, ipStr);
-                await RecordPushAndBroadcastAsync(ipStr, false, tagCount, cancellationToken);
+                RecordPushAndBroadcast(ipStr, false, tagCount, $"UNAUTHORIZED (Serial '{meterSerial}' chưa gán)");
                 return (false, $"Không tìm thấy điểm đo đang hoạt động với X-Meter-Serial '{meterSerial}'.");
             }
 
             if (HttpContext.User?.Identity?.IsAuthenticated == true)
             {
                 IoTSecurityManager.RemoveUnmatchedSerial(meterSerial);
-                await RecordPushAndBroadcastAsync(ipStr, true, tagCount, cancellationToken);
+                RecordPushAndBroadcast(ipStr, true, tagCount);
                 return (true, null);
             }
 
@@ -241,16 +236,16 @@ public class IoTController : ControllerBase
                     if (!sessionOk)
                     {
                         _loggerService.LogWarning($"[IoTSecurity] {sessionErr}");
-                        await RecordPushAndBroadcastAsync(ipStr, false, tagCount, cancellationToken);
+                        RecordPushAndBroadcast(ipStr, false, tagCount, $"UNAUTHORIZED (Serial '{meterSerial}' xung đột)");
                         return (false, sessionErr);
                     }
 
                     IoTSecurityManager.RemoveUnmatchedSerial(meterSerial);
-                    await RecordPushAndBroadcastAsync(ipStr, true, tagCount, cancellationToken);
+                    RecordPushAndBroadcast(ipStr, true, tagCount);
                     return (true, null);
                 }
 
-                await RecordPushAndBroadcastAsync(ipStr, false, tagCount, cancellationToken);
+                RecordPushAndBroadcast(ipStr, false, tagCount, $"UNAUTHORIZED (Serial '{meterSerial}' sai Private-key)");
                 return (false, $"X-IoT-Api-Key không khớp với khóa riêng của công tơ '{meterSerial}'.");
             }
 
@@ -263,16 +258,16 @@ public class IoTController : ControllerBase
                     if (!sessionOk)
                     {
                         _loggerService.LogWarning($"[IoTSecurity] {sessionErr}");
-                        await RecordPushAndBroadcastAsync(ipStr, false, tagCount, cancellationToken);
+                        RecordPushAndBroadcast(ipStr, false, tagCount, $"UNAUTHORIZED (Serial '{meterSerial}' xung đột)");
                         return (false, sessionErr);
                     }
 
                     IoTSecurityManager.RemoveUnmatchedSerial(meterSerial);
-                    await RecordPushAndBroadcastAsync(ipStr, true, tagCount, cancellationToken);
+                    RecordPushAndBroadcast(ipStr, true, tagCount);
                     return (true, null);
                 }
 
-                await RecordPushAndBroadcastAsync(ipStr, false, tagCount, cancellationToken);
+                RecordPushAndBroadcast(ipStr, false, tagCount, $"UNAUTHORIZED (Serial '{meterSerial}' sai Global-key)");
                 return (false, "X-IoT-Api-Key không khớp Global API Key.");
             }
 
@@ -282,16 +277,16 @@ public class IoTController : ControllerBase
                 if (!sessionOk)
                 {
                     _loggerService.LogWarning($"[IoTSecurity] {sessionErr}");
-                    await RecordPushAndBroadcastAsync(ipStr, false, tagCount, cancellationToken);
+                    RecordPushAndBroadcast(ipStr, false, tagCount, $"UNAUTHORIZED (Serial '{meterSerial}' xung đột)");
                     return (false, sessionErr);
                 }
 
                 IoTSecurityManager.RemoveUnmatchedSerial(meterSerial);
-                await RecordPushAndBroadcastAsync(ipStr, true, tagCount, cancellationToken);
+                RecordPushAndBroadcast(ipStr, true, tagCount);
                 return (true, null);
             }
 
-            await RecordPushAndBroadcastAsync(ipStr, false, tagCount, cancellationToken);
+            RecordPushAndBroadcast(ipStr, false, tagCount, $"UNAUTHORIZED (Serial '{meterSerial}' thiếu Key)");
             return (false, "Thiếu X-IoT-Api-Key hợp lệ.");
         }
 
@@ -301,7 +296,7 @@ public class IoTController : ControllerBase
 
         if (!allowLegacyTagRouting)
         {
-            await RecordPushAndBroadcastAsync(ipStr, false, tagCount, cancellationToken);
+            RecordPushAndBroadcast(ipStr, false, tagCount, "UNAUTHORIZED (Thiếu Header Serial)");
             return (false, "Chế độ định tuyến TagName cũ đã tắt. Vui lòng gửi kèm header X-Meter-Serial.");
         }
 
@@ -310,7 +305,7 @@ public class IoTController : ControllerBase
 
         if (requireApiKey)
         {
-            await RecordPushAndBroadcastAsync(ipStr, hasValidGlobalKey, tagCount, cancellationToken);
+            RecordPushAndBroadcast(ipStr, hasValidGlobalKey, tagCount, hasValidGlobalKey ? null : "UNAUTHORIZED (Sai Global-key)");
             return hasValidGlobalKey
                 ? (true, null)
                 : (false, "Truy cập IoT Gateway không hợp lệ (X-IoT-Api-Key không khớp).");
@@ -318,11 +313,11 @@ public class IoTController : ControllerBase
 
         if (hasValidGlobalKey || IsTrustedNetworkIp(remoteIp, ipStr, allowedIps, allowPrivateLanWhenUnconfigured: true, globalApiKey))
         {
-            await RecordPushAndBroadcastAsync(ipStr, true, tagCount, cancellationToken);
+            RecordPushAndBroadcast(ipStr, true, tagCount);
             return (true, null);
         }
 
-        await RecordPushAndBroadcastAsync(ipStr, false, tagCount, cancellationToken);
+        RecordPushAndBroadcast(ipStr, false, tagCount, "UNAUTHORIZED (Sai Key/IP)");
         return (false, "Truy cập IoT Gateway không hợp lệ (IP hoặc X-IoT-Api-Key không được phép).");
     }
 

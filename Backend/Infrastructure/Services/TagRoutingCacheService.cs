@@ -23,7 +23,10 @@ public sealed class TagRoutingCacheService : ITagRoutingCacheService
     private readonly IMemoryCache _memoryCache;
     private readonly IDbContextFactory<AppReadOnlyDbContext> _dbContextFactory;
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
+    private volatile CachedRoutingState? _lastKnownState;
     private long _cacheVersion;
+    private long _loadedVersion = -1;
+    private int _backgroundRefreshRunning;
 
     public TagRoutingCacheService(
         IMemoryCache memoryCache,
@@ -48,8 +51,27 @@ public sealed class TagRoutingCacheService : ITagRoutingCacheService
     public async Task<PointRoutingInfo?> GetPointBySerialAsync(string meterSerial, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(meterSerial)) return null;
+        var trimmed = meterSerial.Trim();
         var state = await GetOrBuildStateAsync(cancellationToken);
-        return state.SerialMap.TryGetValue(meterSerial.Trim(), out var point) ? point : null;
+        if (state.SerialMap.TryGetValue(trimmed, out var point))
+        {
+            // If cache was invalidated (e.g., key rotated on this point), ensure we have the latest version
+            if (Volatile.Read(ref _loadedVersion) == Volatile.Read(ref _cacheVersion))
+            {
+                return point;
+            }
+
+            var freshState = await ForceRebuildStateAsync(cancellationToken);
+            return freshState.SerialMap.TryGetValue(trimmed, out var freshPoint) ? freshPoint : point;
+        }
+
+        if (Volatile.Read(ref _loadedVersion) != Volatile.Read(ref _cacheVersion))
+        {
+            var freshState = await ForceRebuildStateAsync(cancellationToken);
+            return freshState.SerialMap.TryGetValue(trimmed, out var freshPoint) ? freshPoint : null;
+        }
+
+        return null;
     }
 
     public async Task<IReadOnlyList<MeterProfileCachedInfo>> GetMeterProfilesAsync(CancellationToken cancellationToken = default)
@@ -120,6 +142,32 @@ public sealed class TagRoutingCacheService : ITagRoutingCacheService
     {
         Interlocked.Increment(ref _cacheVersion);
         _memoryCache.Remove(CacheKey);
+        TriggerBackgroundRefresh();
+    }
+
+    private void TriggerBackgroundRefresh()
+    {
+        if (_dbContextFactory == null) return;
+        if (Interlocked.CompareExchange(ref _backgroundRefreshRunning, 1, 0) != 0)
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await ForceRebuildStateAsync(CancellationToken.None);
+            }
+            catch
+            {
+                // Keep serving _lastKnownState if transient DB error occurs
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _backgroundRefreshRunning, 0);
+            }
+        });
     }
 
     private async Task<CachedRoutingState> GetOrBuildStateAsync(CancellationToken cancellationToken)
@@ -129,10 +177,25 @@ public sealed class TagRoutingCacheService : ITagRoutingCacheService
             return cached;
         }
 
+        // Stale-While-Revalidate: Never block 100+ Kepware REST Client threads when 15-minute TTL expires
+        var fallback = _lastKnownState;
+        if (fallback != null && Volatile.Read(ref _loadedVersion) == Volatile.Read(ref _cacheVersion))
+        {
+            TriggerBackgroundRefresh();
+            return fallback;
+        }
+
+        return await ForceRebuildStateAsync(cancellationToken);
+    }
+
+    private async Task<CachedRoutingState> ForceRebuildStateAsync(CancellationToken cancellationToken)
+    {
         await _refreshLock.WaitAsync(cancellationToken);
         try
         {
-            if (_memoryCache.TryGetValue<CachedRoutingState>(CacheKey, out cached) && cached != null)
+            if (_memoryCache.TryGetValue<CachedRoutingState>(CacheKey, out var cached) &&
+                cached != null &&
+                Volatile.Read(ref _loadedVersion) == Volatile.Read(ref _cacheVersion))
             {
                 return cached;
             }
@@ -355,8 +418,10 @@ public sealed class TagRoutingCacheService : ITagRoutingCacheService
             }
 
             var built = new CachedRoutingState(tagMap, pointMap, serialMap, profilesList);
+            _lastKnownState = built;
             if (Volatile.Read(ref _cacheVersion) == capturedVersion)
             {
+                Interlocked.Exchange(ref _loadedVersion, capturedVersion);
                 _memoryCache.Set(CacheKey, built, CacheDuration);
             }
 

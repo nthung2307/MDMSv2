@@ -26,16 +26,13 @@ public static class IoTSecurityManager
     private const int MaxConflictEntries = 50;
     private static readonly TimeSpan SessionIpLockDuration = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan RateLimitWindow = TimeSpan.FromSeconds(10);
-    private const int MaxRequestsPerSerialWindow = 20;
-    private const double DuplicateFullFrameSuppressMs = 1500;
+    private const int MaxRequestsPerSerialWindow = 120;
 
     private sealed class SerialSessionState
     {
         public readonly object SyncRoot = new();
         public string PrimaryIp = string.Empty;
         public DateTimeOffset LastAcceptedAt = DateTimeOffset.MinValue;
-        public DateTimeOffset LastFullFrameAt = DateTimeOffset.MinValue;
-        public int LastFullFrameTagCount;
         public DateTimeOffset WindowStart = DateTimeOffset.MinValue;
         public int WindowHitCount;
     }
@@ -62,11 +59,13 @@ public static class IoTSecurityManager
     private static long _totalPushCount = 0;
     public static long TotalPushCount => Interlocked.Read(ref _totalPushCount);
 
-    public static void RecordPush(string? ip, bool authorized, int tagCount)
+    public static void RecordPush(string? ip, bool authorized, int tagCount, string? statusOverride = null)
     {
         LastPushTime = DateTimeOffset.Now;
         LastPushIp = ip ?? "Unknown";
-        LastPushStatus = authorized ? "SUCCESS" : "UNAUTHORIZED";
+        LastPushStatus = !string.IsNullOrWhiteSpace(statusOverride)
+            ? statusOverride
+            : (authorized ? "SUCCESS" : "UNAUTHORIZED");
         LastPushTagCount = tagCount;
         Interlocked.Increment(ref _totalPushCount);
     }
@@ -124,23 +123,8 @@ public static class IoTSecurityManager
                 }
             }
 
-            // 3. Same-IP Duplicate Client Collision Suppression:
-            // If two REST Clients on the same IP (e.g. M130 & M131) push identical full frames (>= 20 tags) within 1.5s, suppress the duplicate.
-            if (tagCount >= 20 &&
-                session.LastFullFrameTagCount == tagCount &&
-                (now - session.LastFullFrameAt).TotalMilliseconds < DuplicateFullFrameSuppressMs)
-            {
-                RecordSerialConflict(key, ip, ip, "DUPLICATE_CLIENT_SAME_IP", now);
-                return (false, $"Phát hiện nhiều REST Client cùng gửi đồng thời một Số chế tạo '{key}' trên IP '{ip}'. Đã bỏ qua bản tin trùng lặp.");
-            }
-
             session.PrimaryIp = ip;
             session.LastAcceptedAt = now;
-            if (tagCount >= 20)
-            {
-                session.LastFullFrameAt = now;
-                session.LastFullFrameTagCount = tagCount;
-            }
 
             return (true, null);
         }
@@ -254,7 +238,7 @@ public static class IoTSecurityManager
         }
     }
 
-    public static bool IsInitialized => _isInitialized && (DateTime.UtcNow - _lastLoaded).TotalMinutes < 5;
+    public static bool IsInitialized => _isInitialized;
 
     public static (string ApiKey, string AllowedIps, bool RequireApiKey, bool AllowLegacyTagRouting) GetCachedConfig()
     {
