@@ -24,12 +24,21 @@ public sealed class TelemetryIngestionItem
     public MeasurementPointMonitoringByDateTimeDto? DateTimeNotification { get; init; }
 }
 
+public sealed record TelemetryStatusTransitionItem(
+    TagRoutingEntry Tag,
+    long TimestampMs,
+    DateTimeOffset RecordTime,
+    string ConvertedVal,
+    bool Quality,
+    bool ParsedBool);
+
 /// <summary>
 /// High-throughput micro-batching ingestion pipeline backed by BoundedChannel and bulk MySQL writes.
 /// </summary>
 public interface IBufferedTelemetryIngestionService
 {
     ValueTask EnqueueAsync(TelemetryIngestionItem item, CancellationToken cancellationToken = default);
+    bool TryEnqueueStatusTransitions(IReadOnlyList<TelemetryStatusTransitionItem> items);
     Task FlushPendingAsync(CancellationToken cancellationToken = default);
 }
 

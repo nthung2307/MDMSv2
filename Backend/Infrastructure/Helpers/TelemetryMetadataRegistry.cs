@@ -69,6 +69,8 @@ internal static class TelemetryMetadataRegistry
             getUpd,
             (s, sample) =>
             {
+                var prevUpd = getUpd(s);
+                if (prevUpd.HasValue && sample.Timestamp < prevUpd.Value) return;
                 setVal(s, sample.NumericValue);
                 if (setUnit != null && !string.IsNullOrWhiteSpace(sample.Unit)) setUnit(s, sample.Unit);
                 setQ(s, sample.Quality);
@@ -104,6 +106,8 @@ internal static class TelemetryMetadataRegistry
             getUpd,
             (s, sample) =>
             {
+                var prevUpd = getUpd(s);
+                if (prevUpd.HasValue && sample.Timestamp < prevUpd.Value) return;
                 setVal(s, sample.BoolValue);
                 setQ(s, sample.Quality);
                 setUpd(s, sample.Timestamp);

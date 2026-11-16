@@ -20,6 +20,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Nobisoft.Core.Authorization;
 using Nobisoft.Core.Authorization.Attributes;
 using Nobisoft.Core.Constants;
@@ -39,24 +40,27 @@ public class IoTController : ControllerBase
     private readonly IMediator _mediator;
     private readonly IHttpContextAccessorService _httpContextAccessorService;
     private readonly ILoggerService _loggerService;
-    private readonly IGcsCutOffCycleReadOnlyRepository _gcsCutOffCycleReadOnlyRepository;
-    private readonly ISystemConfigReadOnlyRepository _systemConfigReadOnlyRepository;
-    private readonly ISystemConfigReadWriteRepository _systemConfigReadWriteRepository;
-    private readonly IMeasurementPointsReadWriteRepository _measurementPointsReadWriteRepository;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ITagRoutingCacheService _tagRoutingCacheService;
     private readonly IMeterTelemetryIngestionService _meterTelemetryIngestionService;
     private readonly ISnowflakeIdService _snowflakeIdService;
     private readonly IConfiguration _configuration;
     private readonly IHubContext<ListNotificationHub> _listHubContext;
 
+    private IGcsCutOffCycleReadOnlyRepository _gcsCutOffCycleReadOnlyRepository
+        => _serviceProvider.GetRequiredService<IGcsCutOffCycleReadOnlyRepository>();
+    private ISystemConfigReadOnlyRepository _systemConfigReadOnlyRepository
+        => _serviceProvider.GetRequiredService<ISystemConfigReadOnlyRepository>();
+    private ISystemConfigReadWriteRepository _systemConfigReadWriteRepository
+        => _serviceProvider.GetRequiredService<ISystemConfigReadWriteRepository>();
+    private IMeasurementPointsReadWriteRepository _measurementPointsReadWriteRepository
+        => _serviceProvider.GetRequiredService<IMeasurementPointsReadWriteRepository>();
+
     public IoTController(
         IMediator mediator,
         IHttpContextAccessorService httpContextAccessorService,
         ILoggerService loggerService,
-        IGcsCutOffCycleReadOnlyRepository gcsCutOffCycleReadOnlyRepository,
-        ISystemConfigReadOnlyRepository systemConfigReadOnlyRepository,
-        ISystemConfigReadWriteRepository systemConfigReadWriteRepository,
-        IMeasurementPointsReadWriteRepository measurementPointsReadWriteRepository,
+        IServiceProvider serviceProvider,
         ITagRoutingCacheService tagRoutingCacheService,
         IMeterTelemetryIngestionService meterTelemetryIngestionService,
         ISnowflakeIdService snowflakeIdService,
@@ -66,10 +70,7 @@ public class IoTController : ControllerBase
         _mediator = mediator;
         _httpContextAccessorService = httpContextAccessorService;
         _loggerService = loggerService;
-        _gcsCutOffCycleReadOnlyRepository = gcsCutOffCycleReadOnlyRepository;
-        _systemConfigReadOnlyRepository = systemConfigReadOnlyRepository;
-        _systemConfigReadWriteRepository = systemConfigReadWriteRepository;
-        _measurementPointsReadWriteRepository = measurementPointsReadWriteRepository;
+        _serviceProvider = serviceProvider;
         _tagRoutingCacheService = tagRoutingCacheService;
         _meterTelemetryIngestionService = meterTelemetryIngestionService;
         _snowflakeIdService = snowflakeIdService;

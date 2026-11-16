@@ -10,6 +10,7 @@ using Infrastructure.Helpers;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
+using Nobisoft.Core.Constants;
 using Nobisoft.Core.Database.DbContext;
 using Nobisoft.Core.Interfaces;
 using Nobisoft.Core.Logger.Interfaces;
@@ -18,14 +19,17 @@ namespace Infrastructure.Services;
 
 public sealed class BufferedTelemetryIngestionService : BackgroundService, IBufferedTelemetryIngestionService
 {
-    private const int ChannelCapacity = 20_000;
+    private const int ChannelCapacity = 50_000;
+    private const int StatusChannelCapacity = 10_000;
     private const int MaxBatchSize = 500;
+    private const int MaxStatusBatchesPerCycle = 500;
     private const int SnapshotSqlChunkSize = 25;
     private const int TimeSeriesSqlChunkSize = 50;
     private static readonly TimeSpan FlushInterval = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan SignalRDebounceInterval = TimeSpan.FromSeconds(2);
 
     private readonly Channel<TelemetryIngestionItem> _channel;
+    private readonly Channel<IReadOnlyList<TelemetryStatusTransitionItem>> _statusChannel;
     private readonly IDbContextFactory<AppReadWriteDbContext> _rwContextFactory;
     private readonly IDbContextFactory<AppReadOnlyDbContext> _roContextFactory;
     private readonly ISnowflakeIdService _snowflakeIdService;
@@ -33,6 +37,7 @@ public sealed class BufferedTelemetryIngestionService : BackgroundService, IBuff
     private readonly IHubContext<ListNotificationHub> _listHubContext;
     private readonly IHubContext<DetailNotificationHub> _detailHubContext;
     private readonly IHubContext<DetailNotificationDateTimeHub> _detailDateTimeHubContext;
+    private readonly IHubContext<NotificationEventHub>? _notificationEventHub;
     private readonly ILoggerService _loggerService;
     private readonly SemaphoreSlim _flushGate = new(1, 1);
 
@@ -48,7 +53,8 @@ public sealed class BufferedTelemetryIngestionService : BackgroundService, IBuff
         IHubContext<ListNotificationHub> listHubContext,
         IHubContext<DetailNotificationHub> detailHubContext,
         IHubContext<DetailNotificationDateTimeHub> detailDateTimeHubContext,
-        ILoggerService loggerService)
+        ILoggerService loggerService,
+        IHubContext<NotificationEventHub>? notificationEventHub = null)
     {
         _rwContextFactory = rwContextFactory;
         _roContextFactory = roContextFactory;
@@ -57,11 +63,19 @@ public sealed class BufferedTelemetryIngestionService : BackgroundService, IBuff
         _listHubContext = listHubContext;
         _detailHubContext = detailHubContext;
         _detailDateTimeHubContext = detailDateTimeHubContext;
+        _notificationEventHub = notificationEventHub;
         _loggerService = loggerService;
 
         _channel = Channel.CreateBounded<TelemetryIngestionItem>(new BoundedChannelOptions(ChannelCapacity)
         {
-            FullMode = BoundedChannelFullMode.Wait,
+            FullMode = BoundedChannelFullMode.DropOldest,
+            SingleReader = true,
+            SingleWriter = false
+        });
+
+        _statusChannel = Channel.CreateBounded<IReadOnlyList<TelemetryStatusTransitionItem>>(new BoundedChannelOptions(StatusChannelCapacity)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest,
             SingleReader = true,
             SingleWriter = false
         });
@@ -69,7 +83,18 @@ public sealed class BufferedTelemetryIngestionService : BackgroundService, IBuff
 
     public ValueTask EnqueueAsync(TelemetryIngestionItem item, CancellationToken cancellationToken = default)
     {
-        return _channel.Writer.WriteAsync(item, cancellationToken);
+        _channel.Writer.TryWrite(item);
+        return ValueTask.CompletedTask;
+    }
+
+    public bool TryEnqueueStatusTransitions(IReadOnlyList<TelemetryStatusTransitionItem> items)
+    {
+        if (items == null || items.Count == 0)
+        {
+            return true;
+        }
+
+        return _statusChannel.Writer.TryWrite(items);
     }
 
     public async Task FlushPendingAsync(CancellationToken cancellationToken = default)
@@ -80,12 +105,23 @@ public sealed class BufferedTelemetryIngestionService : BackgroundService, IBuff
             drained.Add(item);
         }
 
+        var drainedStatus = new List<TelemetryStatusTransitionItem>();
+        while (_statusChannel.Reader.TryRead(out var statusBatch))
+        {
+            drainedStatus.AddRange(statusBatch);
+        }
+
         await _flushGate.WaitAsync(cancellationToken);
         try
         {
             if (drained.Count > 0)
             {
                 await PersistBatchAsync(drained, cancellationToken);
+            }
+
+            if (drainedStatus.Count > 0)
+            {
+                await PersistStatusTransitionsBatchAsync(drainedStatus, cancellationToken);
             }
 
             await TryBroadcastDebouncedAsync(force: true, cancellationToken);
@@ -99,41 +135,77 @@ public sealed class BufferedTelemetryIngestionService : BackgroundService, IBuff
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var buffer = new List<TelemetryIngestionItem>(MaxBatchSize);
+        var statusBuffer = new List<TelemetryStatusTransitionItem>();
+
+        // Pre-warm global active alarm state cache once at startup so 100+ Kepware clients don't trigger per-point DB checks
+        try
+        {
+            await EnsureGlobalAlarmCachePrewarmedAsync(stoppingToken);
+        }
+        catch (Exception ex)
+        {
+            _loggerService.LogWarning(ex, nameof(EnsureGlobalAlarmCachePrewarmedAsync));
+        }
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 buffer.Clear();
+                statusBuffer.Clear();
 
                 using var waitCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                 waitCts.CancelAfter(FlushInterval);
 
                 try
                 {
-                    if (await _channel.Reader.WaitToReadAsync(waitCts.Token))
+                    var dataWaitTask = _channel.Reader.WaitToReadAsync(waitCts.Token).AsTask();
+                    var statusWaitTask = _statusChannel.Reader.WaitToReadAsync(waitCts.Token).AsTask();
+                    await Task.WhenAny(dataWaitTask, statusWaitTask);
+
+                    while (buffer.Count < MaxBatchSize && _channel.Reader.TryRead(out var item))
                     {
-                        while (buffer.Count < MaxBatchSize && _channel.Reader.TryRead(out var item))
-                        {
-                            buffer.Add(item);
-                        }
+                        buffer.Add(item);
+                    }
 
-                        if (buffer.Count < MaxBatchSize)
+                    var statusBatchesCount = 0;
+                    while (statusBatchesCount < MaxStatusBatchesPerCycle && _statusChannel.Reader.TryRead(out var sBatch))
+                    {
+                        statusBuffer.AddRange(sBatch);
+                        statusBatchesCount++;
+                    }
+
+                    if (buffer.Count < MaxBatchSize && statusBatchesCount < MaxStatusBatchesPerCycle)
+                    {
+                        var deadline = DateTimeOffset.UtcNow + FlushInterval;
+                        while (buffer.Count < MaxBatchSize &&
+                               statusBatchesCount < MaxStatusBatchesPerCycle &&
+                               DateTimeOffset.UtcNow < deadline)
                         {
-                            var deadline = DateTimeOffset.UtcNow + FlushInterval;
-                            while (buffer.Count < MaxBatchSize && DateTimeOffset.UtcNow < deadline)
+                            using var microCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                            var remaining = deadline - DateTimeOffset.UtcNow;
+                            if (remaining <= TimeSpan.Zero) break;
+                            microCts.CancelAfter(remaining);
+
+                            var nextDataTask = _channel.Reader.WaitToReadAsync(microCts.Token).AsTask();
+                            var nextStatusTask = _statusChannel.Reader.WaitToReadAsync(microCts.Token).AsTask();
+                            await Task.WhenAny(nextDataTask, nextStatusTask);
+
+                            var readAny = false;
+                            while (buffer.Count < MaxBatchSize && _channel.Reader.TryRead(out var nextItem))
                             {
-                                using var microCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-                                var remaining = deadline - DateTimeOffset.UtcNow;
-                                if (remaining <= TimeSpan.Zero) break;
-                                microCts.CancelAfter(remaining);
-
-                                if (!await _channel.Reader.WaitToReadAsync(microCts.Token)) break;
-                                while (buffer.Count < MaxBatchSize && _channel.Reader.TryRead(out var nextItem))
-                                {
-                                    buffer.Add(nextItem);
-                                }
+                                buffer.Add(nextItem);
+                                readAny = true;
                             }
+
+                            while (statusBatchesCount < MaxStatusBatchesPerCycle && _statusChannel.Reader.TryRead(out var nextSBatch))
+                            {
+                                statusBuffer.AddRange(nextSBatch);
+                                statusBatchesCount++;
+                                readAny = true;
+                            }
+
+                            if (!readAny) break;
                         }
                     }
                 }
@@ -144,14 +216,31 @@ public sealed class BufferedTelemetryIngestionService : BackgroundService, IBuff
                     {
                         buffer.Add(extra);
                     }
+
+                    var extraStatusCount = 0;
+                    while (extraStatusCount < MaxStatusBatchesPerCycle && _statusChannel.Reader.TryRead(out var extraStatus))
+                    {
+                        statusBuffer.AddRange(extraStatus);
+                        extraStatusCount++;
+                    }
                 }
 
                 await _flushGate.WaitAsync(stoppingToken);
                 try
                 {
+                    if (!MeterTelemetryIngestionService.IsGlobalAlarmCachePrewarmed)
+                    {
+                        await EnsureGlobalAlarmCachePrewarmedAsync(stoppingToken);
+                    }
+
                     if (buffer.Count > 0)
                     {
                         await PersistBatchAsync(buffer, stoppingToken);
+                    }
+
+                    if (statusBuffer.Count > 0)
+                    {
+                        await PersistStatusTransitionsBatchAsync(statusBuffer, stoppingToken);
                     }
 
                     await TryBroadcastDebouncedAsync(force: false, stoppingToken);
@@ -582,6 +671,276 @@ public sealed class BufferedTelemetryIngestionService : BackgroundService, IBuff
             catch (Exception ex)
             {
                 _loggerService.LogError(ex, nameof(TryBroadcastDebouncedAsync));
+            }
+        }
+    }
+
+    private async Task EnsureGlobalAlarmCachePrewarmedAsync(CancellationToken cancellationToken)
+    {
+        if (MeterTelemetryIngestionService.IsGlobalAlarmCachePrewarmed)
+        {
+            return;
+        }
+
+        var pointMap = await _tagRoutingCacheService.GetPointMapAsync(cancellationToken);
+        await using var roContext = await _roContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var activeAlerts = await roContext.Set<MeasurementPointsAlertEntity>()
+            .AsNoTracking()
+            .Where(a => !string.IsNullOrWhiteSpace(a.ParameterCode))
+            .Select(a => new { a.MeasurementPointId, a.ParameterCode })
+            .ToListAsync(cancellationToken);
+
+        var activeTagWarnings = await roContext.Set<TagNameEntity>()
+            .AsNoTracking()
+            .Where(t => !t.Deleted && t.WarningValue == true && !string.IsNullOrWhiteSpace(t.Description))
+            .Select(t => new { t.MeasurementPointId, t.Description })
+            .ToListAsync(cancellationToken);
+
+        var activeChannels = new List<(long PointId, string ParamCode)>(activeAlerts.Count + activeTagWarnings.Count);
+        foreach (var a in activeAlerts)
+        {
+            activeChannels.Add((a.MeasurementPointId, a.ParameterCode!));
+        }
+
+        foreach (var t in activeTagWarnings)
+        {
+            activeChannels.Add((t.MeasurementPointId, t.Description!));
+        }
+
+        MeterTelemetryIngestionService.SetGlobalAlarmCachePrewarmed(
+            activeChannels,
+            pointMap.Keys,
+            DateTimeOffset.UtcNow);
+    }
+
+    private async Task PersistStatusTransitionsBatchAsync(
+        List<TelemetryStatusTransitionItem> statusEntries,
+        CancellationToken cancellationToken)
+    {
+        var orderedEntries = statusEntries.Count > 1
+            ? statusEntries.OrderBy(e => e.TimestampMs).ToList()
+            : statusEntries;
+
+        var nowUtc = DateTimeOffset.UtcNow;
+        var pointIds = orderedEntries.Select(e => e.Tag.MeasurementPointId).Distinct().ToList();
+        if (pointIds.Count == 0)
+        {
+            return;
+        }
+
+        await using var rwContext = await _rwContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var tagEntities = await rwContext.Set<TagNameEntity>()
+            .Where(t => !t.Deleted && pointIds.Contains(t.MeasurementPointId))
+            .ToListAsync(cancellationToken);
+
+        var tagEntityById = tagEntities.ToDictionary(t => t.Id, t => t);
+        var tagEntityByPointAndDesc = new Dictionary<(long PointId, string Desc), TagNameEntity>();
+        foreach (var te in tagEntities)
+        {
+            if (!string.IsNullOrWhiteSpace(te.Description))
+            {
+                tagEntityByPointAndDesc[(te.MeasurementPointId, te.Description.ToUpperInvariant())] = te;
+            }
+        }
+
+        var alerts = await rwContext.Set<MeasurementPointsAlertEntity>()
+            .Where(a => pointIds.Contains(a.MeasurementPointId))
+            .ToListAsync(cancellationToken);
+
+        var activeStateByChannel = new Dictionary<(long PointId, string ParamCode), bool>();
+
+        MeterTelemetryIngestionService.MarkPointsLoadedAndResetChannels(pointIds, orderedEntries, nowUtc);
+
+        foreach (var alert in alerts.Where(a => !string.IsNullOrWhiteSpace(a.ParameterCode)))
+        {
+            var key = (alert.MeasurementPointId, alert.ParameterCode!.ToUpperInvariant());
+            activeStateByChannel[key] = true;
+            MeterTelemetryIngestionService.SetChannelAlarmState(key, true);
+        }
+
+        foreach (var te in tagEntities.Where(t => t.WarningValue == true && !string.IsNullOrWhiteSpace(t.Description)))
+        {
+            var key = (te.MeasurementPointId, te.Description!.ToUpperInvariant());
+            activeStateByChannel[key] = true;
+            MeterTelemetryIngestionService.SetChannelAlarmState(key, true);
+        }
+
+        var pendingNewAlerts = new Dictionary<(long PointId, string ParamCode), MeasurementPointsAlertEntity>();
+        var eventsToAdd = new List<MeasurementPointsEventEntity>();
+        var alertsToRemove = new HashSet<MeasurementPointsAlertEntity>();
+        var hasDirtyTag = false;
+        var hasUpdatedExistingAlert = false;
+
+        foreach (var item in orderedEntries)
+        {
+            var channelKey = (item.Tag.MeasurementPointId, item.Tag.Description.ToUpperInvariant());
+            if (!tagEntityById.TryGetValue(item.Tag.TagNameId, out var tagEntity))
+            {
+                tagEntityByPointAndDesc.TryGetValue(channelKey, out tagEntity);
+            }
+
+            var previousState = tagEntity != null
+                ? tagEntity.WarningValue == true
+                : activeStateByChannel.GetValueOrDefault(channelKey, false);
+
+            var eventDisplayName = string.Equals(item.Tag.Description, ListDataMeasurementPoint.MatKetNoi, StringComparison.OrdinalIgnoreCase)
+                ? "Trạng thái kết nối"
+                : !string.IsNullOrWhiteSpace(item.Tag.CustomName) ? item.Tag.CustomName : item.Tag.Description;
+
+            if (!item.ParsedBool)
+            {
+                if (item.ParsedBool != previousState)
+                {
+                    eventsToAdd.Add(new MeasurementPointsEventEntity
+                    {
+                        Id = await _snowflakeIdService.GenerateId(cancellationToken),
+                        MeasurementPointId = item.Tag.MeasurementPointId,
+                        TagNameId = tagEntity?.Id,
+                        ParameterCode = item.Tag.Description,
+                        EventName = eventDisplayName,
+                        Value = "0",
+                        Quanlity = item.Quality,
+                        Status = "NORMAL",
+                        CreatedTime = item.RecordTime
+                    });
+                }
+
+                activeStateByChannel[channelKey] = false;
+                MeterTelemetryIngestionService.SetChannelAlarmState(channelKey, false);
+
+                if (tagEntity != null && tagEntity.WarningValue == true)
+                {
+                    tagEntity.WarningValue = false;
+                    hasDirtyTag = true;
+                }
+
+                var matchingAlerts = alerts
+                    .Where(a =>
+                        (tagEntity != null && a.TagNameId == tagEntity.Id) ||
+                        (a.MeasurementPointId == item.Tag.MeasurementPointId &&
+                         string.Equals(a.ParameterCode, item.Tag.Description, StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
+
+                foreach (var alert in matchingAlerts)
+                {
+                    if (pendingNewAlerts.TryGetValue(channelKey, out var pendingAlert) && ReferenceEquals(pendingAlert, alert))
+                    {
+                        pendingNewAlerts.Remove(channelKey);
+                    }
+                    else
+                    {
+                        alertsToRemove.Add(alert);
+                    }
+
+                    alerts.Remove(alert);
+                }
+            }
+            else if (item.ParsedBool != previousState)
+            {
+                eventsToAdd.Add(new MeasurementPointsEventEntity
+                {
+                    Id = await _snowflakeIdService.GenerateId(cancellationToken),
+                    MeasurementPointId = item.Tag.MeasurementPointId,
+                    TagNameId = tagEntity?.Id,
+                    ParameterCode = item.Tag.Description,
+                    EventName = eventDisplayName,
+                    Value = "1",
+                    Quanlity = item.Quality,
+                    Status = "ALARM",
+                    CreatedTime = item.RecordTime
+                });
+
+                activeStateByChannel[channelKey] = true;
+                MeterTelemetryIngestionService.SetChannelAlarmState(channelKey, true);
+
+                var existingAlert = alerts.FirstOrDefault(a =>
+                    (tagEntity != null && a.TagNameId == tagEntity.Id) ||
+                    (a.MeasurementPointId == item.Tag.MeasurementPointId &&
+                     string.Equals(a.ParameterCode, item.Tag.Description, StringComparison.OrdinalIgnoreCase)));
+
+                if (existingAlert != null)
+                {
+                    existingAlert.Value = "1";
+                    existingAlert.Quanlity = item.Quality;
+                    existingAlert.Status = "ALARM";
+                    existingAlert.ParameterCode ??= item.Tag.Description;
+                    existingAlert.CreatedTime = item.RecordTime;
+                    alertsToRemove.Remove(existingAlert);
+                    hasUpdatedExistingAlert = true;
+                }
+                else
+                {
+                    var alertEntity = new MeasurementPointsAlertEntity
+                    {
+                        Id = await _snowflakeIdService.GenerateId(cancellationToken),
+                        MeasurementPointId = item.Tag.MeasurementPointId,
+                        TagNameId = tagEntity?.Id,
+                        ParameterCode = item.Tag.Description,
+                        EventName = eventDisplayName ?? item.Tag.Description,
+                        Value = "1",
+                        Quanlity = item.Quality,
+                        Status = "ALARM",
+                        CreatedTime = item.RecordTime
+                    };
+                    pendingNewAlerts[channelKey] = alertEntity;
+                    alerts.Add(alertEntity);
+                }
+
+                if (tagEntity != null && tagEntity.WarningValue != true)
+                {
+                    tagEntity.WarningValue = true;
+                    hasDirtyTag = true;
+                }
+            }
+        }
+
+        var hasEvent = eventsToAdd.Count > 0;
+        var hasAddedAlert = pendingNewAlerts.Count > 0;
+        var hasRemovedAlert = alertsToRemove.Count > 0;
+
+        if (!hasEvent && !hasAddedAlert && !hasRemovedAlert && !hasDirtyTag && !hasUpdatedExistingAlert)
+        {
+            return;
+        }
+
+        if (hasEvent)
+        {
+            await rwContext.Set<MeasurementPointsEventEntity>().AddRangeAsync(eventsToAdd, cancellationToken);
+        }
+
+        if (hasAddedAlert)
+        {
+            await rwContext.Set<MeasurementPointsAlertEntity>().AddRangeAsync(pendingNewAlerts.Values, cancellationToken);
+        }
+
+        if (hasRemovedAlert)
+        {
+            rwContext.Set<MeasurementPointsAlertEntity>().RemoveRange(alertsToRemove);
+        }
+
+        await rwContext.SaveChangesAsync(cancellationToken);
+
+        if (_notificationEventHub != null && (hasEvent || hasAddedAlert || hasRemovedAlert))
+        {
+            try
+            {
+                if (hasEvent)
+                    await _notificationEventHub.Clients.All.SendAsync("ReceiveEvent", "New Event", cancellationToken);
+                if (hasAddedAlert)
+                    await _notificationEventHub.Clients.All.SendAsync("ReceiveAlert", "New Alert", cancellationToken);
+                if (hasRemovedAlert)
+                    await _notificationEventHub.Clients.All.SendAsync("ReceiveAlert", "Clear Alert", cancellationToken);
+
+                var alertCount = await rwContext.Set<MeasurementPointsAlertEntity>()
+                    .AsNoTracking()
+                    .LongCountAsync(cancellationToken);
+                await _notificationEventHub.Clients.All.SendAsync("CountAlert", alertCount, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _loggerService.LogWarning(ex, nameof(PersistStatusTransitionsBatchAsync));
             }
         }
     }

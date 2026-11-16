@@ -24,18 +24,71 @@ public sealed class MeterTelemetryIngestionService : IMeterTelemetryIngestionSer
     private readonly ITagRoutingCacheService _tagRoutingCacheService;
     private readonly IBufferedTelemetryIngestionService _bufferedIngestionService;
     private readonly ILoggerService _loggerService;
-    private readonly IMeasurementPointEventReadWriteRepository _measurementPointEventReadWriteRepository;
-    private readonly IMeasurementPointAlertReadWriteRepository _measurementPointAlertReadWriteRepository;
-    private readonly ITagNameReadWriteRepository _tagNameReadWriteRepository;
-    private readonly IMeasurementPointAlertReadOnlyRepository _measurementPointAlertReadOnlyRepository;
-    private readonly IHubContext<NotificationEventHub> _notificationEventHub;
-    private readonly ISnowflakeIdService _snowflakeIdService;
+    private readonly IMeasurementPointEventReadWriteRepository? _measurementPointEventReadWriteRepository;
+    private readonly IMeasurementPointAlertReadWriteRepository? _measurementPointAlertReadWriteRepository;
+    private readonly ITagNameReadWriteRepository? _tagNameReadWriteRepository;
+    private readonly IMeasurementPointAlertReadOnlyRepository? _measurementPointAlertReadOnlyRepository;
+    private readonly IHubContext<NotificationEventHub>? _notificationEventHub;
+    private readonly ISnowflakeIdService? _snowflakeIdService;
 
     // In-memory state cache to avoid querying MySQL on every periodic packet when status tags are unchanged
     private static readonly ConcurrentDictionary<(long PointId, string ParamCode), bool> _activeAlarmStateCache = new();
     private static readonly ConcurrentDictionary<long, DateTimeOffset> _pointStateLoadedAt = new();
     private static readonly ConcurrentDictionary<long, DateTimeOffset> _statusSnapshotFlushedAt = new();
     private static readonly SemaphoreSlim _statusDbConcurrencyGate = new(4, 4);
+    private static volatile bool _isGlobalAlarmCachePrewarmed = false;
+
+    internal static bool IsGlobalAlarmCachePrewarmed => _isGlobalAlarmCachePrewarmed;
+
+    internal static void SetGlobalAlarmCachePrewarmed(
+        IEnumerable<(long PointId, string ParamCode)> activeChannels,
+        IEnumerable<long> allPointIds,
+        DateTimeOffset nowUtc)
+    {
+        foreach (var pid in allPointIds)
+        {
+            _pointStateLoadedAt[pid] = nowUtc;
+        }
+
+        foreach (var channel in activeChannels)
+        {
+            _activeAlarmStateCache[(channel.PointId, channel.ParamCode.ToUpperInvariant())] = true;
+            _pointStateLoadedAt[channel.PointId] = nowUtc;
+        }
+
+        _isGlobalAlarmCachePrewarmed = true;
+    }
+
+    internal static void MarkPointsLoadedAndResetChannels(
+        IEnumerable<long> pointIds,
+        IEnumerable<TelemetryStatusTransitionItem> entries,
+        DateTimeOffset nowUtc)
+    {
+        foreach (var pid in pointIds)
+        {
+            _pointStateLoadedAt[pid] = nowUtc;
+        }
+
+        foreach (var item in entries)
+        {
+            _activeAlarmStateCache[(item.Tag.MeasurementPointId, item.Tag.Description.ToUpperInvariant())] = false;
+        }
+    }
+
+    internal static void SetChannelAlarmState((long PointId, string ParamCode) channelKey, bool isAlarm)
+    {
+        _activeAlarmStateCache[channelKey] = isAlarm;
+    }
+
+    public MeterTelemetryIngestionService(
+        ITagRoutingCacheService tagRoutingCacheService,
+        IBufferedTelemetryIngestionService bufferedIngestionService,
+        ILoggerService loggerService)
+    {
+        _tagRoutingCacheService = tagRoutingCacheService;
+        _bufferedIngestionService = bufferedIngestionService;
+        _loggerService = loggerService;
+    }
 
     public MeterTelemetryIngestionService(
         ITagRoutingCacheService tagRoutingCacheService,
@@ -100,7 +153,7 @@ public sealed class MeterTelemetryIngestionService : IMeterTelemetryIngestionSer
 
         var monitoringBuckets = new Dictionary<long, (string Code, DateTimeOffset LatestTs, List<TelemetryTagSample> Samples)>();
         var dateTimeBuckets = new Dictionary<long, (DateTimeOffset LatestTs, MeasurementPointMonitoringByDateTimeDto Notification, List<TelemetryTagSample> Samples)>();
-        var statusEntries = new List<MatchedStatusEntry>();
+        var statusEntries = new List<TelemetryStatusTransitionItem>();
 
         foreach (var iotVal in request.Values)
         {
@@ -156,7 +209,7 @@ public sealed class MeterTelemetryIngestionService : IMeterTelemetryIngestionSer
             if (isStatusCategory)
             {
                 var parsedBool = IoTPacketParserHelper.TryGetBoolean((object?)iotVal.V);
-                statusEntries.Add(new MatchedStatusEntry(resolvedTag, iotVal.T, recordTime, rawValue, quality, parsedBool));
+                statusEntries.Add(new TelemetryStatusTransitionItem(resolvedTag, iotVal.T, recordTime, rawValue, quality, parsedBool));
                 continue;
             }
 
@@ -248,16 +301,8 @@ public sealed class MeterTelemetryIngestionService : IMeterTelemetryIngestionSer
         return RequestResult<MeasurementPointMonitoringResponse>.Succeed(new MeasurementPointMonitoringResponse());
     }
 
-    private sealed record MatchedStatusEntry(
-        TagRoutingEntry Tag,
-        long TimestampMs,
-        DateTimeOffset RecordTime,
-        string ConvertedVal,
-        bool Quality,
-        bool ParsedBool);
-
     private async Task ProcessStatusEntriesAsync(
-        List<MatchedStatusEntry> matchedEntries,
+        List<TelemetryStatusTransitionItem> matchedEntries,
         CancellationToken cancellationToken)
     {
         var orderedEntries = matchedEntries.Count > 1
@@ -322,25 +367,40 @@ public sealed class MeterTelemetryIngestionService : IMeterTelemetryIngestionSer
             return;
         }
 
+        // Primary Path (Production): Enqueue status transitions into non-blocking background channel and return immediately
+        if (_bufferedIngestionService.TryEnqueueStatusTransitions(orderedEntries))
+        {
+            return;
+        }
+
+        // Fallback Path (Unit Tests with mocked repositories)
+        if (_tagNameReadWriteRepository == null ||
+            _measurementPointAlertReadWriteRepository == null ||
+            _measurementPointEventReadWriteRepository == null ||
+            _snowflakeIdService == null)
+        {
+            return;
+        }
+
         await _statusDbConcurrencyGate.WaitAsync(cancellationToken);
         try
         {
             var pointIds = orderedEntries.Select(e => e.Tag.MeasurementPointId).Distinct().ToList();
             var tagEntities = await _tagNameReadWriteRepository.GetTagNamesForMeasurementPointsAsync(pointIds, cancellationToken);
             var tagEntityById = tagEntities.ToDictionary(t => t.Id, t => t);
+            var tagEntityByPointAndDesc = new Dictionary<(long PointId, string Desc), TagNameEntity>();
+            foreach (var te in tagEntities)
+            {
+                if (!string.IsNullOrWhiteSpace(te.Description))
+                {
+                    tagEntityByPointAndDesc[(te.MeasurementPointId, te.Description.ToUpperInvariant())] = te;
+                }
+            }
 
             var alerts = await _measurementPointAlertReadWriteRepository.GetAlertsForMeasurementPointsAsync(pointIds, cancellationToken);
             var activeStateByChannel = new Dictionary<(long PointId, string ParamCode), bool>();
 
-            foreach (var pid in pointIds)
-            {
-                _pointStateLoadedAt[pid] = nowUtc;
-            }
-
-            foreach (var item in orderedEntries)
-            {
-                _activeAlarmStateCache[(item.Tag.MeasurementPointId, item.Tag.Description.ToUpperInvariant())] = false;
-            }
+            MarkPointsLoadedAndResetChannels(pointIds, orderedEntries, nowUtc);
 
             // Track current state per channel before evaluating packet events
             foreach (var alert in alerts.Where(a => !string.IsNullOrWhiteSpace(a.ParameterCode)))
@@ -366,7 +426,10 @@ public sealed class MeterTelemetryIngestionService : IMeterTelemetryIngestionSer
             foreach (var item in orderedEntries)
             {
                 var channelKey = (item.Tag.MeasurementPointId, item.Tag.Description.ToUpperInvariant());
-                tagEntityById.TryGetValue(item.Tag.TagNameId, out var tagEntity);
+                if (!tagEntityById.TryGetValue(item.Tag.TagNameId, out var tagEntity))
+                {
+                    tagEntityByPointAndDesc.TryGetValue(channelKey, out tagEntity);
+                }
 
                 var previousState = tagEntity != null
                     ? tagEntity.WarningValue == true
@@ -532,7 +595,7 @@ public sealed class MeterTelemetryIngestionService : IMeterTelemetryIngestionSer
 
     private static void UpdateStatusBatch(
         Dictionary<long, (string Code, DateTimeOffset LatestTs, Dictionary<string, TelemetryTagSample> LatestSamples)> statusBatches,
-        MatchedStatusEntry item)
+        TelemetryStatusTransitionItem item)
     {
         if (!statusBatches.TryGetValue(item.Tag.MeasurementPointId, out var statusBatch))
         {
@@ -557,7 +620,7 @@ public sealed class MeterTelemetryIngestionService : IMeterTelemetryIngestionSer
     }
 
     private async Task AddEventAsync(
-        MatchedStatusEntry item,
+        TelemetryStatusTransitionItem item,
         long? tagEntityId,
         string? eventDisplayName,
         string status,
@@ -566,7 +629,7 @@ public sealed class MeterTelemetryIngestionService : IMeterTelemetryIngestionSer
         var isAlarm = string.Equals(status, "ALARM", StringComparison.OrdinalIgnoreCase);
         var eventEntity = new MeasurementPointsEventEntity
         {
-            Id = await _snowflakeIdService.GenerateId(cancellationToken),
+            Id = await _snowflakeIdService!.GenerateId(cancellationToken),
             MeasurementPointId = item.Tag.MeasurementPointId,
             TagNameId = tagEntityId,
             ParameterCode = item.Tag.Description,
@@ -576,7 +639,7 @@ public sealed class MeterTelemetryIngestionService : IMeterTelemetryIngestionSer
             Status = isAlarm ? "ALARM" : "NORMAL",
             CreatedTime = item.RecordTime
         };
-        await _measurementPointEventReadWriteRepository.AddAsync(eventEntity, cancellationToken);
+        await _measurementPointEventReadWriteRepository!.AddAsync(eventEntity, cancellationToken);
     }
 
     private static MeasurementPointsAlertEntity? FindMatchingAlert(
@@ -614,7 +677,7 @@ public sealed class MeterTelemetryIngestionService : IMeterTelemetryIngestionSer
             }
             else
             {
-                await _measurementPointAlertReadWriteRepository.RemoveAsync(alert, cancellationToken);
+                await _measurementPointAlertReadWriteRepository!.RemoveAsync(alert, cancellationToken);
                 removedAny = true;
             }
 
@@ -630,6 +693,11 @@ public sealed class MeterTelemetryIngestionService : IMeterTelemetryIngestionSer
         bool hasRemovedAlert,
         CancellationToken cancellationToken)
     {
+        if (_notificationEventHub == null || _measurementPointAlertReadOnlyRepository == null)
+        {
+            return;
+        }
+
         try
         {
             if (hasEvent)

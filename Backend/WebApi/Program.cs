@@ -61,7 +61,11 @@ builder.Services.AddSingleton<Application.Services.IBufferedTelemetryIngestionSe
 builder.Services.AddHostedService(sp =>
     sp.GetRequiredService<Infrastructure.Services.BufferedTelemetryIngestionService>());
 builder.Services.AddScoped<Application.Services.IPartitionManagementService, Infrastructure.Services.PartitionManagementService>();
-builder.Services.AddScoped<Application.Services.IMeterTelemetryIngestionService, Infrastructure.Services.MeterTelemetryIngestionService>();
+builder.Services.AddScoped<Application.Services.IMeterTelemetryIngestionService>(sp =>
+    new Infrastructure.Services.MeterTelemetryIngestionService(
+        sp.GetRequiredService<Application.Services.ITagRoutingCacheService>(),
+        sp.GetRequiredService<Application.Services.IBufferedTelemetryIngestionService>(),
+        sp.GetRequiredService<Nobisoft.Core.Logger.Interfaces.ILoggerService>()));
 builder.Services.AddScoped<Application.Services.IEmailProviderFactory, Infrastructure.Services.EmailProviders.EmailProviderFactory>();
 builder.Services.AddScoped<Application.Services.INotificationTemplateService, Infrastructure.Services.Templates.NotificationTemplateService>();
 builder.Services.AddScoped<Application.Services.IStatementPdfGenerator, Infrastructure.Services.Templates.StatementPdfGenerator>();

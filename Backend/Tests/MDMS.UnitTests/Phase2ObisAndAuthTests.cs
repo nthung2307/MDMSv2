@@ -205,5 +205,123 @@ public class Phase2ObisAndAuthTests
         Assert.IsNull(resolver.ResolveTagForPoint(manualPoint, "1_8_0"));
         Assert.IsNull(resolver.ResolveTagForPoint(manualPoint, "_AdvancedTags.M010.Energy.PTRU"));
     }
+
+    [TestMethod]
+    public void MeterTelemetryIngestionService_EnqueuesStatusTransitionsNonBlockingWithoutScopedRepositories()
+    {
+        var pointId = 777001L;
+        var serial = "SN_ASYNC_777001";
+        var pointInfo = new PointRoutingInfo
+        {
+            MeasurementPointId = pointId,
+            Code = "MP_ASYNC_01",
+            Status = EntityStatus.Active,
+            MeterSerial = serial,
+            MappingMode = Constants.MappingMode.Hybrid
+        };
+        var entry = new TagRoutingEntry
+        {
+            TagNameId = 0,
+            MeasurementPointId = pointId,
+            MeasurementPointCode = "MP_ASYNC_01",
+            TagName = "97_97_1",
+            ObisCode = "97_97_1",
+            Description = ListDataMeasurementPoint.CanhBao01,
+            Type = "WARNING"
+        };
+        pointInfo.ProfileObisMap["97_97_1"] = entry;
+        pointInfo.ProfileAliasMap["Status.Efa01"] = entry;
+        pointInfo.TagsByDescription[ListDataMeasurementPoint.CanhBao01] = entry;
+
+        var pointMap = new Dictionary<long, PointRoutingInfo> { [pointId] = pointInfo };
+        var enqueuedSnapshots = new List<TelemetryIngestionItem>();
+        var enqueuedStatusBatches = new List<IReadOnlyList<TelemetryStatusTransitionItem>>();
+
+        var tagRoutingCache = new StubTagRoutingCache(pointInfo, pointMap);
+        var bufferedService = new StubBufferedTelemetryService(enqueuedSnapshots, enqueuedStatusBatches);
+
+        // Use lightweight 3-arg constructor (zero Scoped repositories)
+        var ingestionService = new MeterTelemetryIngestionService(tagRoutingCache, bufferedService, null!);
+
+        var req = new Application.DataTransferObjects.Requests.IoT.IoTDataRequest
+        {
+            Timestamp = 1763000010000L,
+            Values = new List<Application.DataTransferObjects.Requests.IoT.IoTDataValue>
+            {
+                new() { Id = "_AdvancedTags.M001.Status.Efa01", V = true, Q = "true", T = 1763000010000L }
+            }
+        };
+
+        var res = ingestionService.IngestAsync(req, serial, TelemetrySourceKind.Unified)
+            .GetAwaiter().GetResult();
+
+        Assert.IsTrue(res.Success);
+        Assert.AreEqual(1, enqueuedSnapshots.Count);
+        Assert.AreEqual(1, enqueuedStatusBatches.Count);
+        Assert.AreEqual(1, enqueuedStatusBatches[0].Count);
+        Assert.IsTrue(enqueuedStatusBatches[0][0].ParsedBool);
+        Assert.AreEqual(ListDataMeasurementPoint.CanhBao01, enqueuedStatusBatches[0][0].Tag.Description);
+    }
+
+    private sealed class StubTagRoutingCache : ITagRoutingCacheService
+    {
+        private readonly PointRoutingInfo _point;
+        private readonly IReadOnlyDictionary<long, PointRoutingInfo> _pointMap;
+
+        public StubTagRoutingCache(PointRoutingInfo point, IReadOnlyDictionary<long, PointRoutingInfo> pointMap)
+        {
+            _point = point;
+            _pointMap = pointMap;
+        }
+
+        public Task<IReadOnlyDictionary<string, TagRoutingEntry>> GetTagMapAsync(System.Threading.CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyDictionary<string, TagRoutingEntry>>(new Dictionary<string, TagRoutingEntry>());
+
+        public Task<IReadOnlyDictionary<long, PointRoutingInfo>> GetPointMapAsync(System.Threading.CancellationToken cancellationToken = default)
+            => Task.FromResult(_pointMap);
+
+        public Task<PointRoutingInfo?> GetPointBySerialAsync(string meterSerial, System.Threading.CancellationToken cancellationToken = default)
+            => Task.FromResult<PointRoutingInfo?>(_point);
+
+        public Task<IReadOnlyList<MeterProfileCachedInfo>> GetMeterProfilesAsync(System.Threading.CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<MeterProfileCachedInfo>>(Array.Empty<MeterProfileCachedInfo>());
+
+        public TagRoutingEntry? ResolveTagForPoint(PointRoutingInfo point, string rawTagId)
+        {
+            var resolver = new TagRoutingCacheService(null!, null!);
+            return resolver.ResolveTagForPoint(point, rawTagId);
+        }
+
+        public void Invalidate() { }
+    }
+
+    private sealed class StubBufferedTelemetryService : IBufferedTelemetryIngestionService
+    {
+        private readonly List<TelemetryIngestionItem> _snapshots;
+        private readonly List<IReadOnlyList<TelemetryStatusTransitionItem>> _statusBatches;
+
+        public StubBufferedTelemetryService(
+            List<TelemetryIngestionItem> snapshots,
+            List<IReadOnlyList<TelemetryStatusTransitionItem>> statusBatches)
+        {
+            _snapshots = snapshots;
+            _statusBatches = statusBatches;
+        }
+
+        public System.Threading.Tasks.ValueTask EnqueueAsync(TelemetryIngestionItem item, System.Threading.CancellationToken cancellationToken = default)
+        {
+            _snapshots.Add(item);
+            return System.Threading.Tasks.ValueTask.CompletedTask;
+        }
+
+        public bool TryEnqueueStatusTransitions(IReadOnlyList<TelemetryStatusTransitionItem> items)
+        {
+            _statusBatches.Add(items);
+            return true;
+        }
+
+        public System.Threading.Tasks.Task FlushPendingAsync(System.Threading.CancellationToken cancellationToken = default)
+            => System.Threading.Tasks.Task.CompletedTask;
+    }
 }
 
