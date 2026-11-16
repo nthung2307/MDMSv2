@@ -86,11 +86,12 @@ public class EmailSecurityAndConfigurationTests
         Assert.AreNotEqual(key1, key2, "Các khóa API sinh ra phải hoàn toàn ngẫu nhiên và khác nhau");
 
         // Act: Cập nhật cấu hình và ghi nhận push telemetry
-        Infrastructure.Services.IoTSecurityManager.UpdateConfig(key1, "192.168.28.140, 10.0.0.5", true);
-        var (cachedKey, cachedIps, requireKey) = Infrastructure.Services.IoTSecurityManager.GetCachedConfig();
+        Infrastructure.Services.IoTSecurityManager.UpdateConfig(key1, "192.168.28.140, 10.0.0.5", true, true);
+        var (cachedKey, cachedIps, requireKey, allowLegacy) = Infrastructure.Services.IoTSecurityManager.GetCachedConfig();
 
         Assert.AreEqual(key1, cachedKey);
         Assert.IsTrue(requireKey);
+        Assert.IsTrue(allowLegacy);
         Assert.IsTrue(cachedIps.Contains("192.168.28.140"));
 
         long countBefore = Infrastructure.Services.IoTSecurityManager.TotalPushCount;

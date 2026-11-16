@@ -77,7 +77,8 @@ public class MeasurementPointAlertReadOnlyRepository : RestfulRepository<Measure
     public async Task<CursorPaginationResponse<MeasurementPointAlertDto>> GetListMeasurementPointsAlertAsync(GetListMeasurementPointAlertRequest request, CancellationToken cancellationToken)
     {
         var entity = _measurementPointsAlertEntities
-            .AsNoTracking();
+            .AsNoTracking()
+            .Where(x => x.Status == "ALARM");
 
         var (isCustomer, linkedCustomerIds) = await GetCustomerAccessFilterAsync(cancellationToken);
         if (isCustomer)
@@ -107,7 +108,8 @@ public class MeasurementPointAlertReadOnlyRepository : RestfulRepository<Measure
     public async Task<byte[]> ExportPdfMeasurementPointsAlertAsync(CancellationToken cancellationToken)
     {
         var entity = _measurementPointsAlertEntities
-            .AsNoTracking();
+            .AsNoTracking()
+            .Where(x => x.Status == "ALARM");
 
         var (isCustomerPdf, linkedCustomerIdsPdf) = await GetCustomerAccessFilterAsync(cancellationToken);
         if (isCustomerPdf)
@@ -191,8 +193,8 @@ public class MeasurementPointAlertReadOnlyRepository : RestfulRepository<Measure
                             table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.CreatedTime.AddHours(7).ToString("dd/MM/yyyy HH:mm:ss")).FontFamily(Fonts.Arial).Style(rowStyle);
                             table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.MeasurementPoint.Code + " - " + customer.MeasurementPoint.Customer.FullName).FontFamily(Fonts.Arial).Style(rowStyle);
                             table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.EventName).FontFamily(Fonts.Arial).Style(rowStyle);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.Status == "ALARM" ? "Alarm" : "Normal").FontFamily(Fonts.Arial).Style(rowStyle);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.Value == "True" ? "1" : "0").FontFamily(Fonts.Arial).Style(rowStyle);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text("Alarm").FontFamily(Fonts.Arial).Style(rowStyle);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text("1").FontFamily(Fonts.Arial).Style(rowStyle);
                         }
                     });
                 });
@@ -223,6 +225,7 @@ public class MeasurementPointAlertReadOnlyRepository : RestfulRepository<Measure
     {
         var entity = _measurementPointsAlertEntities
             .AsNoTracking()
+            .Where(x => x.Status == "ALARM")
             .Include(x => x.MeasurementPoint)
             .ThenInclude(x => x.Customer)
             .Where(x => x.MeasurementPoint.Status == EntityStatus.Active && !x.MeasurementPoint.Deleted);
@@ -258,8 +261,8 @@ public class MeasurementPointAlertReadOnlyRepository : RestfulRepository<Measure
             csvWriter.WriteField(customer.MeasurementPoint?.Code ?? "");
             csvWriter.WriteField(customer.MeasurementPoint?.Customer?.FullName ?? "");
             csvWriter.WriteField(customer.EventName ?? "");
-            csvWriter.WriteField(customer.Status == "ALARM" ? "Alarm" : "Normal");
-            csvWriter.WriteField(customer.Value == "True" || customer.Value == "1" ? "1" : "0");
+            csvWriter.WriteField("Alarm");
+            csvWriter.WriteField("1");
             await csvWriter.NextRecordAsync();
         }
         await streamWriter.FlushAsync(cancellationToken);
@@ -271,7 +274,8 @@ public class MeasurementPointAlertReadOnlyRepository : RestfulRepository<Measure
     public async Task<CursorPaginationResponse<MeasurementPointAlertDto>> GetListMeasurementPointsAlertForNotificationAsync(GetListMeasurementPointAlertRequest request, CancellationToken cancellationToken)
     {
         var entity = _measurementPointsAlertEntities
-            .AsNoTracking();
+            .AsNoTracking()
+            .Where(x => x.Status == "ALARM");
 
         var (isCustomerNotif, linkedCustomerIdsNotif) = await GetCustomerAccessFilterAsync(cancellationToken);
         if (isCustomerNotif)
@@ -299,7 +303,8 @@ public class MeasurementPointAlertReadOnlyRepository : RestfulRepository<Measure
     public async Task<int> CountMeasurementPointAlert(CancellationToken cancellationToken)
     {
         var query = _measurementPointsAlertEntities
-            .AsNoTracking();
+            .AsNoTracking()
+            .Where(x => x.Status == "ALARM");
 
         var (isCustomerCount, linkedCustomerIdsCount) = await GetCustomerAccessFilterAsync(cancellationToken);
         if (isCustomerCount)

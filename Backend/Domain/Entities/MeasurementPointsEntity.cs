@@ -21,6 +21,13 @@ public class MeasurementPointsEntity : IEntity<long>
     public bool IsNewChange { get; set; }
     public string Status { get; set; }
     public decimal MultiplierFactor { get; set; } = 1.0m;
+    public string? MeterSerial { get; set; }
+    public string? ApiKeyHash { get; set; }
+    public string? ApiKeyEncrypted { get; set; }
+    public string? KeyPrefix { get; set; }
+    public long? MeterProfileId { get; set; }
+    public MeterProfileEntity? MeterProfile { get; set; }
+    public string MappingMode { get; set; } = "HYBRID";
     public DateTimeOffset? CreatedTime { get; set; }
     public long? CreatedBy { get; set; }
     public string? CreatedName { get; set; }

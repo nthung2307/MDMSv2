@@ -18,7 +18,8 @@ param (
     [string]$TargetFrontendDir = "C:\MDMSv2\Frontend",
     [string]$SourcePackageDir = $PSScriptRoot,
     [string]$MySqlPassword = "",
-    [switch]$SkipBackup
+    [switch]$SkipBackup,
+    [switch]$ForceMigration
 )
 
 $ErrorActionPreference = "Stop"
@@ -156,84 +157,108 @@ if (-not $mysqlExe) {
 }
 
 if ($mysqlExe -and -not [string]::IsNullOrWhiteSpace($dbPassword)) {
-    # 2.5 Sao luu CSDL bang mysqldump truoc khi chay SQL migration Phase 1 (Zero-Data-Loss Safeguard)
-    if (-not $SkipBackup) {
-        $mysqlBinDir = Split-Path -Path $mysqlExe -Parent
-        $mysqldumpExe = Join-Path $mysqlBinDir "mysqldump.exe"
-        if (-not (Test-Path $mysqldumpExe)) {
-            $mysqldumpCmd = Get-Command "mysqldump.exe" -ErrorAction SilentlyContinue
-            if ($mysqldumpCmd) { $mysqldumpExe = $mysqldumpCmd.Source }
-        }
-
-        if ($mysqldumpExe -and (Test-Path $mysqldumpExe)) {
-            $rootDir = Split-Path -Path $TargetBackendDir -Parent
-            $backupDir = Join-Path $rootDir "Backups"
-            if (-not (Test-Path $backupDir)) {
-                New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+    # Kiem tra nhanh xem Schema CSDL da nang cap len Phase 1 + Phase 2 chua
+    $isSchemaUpToDate = $false
+    if (-not $ForceMigration) {
+        $env:MYSQL_PWD = $dbPassword
+        try {
+            $checkSql = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '$dbName' AND LOWER(TABLE_NAME) IN ('measurementpointcurrentsnapshots', 'meterprofiles');"
+            $tableCountRaw = & $mysqlExe "--host=$dbServer" "--port=$dbPort" "--user=$dbUser" "-N" "-s" "-e" "$checkSql" "$dbName" 2>$null
+            $colSql = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '$dbName' AND LOWER(TABLE_NAME) = 'measurementpoints' AND LOWER(COLUMN_NAME) = 'mappingmode';"
+            $colCountRaw = & $mysqlExe "--host=$dbServer" "--port=$dbPort" "--user=$dbUser" "-N" "-s" "-e" "$colSql" "$dbName" 2>$null
+            if (($tableCountRaw -as [int]) -ge 2 -and ($colCountRaw -as [int]) -ge 1) {
+                $isSchemaUpToDate = $true
             }
-            $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-            $backupFile = Join-Path $backupDir "amr_pre_phase1_$timestamp.sql"
-            Write-Host ""
-            Write-Host "   Dang sao luu CSDL '$dbName' truoc khi migration tai: $backupFile..." -ForegroundColor Yellow
-
-            $env:MYSQL_PWD = $dbPassword
-            try {
-                & $mysqldumpExe "--host=$dbServer" "--port=$dbPort" "--user=$dbUser" "--single-transaction" "--routines" "--triggers" "--hex-blob" "--default-character-set=utf8mb4" "--result-file=$backupFile" "$dbName"
-                if ($LASTEXITCODE -ne 0 -or -not (Test-Path $backupFile) -or (Get-Item $backupFile).Length -eq 0) {
-                    throw "Sao luu CSDL qua mysqldump that bai (ExitCode: $LASTEXITCODE). Dung nang cap de bao toan du lieu!"
-                }
-                $dumpMb = [math]::Round(((Get-Item $backupFile).Length / 1MB), 2)
-                Write-Host "   -> [OK] Da sao luu CSDL thanh cong ($dumpMb MB)." -ForegroundColor Green
-            }
-            finally {
-                Remove-Item Env:MYSQL_PWD -ErrorAction SilentlyContinue
-            }
-        } else {
-            Write-Warning "   [!] Khong tim thay mysqldump.exe. Dang tiep tuc migration khong co file dump (Verification Gate van bao ve bang goc)."
+        } catch {}
+        finally {
+            Remove-Item Env:MYSQL_PWD -ErrorAction SilentlyContinue
         }
     }
 
-    # Tu dong thuc thi cac file SQL migration theo thu tu thoi gian (Loai bo script sua font Tieng Viet)
-    $sqlSearchDirs = @(
-        (Join-Path $SourcePackageDir "Database"),
-        $SourcePackageDir
-    )
-    $executedSqlNames = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-    $env:MYSQL_PWD = $dbPassword
-    try {
-        foreach ($dir in $sqlSearchDirs) {
-            if (Test-Path $dir) {
-                $migrationFiles = Get-ChildItem -Path $dir -Filter "*.sql" -File | Where-Object {
-                    ($_.Name -like "*email*" -or $_.Name -like "*migration*" -or $_.Name -like "*table*" -or $_.Name -like "*decimal*" -or $_.Name -match "^\d{8}_") -and
-                    $_.Name -notlike "*font*" -and
-                    $_.Name -notlike "*encoding*"
-                } | Sort-Object Name
-                foreach ($sqlFile in $migrationFiles) {
-                    if (-not $executedSqlNames.Add($sqlFile.Name)) {
-                        continue
+    if ($isSchemaUpToDate) {
+        Write-Host ""
+        Write-Host "   -> [FAST-PATH] Schema CSDL '$dbName' da o phien ban Phase 2 moi nhat. Bo qua mysqldump & SQL migration nang (tiet kiem ~6 phut)!" -ForegroundColor Green
+        Write-Host "      (Dung tham so -ForceMigration neu ban muon chay lai toan bo SQL migration)" -ForegroundColor Gray
+    } else {
+        # 2.5 Sao luu CSDL bang mysqldump truoc khi chay SQL migration Phase 1 (Zero-Data-Loss Safeguard)
+        if (-not $SkipBackup) {
+            $mysqlBinDir = Split-Path -Path $mysqlExe -Parent
+            $mysqldumpExe = Join-Path $mysqlBinDir "mysqldump.exe"
+            if (-not (Test-Path $mysqldumpExe)) {
+                $mysqldumpCmd = Get-Command "mysqldump.exe" -ErrorAction SilentlyContinue
+                if ($mysqldumpCmd) { $mysqldumpExe = $mysqldumpCmd.Source }
+            }
+
+            if ($mysqldumpExe -and (Test-Path $mysqldumpExe)) {
+                $rootDir = Split-Path -Path $TargetBackendDir -Parent
+                $backupDir = Join-Path $rootDir "Backups"
+                if (-not (Test-Path $backupDir)) {
+                    New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+                }
+                $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+                $backupFile = Join-Path $backupDir "amr_pre_phase1_$timestamp.sql"
+                Write-Host ""
+                Write-Host "   Dang sao luu CSDL '$dbName' truoc khi migration tai: $backupFile..." -ForegroundColor Yellow
+
+                $env:MYSQL_PWD = $dbPassword
+                try {
+                    & $mysqldumpExe "--host=$dbServer" "--port=$dbPort" "--user=$dbUser" "--single-transaction" "--routines" "--triggers" "--hex-blob" "--default-character-set=utf8mb4" "--result-file=$backupFile" "$dbName"
+                    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $backupFile) -or (Get-Item $backupFile).Length -eq 0) {
+                        throw "Sao luu CSDL qua mysqldump that bai (ExitCode: $LASTEXITCODE). Dung nang cap de bao toan du lieu!"
                     }
-                    Write-Host "   Dang thuc thi script migration CSDL: $($sqlFile.Name)..." -ForegroundColor Yellow
-                    # Feed SQL file via stdin redirection so mysql.exe processes DELIMITER, multi-line statements, and paths with spaces cleanly
-                    $mysqlArgs = @(
-                        "`"--host=$dbServer`"",
-                        "`"--port=$dbPort`"",
-                        "`"--user=$dbUser`"",
-                        "`"--default-character-set=utf8mb4`"",
-                        "`"$dbName`""
-                    )
-                    $mysqlProc = Start-Process -FilePath $mysqlExe -ArgumentList $mysqlArgs -RedirectStandardInput $sqlFile.FullName -NoNewWindow -Wait -PassThru
-                    if ($mysqlProc -and $mysqlProc.ExitCode -eq 0) {
-                        Write-Host "   -> [OK] Thuc thi $($sqlFile.Name) thanh cong!" -ForegroundColor Green
-                    } else {
-                        $exitCode = if ($mysqlProc) { $mysqlProc.ExitCode } else { -1 }
-                        throw "Thuc thi script $($sqlFile.Name) that bai (ExitCode: $exitCode). Dung nang cap de tranh lech schema!"
+                    $dumpMb = [math]::Round(((Get-Item $backupFile).Length / 1MB), 2)
+                    Write-Host "   -> [OK] Da sao luu CSDL thanh cong ($dumpMb MB)." -ForegroundColor Green
+                }
+                finally {
+                    Remove-Item Env:MYSQL_PWD -ErrorAction SilentlyContinue
+                }
+            } else {
+                Write-Warning "   [!] Khong tim thay mysqldump.exe. Dang tiep tuc migration khong co file dump (Verification Gate van bao ve bang goc)."
+            }
+        }
+
+        # Tu dong thuc thi cac file SQL migration theo thu tu thoi gian (Loai bo script sua font Tieng Viet)
+        $sqlSearchDirs = @(
+            (Join-Path $SourcePackageDir "Database"),
+            $SourcePackageDir
+        )
+        $executedSqlNames = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $env:MYSQL_PWD = $dbPassword
+        try {
+            foreach ($dir in $sqlSearchDirs) {
+                if (Test-Path $dir) {
+                    $migrationFiles = Get-ChildItem -Path $dir -Filter "*.sql" -File | Where-Object {
+                        ($_.Name -like "*email*" -or $_.Name -like "*migration*" -or $_.Name -like "*table*" -or $_.Name -like "*decimal*" -or $_.Name -match "^\d{8}_") -and
+                        $_.Name -notlike "*font*" -and
+                        $_.Name -notlike "*encoding*"
+                    } | Sort-Object Name
+                    foreach ($sqlFile in $migrationFiles) {
+                        if (-not $executedSqlNames.Add($sqlFile.Name)) {
+                            continue
+                        }
+                        Write-Host "   Dang thuc thi script migration CSDL: $($sqlFile.Name)..." -ForegroundColor Yellow
+                        # Feed SQL file via stdin redirection so mysql.exe processes DELIMITER, multi-line statements, and paths with spaces cleanly
+                        $mysqlArgs = @(
+                            "`"--host=$dbServer`"",
+                            "`"--port=$dbPort`"",
+                            "`"--user=$dbUser`"",
+                            "`"--default-character-set=utf8mb4`"",
+                            "`"$dbName`""
+                        )
+                        $mysqlProc = Start-Process -FilePath $mysqlExe -ArgumentList $mysqlArgs -RedirectStandardInput $sqlFile.FullName -NoNewWindow -Wait -PassThru
+                        if ($mysqlProc -and $mysqlProc.ExitCode -eq 0) {
+                            Write-Host "   -> [OK] Thuc thi $($sqlFile.Name) thanh cong!" -ForegroundColor Green
+                        } else {
+                            $exitCode = if ($mysqlProc) { $mysqlProc.ExitCode } else { -1 }
+                            throw "Thuc thi script $($sqlFile.Name) that bai (ExitCode: $exitCode). Dung nang cap de tranh lech schema!"
+                        }
                     }
                 }
             }
         }
-    }
-    finally {
-        Remove-Item Env:MYSQL_PWD -ErrorAction SilentlyContinue
+        finally {
+            Remove-Item Env:MYSQL_PWD -ErrorAction SilentlyContinue
+        }
     }
 }
 
@@ -246,6 +271,15 @@ if (Test-Path $srcFrontend) {
     }
     Copy-Item -Path "$srcFrontend\*" -Destination $TargetFrontendDir -Recurse -Force
     Write-Host "   -> [OK] Cap nhat Frontend thanh cong." -ForegroundColor Green
+
+    # Bat allowDoubleEscaping cho IIS de ho tro cac diem do co ky tu dac biet nhu '+' (vi du: REGINA 3+)
+    $appcmd = "$env:SystemRoot\System32\inetsrv\appcmd.exe"
+    if (Test-Path $appcmd) {
+        try {
+            & $appcmd set config -section:system.webServer/security/requestFiltering /allowDoubleEscaping:"True" /commit:apphost | Out-Null
+            Write-Host "   -> [OK] Da bat tinh nang allowDoubleEscaping tren IIS (ho tro diem do co ky tu '+')." -ForegroundColor Green
+        } catch {}
+    }
 } else {
     Write-Warning "Khong tim thay thu muc Frontend nguon, bo qua cap nhat Frontend."
 }
@@ -338,6 +372,27 @@ for ($i = 1; $i -le $maxRetries; $i++) {
 
 if ($connected) {
     Write-Host "   -> [THANH CONG] Backend WebApi da san sang tai http://127.0.0.1:19089" -ForegroundColor Green
+
+    # Kiem tra va lam moi dich vu Kepware IoT Gateway (neu co tren may ao) de day du lieu ngay lap tuc
+    $kepRuntimeSvc = Get-Service -Name "KEPServerEXV6" -ErrorAction SilentlyContinue
+    $kepIotSvc = Get-Service -Name "KEPServerEXIoTGatewayV6" -ErrorAction SilentlyContinue
+    if ($kepRuntimeSvc -or $kepIotSvc) {
+        Write-Host ""
+        Write-Host "[5.5/5] Dang kiem tra & lam moi dich vu Kepware IoT Gateway..." -ForegroundColor Yellow
+        try {
+            if ($kepRuntimeSvc -and $kepRuntimeSvc.Status -ne 'Running') {
+                Start-Service -Name "KEPServerEXV6" -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 2
+                Write-Host "   -> [OK] Da khoi dong dich vu KEPServerEXV6 (Server - Runtime)." -ForegroundColor Green
+            }
+            if ($kepIotSvc) {
+                Restart-Service -Name "KEPServerEXIoTGatewayV6" -Force -ErrorAction SilentlyContinue
+                Write-Host "   -> [OK] Da khoi dong lai KEPServerEXIoTGatewayV6 (IoT Gateway Service) de dong bo REST Clients voi Backend!" -ForegroundColor Green
+            }
+        } catch {
+            Write-Warning "   Khong the tu dong khoi dong lai KEPServerEXIoTGatewayV6: $($_.Exception.Message)"
+        }
+    }
 } else {
     Write-Host ""
     Write-Host "   [LOI] Backend chua phan hoi tren cong 19089 sau 40 giay!" -ForegroundColor Red

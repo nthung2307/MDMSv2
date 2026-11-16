@@ -64,6 +64,10 @@ public class DeleteMeasurementPointsCommandHandler : IDeleteMeasurementPointsCom
             {
                 measurementPoint.Code = $"{measurementPoint.Code}_deleted_{timestamp}";
             }
+            if (!string.IsNullOrEmpty(measurementPoint.MeterSerial) && !measurementPoint.MeterSerial.Contains("_deleted_"))
+            {
+                measurementPoint.MeterSerial = $"{measurementPoint.MeterSerial}_deleted_{timestamp}";
+            }
             measurementPoint.Deleted = true;
             measurementPoint.Status = EntityStatus.Deleted;
             measurementPoint.DeletedBy = currentId;

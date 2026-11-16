@@ -1,4 +1,5 @@
 using Application.Commands.MeasurementPoints;
+using Application.Common;
 using Application.Common.Responses.Common.Responses;
 using Application.Common.ValueObjects;
 using Application.DataTransferObjects.Responses.Gcs;
@@ -81,6 +82,26 @@ public class UpdateMeasurementPointsCommandHandler : IUpdateMeasurementPointsCom
                         Error = "Mã điểm đo đã tồn tại trong hệ thống. Vui lòng thử lại!"
                     }
                 });
+            }
+
+            var meterSerial = string.IsNullOrWhiteSpace(command.Request.MeterSerial)
+                ? null
+                : command.Request.MeterSerial.Trim();
+            if (!string.IsNullOrEmpty(meterSerial) &&
+                (string.IsNullOrEmpty(command.Request.Status) || command.Request.Status == EntityStatus.Active))
+            {
+                var conflictingPointCode = await _measurementPointsReadOnlyRepository.GetActivePointCodeByMeterSerialAsync(meterSerial, command.Request.Id, cancellationToken);
+                if (!string.IsNullOrEmpty(conflictingPointCode))
+                {
+                    return RequestResult<MeasurementPointResponse>.Fail(new[]
+                    {
+                        new ErrorItem()
+                        {
+                            FieldName = nameof(command.Request.MeterSerial),
+                            Error = $"Số chế tạo '{meterSerial}' đang được sử dụng bởi điểm đo đang hoạt động '{conflictingPointCode}'."
+                        }
+                    });
+                }
             }
 
             // Giải phóng mã điểm đo từ các bản ghi đã xóa mềm trước đó nếu còn trùng
@@ -189,6 +210,11 @@ public class UpdateMeasurementPointsCommandHandler : IUpdateMeasurementPointsCom
             measurementPoint.GcsId = command.Request.GcsId;
             measurementPoint.MultiplierFactor = command.Request.MultiplierFactor;
             measurementPoint.Status = command.Request.Status;
+            measurementPoint.MeterSerial = string.IsNullOrWhiteSpace(command.Request.MeterSerial)
+                ? null
+                : command.Request.MeterSerial.Trim();
+            measurementPoint.MeterProfileId = command.Request.MeterProfileId > 0 ? command.Request.MeterProfileId : null;
+            measurementPoint.MappingMode = Constants.MappingMode.NormalizeOrDefault(command.Request.MappingMode);
             measurementPoint.ModifiedName = userName;
             measurementPoint.ModifiedTime = DateTimeOffset.Now;
             measurementPoint.ModifiedBy = currentId;

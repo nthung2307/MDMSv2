@@ -4,6 +4,7 @@ import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
 import Constants from '@/core/application/common/constants.ts';
 import { ActionDetailLink } from '@/infrastructure/common/components/context-menu/ActionDetailLink';
 import TableCommon from '@/infrastructure/common/components/table/table-common';
+import { buildPointMonitoringDetailUrl } from '@/infrastructure/utils/helpers';
 
 interface Props {
   dataSource: any;
@@ -151,7 +152,8 @@ const TableSummary = (props: Props) => {
       align: 'center',
       width: 90,
       render: (_, record) => {
-        const url = ROUTE_PATH.POINT_MONITORING_DETAIL.replace(
+        const url = buildPointMonitoringDetailUrl(
+          ROUTE_PATH.POINT_MONITORING_DETAIL,
           Constants.ReplaceRouterConfig.id,
           record.measurementPointCode
         );

@@ -447,3 +447,91 @@ export const adjustColumnGap = {
     }
   },
 };
+
+/**
+ * Sao chép văn bản vào bộ nhớ tạm (Clipboard), hỗ trợ cả HTTPS (navigator.clipboard)
+ * lẫn HTTP / IP address / môi trường không an toàn (document.execCommand fallback).
+ */
+export const copyToClipboard = async (text: string): Promise<boolean> => {
+  if (!text) return false;
+
+  // 1. Thử dùng modern Clipboard API nếu trình duyệt hỗ trợ
+  if (
+    typeof navigator !== 'undefined' &&
+    navigator.clipboard &&
+    typeof navigator.clipboard.writeText === 'function'
+  ) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Nếu bị từ chối quyền hoặc ở non-secure context (HTTP), tiếp tục fallback
+    }
+  }
+
+  // 2. Fallback dùng textarea + document.execCommand('copy')
+  try {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.top = '0';
+    textArea.style.left = '0';
+    textArea.style.width = '2em';
+    textArea.style.height = '2em';
+    textArea.style.padding = '0';
+    textArea.style.border = 'none';
+    textArea.style.outline = 'none';
+    textArea.style.boxShadow = 'none';
+    textArea.style.background = 'transparent';
+    textArea.style.opacity = '0';
+    textArea.setAttribute('readonly', '');
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    textArea.setSelectionRange(0, text.length);
+    const successful = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    return successful;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Xây dựng đường dẫn chi tiết giám sát điểm đo an toàn tuyệt đối cho IIS (Open link in new tab / F5).
+ * Loại bỏ các ký tự đặc biệt như '+', '/', '?', '#' khỏi Path Segment (nguyên nhân gây lỗi IIS 404.11)
+ * và truyền mã điểm đo chính xác qua Query Parameter `?code=...` khi có ký tự đặc biệt.
+ */
+export const buildPointMonitoringDetailUrl = (
+  routeTemplate: string,
+  replaceToken: string,
+  code: string
+): string => {
+  const raw = String(code ?? '').trim();
+  if (!raw) {
+    return routeTemplate.replace(replaceToken, 'point');
+  }
+  if (/[+/?#\\&%]/.test(raw)) {
+    const safeSlug = encodeURIComponent(raw.replace(/[+/?#\\&%]+/g, '').trim() || 'point');
+    return `${routeTemplate.replace(replaceToken, safeSlug)}?code=${encodeURIComponent(raw)}`;
+  }
+  return routeTemplate.replace(replaceToken, encodeURIComponent(raw));
+};
+
+/**
+ * Giải mã lại mã điểm đo từ URL (ưu tiên Query Parameter `?code=...` trước, sau đó mới đến Route Param `:id`).
+ */
+export const resolvePointMonitoringCode = (routeId?: string, search?: string): string => {
+  if (search) {
+    const queryCode = new URLSearchParams(search).get('code');
+    if (queryCode) {
+      return queryCode;
+    }
+  }
+  if (!routeId) return '';
+  try {
+    return decodeURIComponent(routeId);
+  } catch {
+    return routeId;
+  }
+};

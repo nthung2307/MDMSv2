@@ -1,13 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Card,
-  Divider,
-  Input,
-  Switch,
-  Tag,
-  Typography,
-} from 'antd';
-import {
   ApiOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
@@ -20,8 +12,9 @@ import {
   ReloadOutlined,
   SaveOutlined,
   ThunderboltOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
-import { Button } from 'antd';
+import { Button, Card, Divider, Input, Switch, Table, Tag, Typography } from 'antd';
 
 import Constants from '@/core/application/common/constants';
 import { Endpoint } from '@/core/application/common/endPoint';
@@ -31,8 +24,11 @@ import { FullPageLoading } from '@/infrastructure/common/components/controls/Loa
 import PageTitle from '@/infrastructure/common/components/title/page-title';
 import { notifyError, notifySuccess } from '@/infrastructure/common/components/toast/toastMessage';
 import SocketCommon from '@/infrastructure/common/components/websocket/socket-common';
-import useIoTConfigHook from '@/infrastructure/repository/config/hooks/useIoTConfigHook';
+import useIoTConfigHook, {
+  UnmatchedSerialItem,
+} from '@/infrastructure/repository/config/hooks/useIoTConfigHook';
 import { ConfigManagementService } from '@/infrastructure/repository/config/services/configManagement.service';
+import { copyToClipboard } from '@/infrastructure/utils/helpers';
 import { _t } from '@/infrastructure/utils/translation';
 
 const { Text } = Typography;
@@ -59,14 +55,17 @@ const TELEMETRY_POLL_INTERVAL_MS = 5000;
 
 const IoTConfigPage = () => {
   const [loading, setLoading] = useState<boolean>(false);
-  const { getIoTConfig, updateIoTConfig, generateIoTKey } = useIoTConfigHook();
+  const { getIoTConfig, updateIoTConfig, generateIoTKey, getUnmatchedSerials } = useIoTConfigHook();
 
   // Form states
   const [apiKey, setApiKey] = useState<string>('');
   const [showKey, setShowKey] = useState<boolean>(false);
   const [requireApiKey, setRequireApiKey] = useState<boolean>(false);
+  const [allowLegacyTagRouting, setAllowLegacyTagRouting] = useState<boolean>(true);
   const [allowedIpsList, setAllowedIpsList] = useState<string[]>([]);
   const [inputIp, setInputIp] = useState<string>('');
+  const [unmatchedSerials, setUnmatchedSerials] = useState<UnmatchedSerialItem[]>([]);
+  const [loadingSerials, setLoadingSerials] = useState<boolean>(false);
 
   // Live Telemetry states
   const [telemetrySocketData, setTelemetrySocketData] = useState<any>(null);
@@ -79,6 +78,16 @@ const IoTConfigPage = () => {
     isActiveRecently: false,
   });
 
+  const loadUnmatchedSerialsAsync = useCallback(async () => {
+    await getUnmatchedSerials(
+      (res: any) => {
+        setUnmatchedSerials(res?.data || []);
+      },
+      () => {},
+      setLoadingSerials
+    );
+  }, []);
+
   const loadConfigAsync = async () => {
     setLoading(true);
     try {
@@ -88,6 +97,9 @@ const IoTConfigPage = () => {
           if (data) {
             setApiKey(data.apiKey || '');
             setRequireApiKey(Boolean(data.requireApiKey));
+            setAllowLegacyTagRouting(
+              data.allowLegacyTagRouting === undefined ? true : Boolean(data.allowLegacyTagRouting)
+            );
 
             const rawIps = (data.allowedIps || '')
               .split(/[,;]/)
@@ -103,6 +115,7 @@ const IoTConfigPage = () => {
         },
         setLoading
       );
+      await loadUnmatchedSerialsAsync();
     } finally {
       setLoading(false);
     }
@@ -182,6 +195,7 @@ const IoTConfigPage = () => {
       apiKey: apiKey.trim(),
       allowedIps: allowedIpsList.join(', '),
       requireApiKey: requireApiKey,
+      allowLegacyTagRouting: allowLegacyTagRouting,
     };
 
     await updateIoTConfig(
@@ -326,7 +340,7 @@ const IoTConfigPage = () => {
               <div className='flex items-center gap-2'>
                 <KeyOutlined style={{ color: '#003366', fontSize: 18 }} />
                 <span className='font-bold text-16-20 text-[#003366]'>
-                  Khóa xác thực (API key)
+                  Khóa xác thực (Global key)
                 </span>
               </div>
             }
@@ -334,7 +348,7 @@ const IoTConfigPage = () => {
             <div className='space-y-4'>
               <div>
                 <div className='text-14 font-medium text-gray-700 mb-2'>
-                  Khóa xác thực (API key)
+                  Khóa xác thực (Global key)
                 </div>
                 <div className='flex gap-2 items-center'>
                   <Input
@@ -372,24 +386,46 @@ const IoTConfigPage = () => {
                 <Switch checked={requireApiKey} onChange={(checked) => setRequireApiKey(checked)} />
               </div>
 
-              <div className='bg-blue-50 border border-blue-200 rounded p-3 text-13 text-gray-700'>
-                <div className='font-semibold text-blue-800 mb-2'>Cấu hình HTTP Header</div>
-                <div className='flex items-center gap-2'>
-                  <div className='bg-white rounded px-3 py-2.5 border border-blue-200 font-mono text-12 flex-1 text-blue-900 font-semibold select-all min-h-[44px] flex items-center'>
-                    {`X-IoT-Api-Key: ${apiKey || '<Chưa tạo khóa>'}`}
+              <div className='flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200'>
+                <div className='font-semibold text-gray-800'>
+                  Định tuyến theo Tag ID
+                </div>
+                <Switch
+                  checked={allowLegacyTagRouting}
+                  onChange={(checked) => setAllowLegacyTagRouting(checked)}
+                />
+              </div>
+
+              <div className='bg-blue-50/50 border border-blue-200 rounded-lg p-4 space-y-3 mt-3'>
+                <div>
+                  <span className='font-bold text-gray-800 text-13'>Endpoint:</span>{' '}
+                  <span className='font-mono text-blue-700 font-semibold select-all'>
+                    http://&lt;host's IP&gt;:&lt;port&gt;/IoT/telemetry
+                  </span>
+                </div>
+                <div className='border-t border-blue-100 pt-2'>
+                  <div className='flex items-center justify-between mb-1.5'>
+                    <div className='font-semibold text-gray-700 text-13'>HTTP Header:</div>
+                    <ButtonCommonCustomizable
+                      title={null}
+                      tooltipText={_t('Sao chép HTTP Header')}
+                      classButton='text-button-variant'
+                      onClick={async () => {
+                        const headerText = `Serial: <Số chế tạo>\nGlobal-key: ${apiKey || '<Global key>'}`;
+                        const ok = await copyToClipboard(headerText);
+                        if (ok) {
+                          notifySuccess('Đã sao chép cấu hình HTTP Header!');
+                        } else {
+                          notifyError('Không thể sao chép vào bộ nhớ tạm');
+                        }
+                      }}
+                      icon={<CopyOutlined style={{ fontSize: 16 }} />}
+                    />
                   </div>
-                  <ButtonCommonCustomizable
-                    title={null}
-                    tooltipText={_t('Sao chép dòng cấu hình')}
-                    classButton='text-button-variant'
-                    onClick={() => {
-                      if (!apiKey) return;
-                      navigator.clipboard.writeText(`X-IoT-Api-Key: ${apiKey}`);
-                      notifySuccess('Đã sao chép dòng cấu hình Kepware Header!');
-                    }}
-                    disabled={!apiKey}
-                    icon={<CopyOutlined style={{ fontSize: 18 }} />}
-                  />
+                  <div className='bg-white p-3 rounded border border-blue-200 font-mono text-12 space-y-1 select-all text-blue-900'>
+                    <div>Serial: {'<Số chế tạo>'}</div>
+                    <div>Global-key: {apiKey || '<Global key>'}</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -451,6 +487,73 @@ const IoTConfigPage = () => {
                 </div>
               </div>
             </div>
+          </Card>
+
+          {/* CARD 4: RECENT UNMATCHED SERIALS DIAGNOSTIC */}
+          <Card
+            className='shadow-custom'
+            title={
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-2'>
+                  <WarningOutlined style={{ color: '#d46b08', fontSize: 18 }} />
+                  <span className='font-bold text-16-20 text-[#003366]'>
+                    Danh sách công tơ chưa khớp số chế tạo
+                  </span>
+                </div>
+                <Button
+                  size='small'
+                  icon={<ReloadOutlined />}
+                  loading={loadingSerials}
+                  onClick={loadUnmatchedSerialsAsync}
+                >
+                  Làm mới
+                </Button>
+              </div>
+            }
+          >
+            <Table
+              size='small'
+              dataSource={unmatchedSerials}
+              rowKey='meterSerial'
+              pagination={false}
+              loading={loadingSerials}
+              locale={{
+                emptyText: 'Không có công tơ nào chưa khớp số chế tạo.',
+              }}
+              columns={[
+                {
+                  title: 'Số chế tạo',
+                  dataIndex: 'meterSerial',
+                  render: (val: string, record: UnmatchedSerialItem) => (
+                    <div className='flex items-center gap-2'>
+                      <Tag color='red' className='font-mono font-semibold m-0'>
+                        {val}
+                      </Tag>
+                      {record.remoteIp && (
+                        <span className='text-xs text-gray-400 font-mono'>
+                          ({record.remoteIp})
+                        </span>
+                      )}
+                    </div>
+                  ),
+                },
+                {
+                  title: 'Số lượt từ chối',
+                  dataIndex: 'hitCount',
+                  align: 'center' as const,
+                  width: 160,
+                  render: (count: number) => (
+                    <span className='font-semibold text-red-600'>{count}</span>
+                  ),
+                },
+                {
+                  title: 'Lần nhận gần nhất',
+                  dataIndex: 'lastSeenAt',
+                  width: 220,
+                  render: (val: string) => formatTimestamp(val),
+                },
+              ]}
+            />
           </Card>
         </div>
       </SocketCommon>

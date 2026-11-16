@@ -166,13 +166,18 @@ public class MeterReplacementReadOnlyRepository : RestfulRepository<MeterReplace
 
         if (point == null) return null;
 
-        // Tìm serial gần nhất: ưu tiên từ biên bản thay gần nhất (nếu có), hoặc từ TagNames, hoặc mã điểm đo
-        var latestReplacement = await _entities.AsNoTracking()
-            .Where(r => r.MeasurementPointId == pointId && r.Status == "APPROVED")
-            .OrderByDescending(r => r.ReplacementDate)
-            .FirstOrDefaultAsync(cancellationToken);
+        // Tìm serial hiện tại: ưu tiên MeterSerial của điểm đo, sau đó biên bản thay gần nhất, TagNames hoặc mã điểm đo
+        var currentSerial = !string.IsNullOrWhiteSpace(point.MeterSerial) ? point.MeterSerial : null;
+        if (string.IsNullOrWhiteSpace(currentSerial))
+        {
+            var latestReplacement = await _entities.AsNoTracking()
+                .Where(r => r.MeasurementPointId == pointId && r.Status == "APPROVED")
+                .OrderByDescending(r => r.ReplacementDate)
+                .FirstOrDefaultAsync(cancellationToken);
 
-        var currentSerial = latestReplacement?.NewMeterSerial;
+            currentSerial = latestReplacement?.NewMeterSerial;
+        }
+
         if (string.IsNullOrWhiteSpace(currentSerial))
         {
             var meterTag = point.TagNames?.FirstOrDefault(t =>

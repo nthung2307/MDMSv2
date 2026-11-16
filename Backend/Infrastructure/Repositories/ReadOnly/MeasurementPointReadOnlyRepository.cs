@@ -103,6 +103,10 @@ public class MeasurementPointReadOnlyRepository : RestfulRepository<MeasurementP
                 {
                     p.VoltageUnit = unit;
                 }
+                else if (string.IsNullOrWhiteSpace(p.VoltageUnit) && !string.IsNullOrWhiteSpace(p.MeterProfileCode))
+                {
+                    p.VoltageUnit = p.MeterProfileCode == "MV_KV_KW" ? "kV" : "V";
+                }
             }
         }
         catch
@@ -130,6 +134,7 @@ public class MeasurementPointReadOnlyRepository : RestfulRepository<MeasurementP
         var result = await measurementPoint
             .Include(x => x.Customer)
             .Include(x => x.Gcs)
+            .Include(x => x.MeterProfile)
             .Where(x => !x.Deleted && x.Code != "Mã điểm đo" && x.Code != "QUẢN LÝ ĐIỂM ĐO" && (x.Code == null || !x.Code.StartsWith("Thời gian xuất")))
             .PaginateWithAndAsync<MeasurementPointsEntity, ListMeasurementPointDto>(request, _mapper, cancellationToken);
 
@@ -164,6 +169,7 @@ public class MeasurementPointReadOnlyRepository : RestfulRepository<MeasurementP
             .Where(x => !x.Deleted && x.Status == EntityStatus.Active && x.Code != "Mã điểm đo" && x.Code != "QUẢN LÝ ĐIỂM ĐO" && (x.Code == null || !x.Code.StartsWith("Thời gian xuất")))
             .Include(x => x.Customer)
             .Include(x => x.Gcs)
+            .Include(x => x.MeterProfile)
             .PaginateWithAndAsync<MeasurementPointsEntity, ListMeasurementPointDto>(request, _mapper, cancellationToken);
 
         await PopulateVoltageUnitsAsync(result.Data, cancellationToken);
@@ -183,6 +189,7 @@ public class MeasurementPointReadOnlyRepository : RestfulRepository<MeasurementP
             .AsNoTracking()
             .Include(x => x.Customer)
             .Include(x => x.Gcs)
+            .Include(x => x.MeterProfile)
             .Where(x => x.Id == id && !x.Deleted).FirstOrDefaultAsync(cancellationToken);
         return _mapper.Map<MeasurementPointDto>(user);
     }
@@ -233,5 +240,26 @@ public class MeasurementPointReadOnlyRepository : RestfulRepository<MeasurementP
         if(id != 0)
             return await _measurementPointsEntities.AsNoTracking().Where(x => x.Code == code && x.Id != id && !x.Deleted).AnyAsync(cancellationToken);
         return await _measurementPointsEntities.AsNoTracking().Where(x => x.Code == code && !x.Deleted).AnyAsync(cancellationToken);
+    }
+
+    public async Task<bool> IsExistMeterSerialAsync(string meterSerial, long excludePointId, CancellationToken cancellationToken)
+    {
+        var activeCode = await GetActivePointCodeByMeterSerialAsync(meterSerial, excludePointId, cancellationToken);
+        return !string.IsNullOrEmpty(activeCode);
+    }
+
+    public async Task<string?> GetActivePointCodeByMeterSerialAsync(string meterSerial, long excludePointId, CancellationToken cancellationToken)
+    {
+        var normalized = meterSerial?.Trim();
+        if (string.IsNullOrEmpty(normalized)) return null;
+
+        return await _measurementPointsEntities.AsNoTracking()
+            .Where(x => !x.Deleted &&
+                        x.Status == EntityStatus.Active &&
+                        x.MeterSerial != null &&
+                        x.MeterSerial == normalized &&
+                        (excludePointId == 0 || x.Id != excludePointId))
+            .Select(x => x.Code)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 }

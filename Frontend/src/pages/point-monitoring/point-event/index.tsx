@@ -160,15 +160,24 @@ const PointMonitoringEvent = () => {
     );
   };
 
-  const dataExport = data?.map((item, idx) => ({
-    index: idx + 1,
-    createdTime: convertDateTime(item.createdTime, 'dd-mm-yyyy hh:mm:ss') ?? 'N/A',
-    measurementPointCode: item.measurementPointCode ?? 'N/A',
-    customerName: item.customerName ?? 'N/A',
-    eventName: item.eventName ? item.eventName : 'N/A',
-    status: `${item.status.charAt(0)}${item.status.slice(1).toLowerCase()}`,
-    value: item.value === true || item.value === 'True' || item.value === 1 || item.value === '1' ? 1 : 0,
-  }));
+  const dataExport = data?.map((item, idx) => {
+    const isAlarm =
+      item.value === true ||
+      item.value === 'True' ||
+      item.value === 'true' ||
+      item.value === 1 ||
+      item.value === '1' ||
+      item.status?.toUpperCase() === 'ALARM';
+    return {
+      index: idx + 1,
+      createdTime: convertDateTime(item.createdTime, 'dd-mm-yyyy hh:mm:ss') ?? 'N/A',
+      measurementPointCode: item.measurementPointCode ?? 'N/A',
+      customerName: item.customerName ?? 'N/A',
+      eventName: item.eventName ? item.eventName : 'N/A',
+      status: isAlarm ? 'Alarm' : 'Normal',
+      value: isAlarm ? 1 : 0,
+    };
+  });
   useEffect(() => {
     const searchByFields: any = [];
     let measurementpointCode = '';

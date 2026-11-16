@@ -59,6 +59,9 @@ const EditPoint = () => {
       status: dataForm.status,
       gcsId: dataForm.gcsId,
       multiplierFactor: Number(dataForm.multiplierFactor),
+      meterSerial: dataForm.meterSerial || null,
+      meterProfileId: dataForm.meterProfileId ? Number(dataForm.meterProfileId) : null,
+      mappingMode: dataForm.mappingMode || 'HYBRID',
     });
 
     await updateMeasurementPointRequest(

@@ -1,3 +1,54 @@
+# [CODE REVIEW] PHASE 2 — ĐỊNH DANH SỐ CHẾ TẠO, HỒ SƠ ÁNH XẠ OBIS, BẢO MẬT 2 TẦNG & GIAO DIỆN GIÁM SÁT
+
+> **Tài liệu thẩm định chất lượng mã nguồn (Principal Architectural Code Review)**  
+> **Người thẩm định:** MDMS-Reviewer (Principal Architect & Security Auditor)  
+> **Ngày thẩm định:** 16/11/2026  
+> **Căn cứ đánh giá:** [PLAN_SPEC.md](file:///e:/sources/MDMSv2/PLAN_SPEC.md), [CHANGELOG_DEV.md](file:///e:/sources/MDMSv2/CHANGELOG_DEV.md), [TEST_REPORT.md](file:///e:/sources/MDMSv2/TEST_REPORT.md) và toàn bộ thay đổi Phase 2.
+
+---
+
+## 1. KẾT LUẬN THẨM ĐỊNH PHASE 2 (REVIEW DECISION)
+
+- **Quyết định thẩm định**: **APPROVED** (PHÊ DUYỆT CHÍNH THỨC — SẴN SÀNG COMMIT, MERGE VÀ ĐỒNG BỘ SOURCE CONTROL)
+- **Điểm chất lượng tổng thể**: **9.8 / 10**
+- **Đánh giá chung**:  
+  Phase 2 đã hoàn thành toàn diện các mục tiêu kiến trúc cốt lõi:
+  1. Chuẩn hóa định danh điểm đo trực tiếp bằng **Số chế tạo công tơ (`MeterSerial`)** và thiết lập ràng buộc duy nhất (`UNIQUE INDEX`) ngăn chặn xung đột định tuyến dữ liệu.
+  2. Xây dựng hệ thống **Hồ sơ ánh xạ mã OBIS (`MeterProfileEntity`, `MeterProfileTagMappingEntity`, `ObisTelemetryCatalog`)** chuẩn hóa theo IEC 62056 / DLMS / COSEM, mở đường cho việc tích hợp module IoT phân tán trực tiếp trong tương lai.
+  3. Cơ chế **Bảo mật 2 tầng (Two-Tier IoT Security)** với Dedicated Private-key cho từng thiết bị và Global Key dự phòng, ngăn chặn hoàn toàn việc giả mạo tín hiệu công tơ.
+  4. Cơ chế **In-Memory Alarm State Cache** giúp giảm thiểu tải RAM và CPU trên máy chủ khi tiếp nhận lưu lượng lớn từ hàng trăm REST Client gửi liên tục.
+  5. Tinh chỉnh hoàn thiện UI/UX: Xử lý triệt để lỗi điều hướng tab mới qua URL Rewrite, giao diện màu đơn sắc (monochrome) trang nhã, và loại bỏ hiện tượng hủy nhầm request do chia sẻ CancelToken trên Frontend.
+
+---
+
+## 2. CHECKLIST ĐÁNH GIÁ 5 TRỤ CỘT PHASE 2
+
+### 2.1. Kiến trúc Phần mềm (Clean Architecture Compliance) - [10/10]
+- [x] **Tầng `Domain`**: Các thực thể mới (`MeterProfileEntity`, `MeterProfileTagMappingEntity`) hoàn toàn độc lập, định nghĩa đúng mối quan hệ `1 - N` và cấu hình Fluent API chuẩn mực.
+- [x] **Tầng `Application`**: Tách bạch DTOs, interfaces (`IMeterTelemetryIngestionService`) và helpers (`ObisTelemetryCatalog`). Ràng buộc kiểm tra duy nhất Serial được đặt tại Application Command Handlers và Validation layers.
+- [x] **Tầng `Infrastructure`**: Triển khai `MeterTelemetryIngestionService`, cập nhật `TagRoutingCacheService` và `IoTSecurityManager` theo đúng nguyên lý Single Responsibility.
+- [x] **Tầng `WebApi`**: `IoTController` chỉ đóng vai trò phân luồng request, giao toàn bộ việc xử lý telemetry và bảo mật cho Application/Infrastructure services.
+
+### 2.2. An toàn Bảo mật & Toàn vẹn Dữ liệu (Security & Data Integrity) - [9.8/10]
+- [x] **Xác thực 2 tầng nghiêm ngặt**: Xác minh đồng thời `Serial` và `Private-key`. Tuyệt đối không cho phép truy cập nếu thiếu 1 trong 2 hoặc sai thông tin xác thực.
+- [x] **Ràng buộc Duy nhất Cơ sở dữ liệu**: Bổ sung `UNIQUE INDEX idx_measurementpoints_meterserial_active` cho các điểm đo có `Status = 1`, bảo đảm ở tầng CSDL không bao giờ tồn tại 2 công tơ hoạt động cùng số chế tạo.
+- [x] **Bảo vệ Khóa Bí mật**: Khóa bí mật (Private Key) được sinh ngẫu nhiên bảo mật cao (cryptographically secure), mã hóa/lưu trữ an toàn, và tự động thu hồi (invalidate) cache ngay khi có thay đổi.
+
+### 2.3. Hiệu năng Cơ sở Dữ liệu & Hệ thống (Performance & Concurrency) - [9.8/10]
+- [x] **In-Memory Alarm State Cache**: Tránh truy vấn lặp lại bảng cảnh báo trên CSDL với tần suất cao (1000ms), bảo vệ MySQL khỏi tình trạng quá tải RAM/CPU.
+- [x] **Truy vấn Đọc Tối ưu**: Sử dụng `.AsNoTracking()` cho toàn bộ các thao tác tra cứu danh mục cấu hình, hồ sơ công tơ và lịch sử sự kiện.
+- [x] **Khử Đua Lệnh (Race-condition Mitigation)**: Cấp phát độc lập CancelToken tại tầng Frontend (`useIoTConfigHook.tsx`) giúp tránh hiện tượng hủy nhầm API khi người dùng chuyển đổi tab hoặc component re-render.
+
+### 2.4. Chất lượng Mã nguồn & Kiểm thử (Code Quality & Testing) - [9.8/10]
+- [x] **100% Automated Tests Pass**: 81/81 Backend Unit Tests và 4/4 Frontend Tests đều vượt qua với kết quả hoàn hảo.
+- [x] **Không Có Mã Thừa & Rác**: Toàn bộ codebase được rà soát, dọn sạch console log, không để lại file tạm.
+
+### 2.5. Quy chuẩn Git & Triển khai (Git Hygiene & DevOps) - [9.8/10]
+- [x] Thông điệp commit tuân thủ nghiêm ngặt Conventional Commits (`feat(...)`).
+- [x] Cập nhật đầy đủ migration script SQL (`20261112_phase2_meter_serial_and_obis_profiles.sql`) và kịch bản cập nhật hotfix tự động (`Update_Hotfix.ps1`).
+
+---
+
 # [CODE REVIEW] PHASE 1 — TỐI ƯU HÓA CSDL ĐO ĐẾM & PIPELINE THU THẬP IOT HIỆU NĂNG CAO
 
 > **Tài liệu thẩm định chất lượng mã nguồn (Principal Architectural Code Review)**  

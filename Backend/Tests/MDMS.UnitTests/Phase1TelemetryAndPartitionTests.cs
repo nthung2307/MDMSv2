@@ -444,9 +444,12 @@ public class Phase1TelemetryAndPartitionTests
                 : null);
 
         var tagRoutingCache = TestProxy<ITagRoutingCacheService>.Create(
-            (name, _) => name == nameof(ITagRoutingCacheService.GetTagMapAsync)
-                ? Task.FromResult<IReadOnlyDictionary<string, TagRoutingEntry>>(routingMap)
-                : null);
+            (name, _) => name switch
+            {
+                nameof(ITagRoutingCacheService.GetTagMapAsync) => Task.FromResult<IReadOnlyDictionary<string, TagRoutingEntry>>(routingMap),
+                nameof(ITagRoutingCacheService.GetPointMapAsync) => Task.FromResult<IReadOnlyDictionary<long, PointRoutingInfo>>(new Dictionary<long, PointRoutingInfo>()),
+                _ => null
+            });
 
         var bufferedIngestion = TestProxy<IBufferedTelemetryIngestionService>.Create(
             (name, args) =>
@@ -531,16 +534,20 @@ public class Phase1TelemetryAndPartitionTests
                 ? Task.FromResult(existingAlerts.Count)
                 : null);
 
-        var handler = new Infrastructure.Handlers.Commands.IoT.MeasurementPointEventCommandHandler(
+        var ingestionService = new Infrastructure.Services.MeterTelemetryIngestionService(
             tagRoutingCache,
             bufferedIngestion,
             logger,
             eventRw,
-            snowflake,
             alertRw,
             tagRw,
+            alertRo,
             hub,
-            alertRo);
+            snowflake);
+
+        var handler = new Infrastructure.Handlers.Commands.IoT.MeasurementPointEventCommandHandler(
+            ingestionService,
+            logger);
 
         // Scenario 1: Out-of-order intra-packet oscillation (t=2000 false arrives before t=1000 true) + null V + orphaned alert cleanup
         using var jsonDoc = JsonDocument.Parse("""

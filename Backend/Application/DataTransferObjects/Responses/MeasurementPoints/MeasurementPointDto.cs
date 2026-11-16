@@ -30,5 +30,12 @@ public class MeasurementPointDto
     public GcsEntity Gcs { get; set; } = new GcsEntity();
     public long? OldGcsId { get; set; }
     public bool IsNewChange { get; set; }
+    public string? MeterSerial { get; set; }
+    public long? MeterProfileId { get; set; }
+    public string? MeterProfileCode { get; set; }
+    public string? MeterProfileName { get; set; }
+    public string MappingMode { get; set; } = "HYBRID";
+    public string? KeyPrefix { get; set; }
+    public bool HasDedicatedKey { get; set; }
     public List<TagNameEntity> TagNames { get; set; } = new List<TagNameEntity>();
 }

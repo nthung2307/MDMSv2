@@ -131,6 +131,7 @@ public static class Url
 
         public static class IoT
         {
+            public const string UnifiedTelemetry = "IoT/telemetry";
             public const string MeasurementPointMonitoring = "IoT/Get-Data-Measurement-Point-Monitoring";
             public const string MeasurementPointMonitoringByDateTime = "IoT/Get-DateTime-Measurement-Point";
             public const string MeasurementPointAlert = "IoT/Get-Data-Measurement-Point-Alert";
@@ -139,6 +140,11 @@ public static class Url
             public const string GetConfig = "IoT/Get-Config";
             public const string UpdateConfig = "IoT/Update-Config";
             public const string GenerateKey = "IoT/Generate-Api-Key";
+            public const string GetMeterProfiles = "IoT/Meter-Profiles";
+            public const string GetUnmatchedSerials = "IoT/Unmatched-Serials";
+            public const string GetPointApiKey = "IoT/Point-Api-Key/{id}";
+            public const string GeneratePointApiKey = "IoT/Point-Api-Key/{id}/Generate";
+            public const string RevokePointApiKey = "IoT/Point-Api-Key/{id}/Revoke";
         }
 
         public static class MeasurementPoints

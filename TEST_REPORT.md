@@ -1,3 +1,39 @@
+# [TEST REPORT] PHASE 2 — KIỂM ĐỊNH ĐỊNH DANH SỐ CHẾ TẠO, HỒ SƠ MÃ OBIS, BẢO MẬT 2 TẦNG & GIAO DIỆN GIÁM SÁT
+
+> **Tài liệu kiểm định chất lượng (QA/QC Test Report)**  
+> **Phiên bản:** v3.3.0-PHASE2-QUALITY-ASSURANCE  
+> **Người thực hiện:** MDMS-Tester (Lead QA Engineer)  
+> **Ngày kiểm định:** 16/11/2026  
+> **Đối tượng thẩm định:** Mã nguồn Backend `.NET 8`, Unit Test Suite (`MDMS.UnitTests`), Frontend React 18, Script Migration SQL `20261112_phase2_meter_serial_and_obis_profiles.sql` & Triển khai thực tế trên máy ảo kiểm thử với 100 Kepware REST Clients.
+
+---
+
+## 1. TỔNG QUAN KẾT QUẢ KIỂM THỬ (PHASE 2 EXECUTIVE SUMMARY)
+
+| Hạng mục kiểm định | Lệnh / Công cụ thực thi | Phạm vi kiểm tra | Kết quả |
+|---|---|---|---|
+| **Biên dịch Solution Backend (.NET 8)** | `dotnet build Backend\AMR.sln` | Toàn bộ project Clean Architecture: `Nobisoft.Core.*`, `Domain`, `Application`, `Infrastructure`, `WebApi`, `MDMS.UnitTests` | **PASS (0 Error(s))** |
+| **Backend Automated Unit Test Suite** | `dotnet test Backend\Tests\MDMS.UnitTests\MDMS.UnitTests.csproj` | Toàn bộ 5 Test Fixtures: `MeteringCalculationTests` (17), `EmailSecurityAndConfigurationTests` (7), `StatementPdfGeneratorTests` (2), `Phase1TelemetryAndPartitionTests` (26), `Phase2ObisAndAuthTests` (29) | **PASS: 81 / 81 (100%, 3 s)** |
+| **Frontend Automated Helper Test Suite** | `cd Frontend; npm test` | Node test runner kiểm tra hàm tính Cosφ, định dạng số, kiểm tra font UTF-8, cấu hình Mẫu phiếu báo | **PASS: 4 / 4 (100%, 822 ms)** |
+| **Frontend Production Build & TypeCheck** | `cd Frontend; npm run build:prod` | TypeScript compilation (`tsc`) & Vite production bundling (`dist/`) | **PASS: 6585 modules transformed, 0 Error(s)** |
+| **Kiểm thử Liên thông Thực tế trên VM (Kepware 100 REST Clients)** | Mô phỏng 100 REST Clients gửi đồng thời về WebApi IIS (Port 19080) và MySQL Server | Xác thực bảo mật 2 tầng (Serial + Private-key), phân luồng Wide/Narrow format, phân giải mã OBIS, In-Memory Alarm Cache và phát SignalR | **ĐẠT YÊU CẦU (STABLE & PERSISTENT)** |
+| **Kiểm tra Điều hướng Tab Mới & Ký tự Đặc biệt** | Chrome Browser trên máy ảo (`http://192.168.28.130`) | "Open link in new tab" với điểm đo `REGINA 3+` (`REGINA%203%2B`) qua IIS URL Rewrite | **PASS (200 OK, hiển thị đầy đủ thông số)** |
+| **Kiểm tra UI Cài đặt Khóa & Trạng thái Màu đơn sắc** | Web Browser (`/configuration/list-tag-name/:id` & `/monitoring-points/list/:id/detail`) | Hiển thị đúng Badge Private-key, loại bỏ mô tả rườm rà, nút sao chép header hoạt động chuẩn xác, hiển thị sự kiện/cảnh báo monochrome | **PASS (Đúng chuẩn UX người dùng yêu cầu)** |
+
+---
+
+## 2. CHI TIẾT CÁC TEST CASES PHASE 2 ([`Phase2ObisAndAuthTests.cs`](file:///e:/sources/MDMSv2/Backend/Tests/MDMS.UnitTests/Phase2ObisAndAuthTests.cs))
+
+| Mã kiểm thử | Hạng mục | Kịch bản kiểm thử | Kết quả thực tế | Trạng thái |
+|---|---|---|---|---|
+| **TC-P2-01..08** | `ObisTelemetryCatalog` | Giải mã mã OBIS chuẩn IEC 62056: Điện năng thuận/nghịch 3 biểu giá (`1.8.0..3`, `2.8.0..3`), Công suất P/Q (`1.5.0`, `3.5.0`), Điện áp pha/dây (`32.7.0`, `52.7.0`, `72.7.0`), Dòng điện (`31.7.0`, `51.7.0`, `71.7.0`), Cosφ, Tần số (`14.7.0`) | Phân giải chính xác 100% tên trường tương ứng trong Snapshot & TimeSeries | **PASS** |
+| **TC-P2-09..14** | `MeterProfileMapping` | Ánh xạ cấu hình hồ sơ công tơ (Cao áp, Trung áp, Hạ áp, Trực tiếp), tự động sinh danh mục Tag tương ứng cho điểm đo mới | Ánh xạ đủ 41 đại lượng đo đếm, không thiếu hụt trường dữ liệu | **PASS** |
+| **TC-P2-15..20** | `TwoTierIoTSecurity` | Xác thực tầng 1 (Dedicated Private Key + Serial): đúng cặp khóa -> 200 OK, sai khóa -> 401 Unauthorized, sai Serial -> 401 Unauthorized; Xác thực tầng 2 (Global Key): đúng Global key -> 200 OK | Kiểm soát truy cập chặt chẽ, ngăn chặn giả mạo dữ liệu công tơ | **PASS** |
+| **TC-P2-21..24** | `MeterSerialUniqueness` | Ràng buộc duy nhất số chế tạo công tơ trên các điểm đo đang hoạt động (`Status = 1`): Thêm mới trùng Serial -> Báo lỗi; Cập nhật sang Serial đã tồn tại -> Báo lỗi; Điểm đo đã xóa (`Status = 0`) -> Cho phép tái sử dụng Serial | Bảo vệ toàn vẹn dữ liệu điểm đo, không phát sinh xung đột định tuyến | **PASS** |
+| **TC-P2-25..29** | `AlarmStateCacheAndTransitions` | In-memory Alarm State Cache xử lý chuỗi quá độ trạng thái nhanh, xử lý Narrow Format (`false -> true -> false`), và cơ chế phục hồi khi mạng chập chờn | Duy trì trạng thái cảnh báo chính xác, không ghi trùng bản ghi CSDL | **PASS** |
+
+---
+
 # [TEST REPORT] PHASE 1 — KIỂM ĐỊNH TỐI ƯU HÓA CSDL, WIDE-TABLE PARTITION 12 THÁNG & PIPELINE IOT
 
 > **Tài liệu kiểm định chất lượng (QA/QC Test Report)**  

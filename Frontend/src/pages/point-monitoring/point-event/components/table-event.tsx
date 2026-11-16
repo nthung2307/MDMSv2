@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
 import Constants from '@/core/application/common/constants.ts';
 import TableCommon from '@/infrastructure/common/components/table/table-common';
-import { convertDateTime } from '@/infrastructure/utils/helpers';
+import { buildPointMonitoringDetailUrl, convertDateTime } from '@/infrastructure/utils/helpers';
 
 interface Props {
   dataSource: any;
@@ -82,10 +82,13 @@ const TableEvent = (props: Props) => {
       dataIndex: 'status',
       width: 120,
       className: 'whitespace-nowrap',
-      render: (record) => {
-        if (!record) return <span>N/A</span>;
+      render: (val) => {
+        if (!val) return <span>N/A</span>;
+        const isAlarm = String(val).toUpperCase() === 'ALARM';
         return (
-          <span className='whitespace-nowrap'>{`${record.charAt(0)}${record.slice(1).toLowerCase()}`}</span>
+          <span className='whitespace-nowrap font-medium'>
+            {isAlarm ? 'Alarm' : 'Normal'}
+          </span>
         );
       },
     },
@@ -95,8 +98,18 @@ const TableEvent = (props: Props) => {
       align: 'center',
       width: 80,
       className: 'whitespace-nowrap',
-      render: (value) => {
-        return <span className='whitespace-nowrap'>{value == 'False' ? 0 : 1}</span>;
+      render: (value, record: any) => {
+        const isAlarm =
+          value === 1 ||
+          value === '1' ||
+          value === true ||
+          String(value).toLowerCase() === 'true' ||
+          String(record?.status).toUpperCase() === 'ALARM';
+        return (
+          <span className='whitespace-nowrap font-medium'>
+            {isAlarm ? 1 : 0}
+          </span>
+        );
       },
     },
   ];
@@ -115,7 +128,8 @@ const TableEvent = (props: Props) => {
             const code = record.measurementPointCode;
             if (code) {
               navigate(
-                ROUTE_PATH.POINT_MONITORING_DETAIL.replace(
+                buildPointMonitoringDetailUrl(
+                  ROUTE_PATH.POINT_MONITORING_DETAIL,
                   Constants.ReplaceRouterConfig.id,
                   code
                 )

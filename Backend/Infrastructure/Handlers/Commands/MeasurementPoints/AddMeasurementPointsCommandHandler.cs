@@ -1,4 +1,5 @@
 using Application.Commands.MeasurementPoints;
+using Application.Common;
 using Application.Common.Responses.Common.Responses;
 using Application.Common.ValueObjects;
 using Application.DataTransferObjects.Responses.MeasurementPoints;
@@ -73,6 +74,26 @@ public class AddMeasurementPointsCommandHandler : ICreateMeasurementPointsComman
                 });
             }
 
+            var meterSerial = string.IsNullOrWhiteSpace(request.Request.MeterSerial)
+                ? null
+                : request.Request.MeterSerial.Trim();
+            if (!string.IsNullOrEmpty(meterSerial) &&
+                (string.IsNullOrEmpty(request.Request.Status) || request.Request.Status == EntityStatus.Active))
+            {
+                var conflictingPointCode = await _measurementPointsReadOnlyRepository.GetActivePointCodeByMeterSerialAsync(meterSerial, 0, cancellationToken);
+                if (!string.IsNullOrEmpty(conflictingPointCode))
+                {
+                    return RequestResult<MeasurementPointResponse>.Fail(new[]
+                    {
+                        new ErrorItem()
+                        {
+                            FieldName = nameof(request.Request.MeterSerial),
+                            Error = $"Số chế tạo '{meterSerial}' đang được sử dụng bởi điểm đo đang hoạt động '{conflictingPointCode}'."
+                        }
+                    });
+                }
+            }
+
             // Giải phóng mã điểm đo từ các bản ghi đã xóa mềm trước đó nếu còn trùng
             var legacyDeletedPoints = await _measurementPointsReadWriteRepository.GetDeletedPointsByCodeAsync(request.Request.Code, cancellationToken);
             if (legacyDeletedPoints != null && legacyDeletedPoints.Count > 0)
@@ -81,6 +102,10 @@ public class AddMeasurementPointsCommandHandler : ICreateMeasurementPointsComman
                 foreach (var del in legacyDeletedPoints)
                 {
                     del.Code = $"{del.Code}_deleted_{timestamp}_{del.Id}";
+                    if (!string.IsNullOrEmpty(del.MeterSerial) && !del.MeterSerial.Contains("_deleted_"))
+                    {
+                        del.MeterSerial = $"{del.MeterSerial}_deleted_{timestamp}_{del.Id}";
+                    }
                     await _measurementPointsReadWriteRepository.UpdateAsync(del, cancellationToken);
                 }
                 await _measurementPointsReadWriteRepository.SaveChangesAsync(cancellationToken);
@@ -102,6 +127,9 @@ public class AddMeasurementPointsCommandHandler : ICreateMeasurementPointsComman
                 GcsId = request.Request.GcsId,
                 Status = request.Request.Status,
                 MultiplierFactor = request.Request.MultiplierFactor,
+                MeterSerial = meterSerial,
+                MeterProfileId = request.Request.MeterProfileId > 0 ? request.Request.MeterProfileId : null,
+                MappingMode = Constants.MappingMode.NormalizeOrDefault(request.Request.MappingMode),
                 CreatedBy = currentId,
                 CreatedName = userName,
                 CreatedTime = DateTimeOffset.UtcNow,

@@ -208,7 +208,7 @@ public class MeasurementPointEventReadOnlyRepository : RestfulRepository<Measure
                             table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.MeasurementPoint.Code + " - " + customer.MeasurementPoint.Customer.FullName).FontFamily(Fonts.Arial).Style(rowStyle);
                             table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.EventName).FontFamily(Fonts.Arial).Style(rowStyle);
                             table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.Status == "ALARM" ? "Alarm" : "Normal").FontFamily(Fonts.Arial).Style(rowStyle);
-                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.Value == "True" ? "1" : "0").FontFamily(Fonts.Arial).Style(rowStyle);
+                            table.Cell().Border(1).BorderColor(Colors.Black).PaddingVertical(4).PaddingHorizontal(6).ShowEntire().Text(customer.Value == "1" || customer.Value == "True" || customer.Status == "ALARM" ? "1" : "0").FontFamily(Fonts.Arial).Style(rowStyle);
                         }
                     });
                 });
@@ -275,7 +275,7 @@ public class MeasurementPointEventReadOnlyRepository : RestfulRepository<Measure
             csvWriter.WriteField(customer.MeasurementPoint?.Customer?.FullName ?? "");
             csvWriter.WriteField(customer.EventName ?? "");
             csvWriter.WriteField(customer.Status == "ALARM" ? "Alarm" : "Normal");
-            csvWriter.WriteField(customer.Value == "True" || customer.Value == "1" ? "1" : "0");
+            csvWriter.WriteField(customer.Value == "1" || customer.Value == "True" || customer.Status == "ALARM" ? "1" : "0");
             await csvWriter.NextRecordAsync();
         }
         await streamWriter.FlushAsync(cancellationToken);

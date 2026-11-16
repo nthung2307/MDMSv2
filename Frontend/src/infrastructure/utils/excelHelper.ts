@@ -517,20 +517,31 @@ export const exportToExcelWithChart = async (options: ExportExcelOptions) => {
         return val;
       }
 
+      // Nếu là cột text (Mã, Số chế tạo, Điện thoại, v.v.) -> luôn giữ định dạng chuỗi
+      const isTextColumn =
+        col.key === 'timeLabel' ||
+        col.key === 'code' ||
+        col.key === 'customerCode' ||
+        col.key === 'measurementPointCode' ||
+        col.key === 'meterSerial' ||
+        col.key.toLowerCase().includes('serial') ||
+        col.key.toLowerCase().includes('sochetao') ||
+        col.header.toLowerCase().includes('số chế tạo') ||
+        col.header.toLowerCase().includes('serial') ||
+        col.header.toLowerCase().includes('mã') ||
+        col.key === 'phoneNumber' ||
+        col.key.toLowerCase().includes('phone') ||
+        col.key.toLowerCase().includes('sdt') ||
+        col.numFmt === '@';
+
+      if (isTextColumn && col.key !== 'index' && col.key !== 'stt' && col.header.trim().toUpperCase() !== 'STT') {
+        return val != null ? String(val) : '';
+      }
+
       // Nếu là số hợp lệ
       if (typeof val === 'number') return val;
       const parsed = Number(val);
-      if (
-        !isNaN(parsed) &&
-        String(val).trim() !== '' &&
-        col.key !== 'timeLabel' &&
-        col.key !== 'code' &&
-        col.key !== 'customerCode' &&
-        col.key !== 'measurementPointCode' &&
-        col.key !== 'phoneNumber' &&
-        !col.key.toLowerCase().includes('phone') &&
-        !col.key.toLowerCase().includes('sdt')
-      ) {
+      if (!isNaN(parsed) && String(val).trim() !== '') {
         return parsed;
       }
       return val;
@@ -584,8 +595,19 @@ export const exportToExcelWithChart = async (options: ExportExcelOptions) => {
         };
       }
 
-      // Format số
-      if (typeof cell.value === 'number') {
+      const isSerialOrText =
+        colDef?.key?.toLowerCase().includes('serial') ||
+        colDef?.key?.toLowerCase().includes('sochetao') ||
+        colDef?.header?.toLowerCase().includes('số chế tạo') ||
+        colDef?.header?.toLowerCase().includes('serial') ||
+        colDef?.numFmt === '@';
+
+      if (isSerialOrText && !isStt) {
+        cell.numFmt = '@';
+        if (typeof cell.value === 'number') {
+          cell.value = String(cell.value);
+        }
+      } else if (typeof cell.value === 'number') {
         if (isIntegerCol) {
           cell.numFmt = colDef?.numFmt || '#,##0'; // Số nguyên, có dấu phân cách hàng nghìn, không có số thập phân
         } else if (colDef?.numFmt) {
@@ -846,10 +868,17 @@ export const downloadExcelTemplate = async (
     dataRow.height = 20;
     dataRow.eachCell((cell, colNum) => {
       cell.font = { name: 'Arial', size: 10 };
-      cell.alignment = {
-        horizontal: colNum === 1 ? 'center' : 'left',
-        vertical: 'middle',
-      };
+      const colDef = columns[colNum - 1];
+      const isSerialOrText =
+        colDef?.key?.toLowerCase().includes('serial') ||
+        colDef?.key?.toLowerCase().includes('sochetao') ||
+        colDef?.header?.toLowerCase().includes('số chế tạo') ||
+        colDef?.header?.toLowerCase().includes('serial');
+
+      if (isSerialOrText) {
+        cell.numFmt = '@';
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      }
       cell.border = {
         top: { style: 'thin', color: { argb: 'FFD3D3D3' } },
         left: { style: 'thin', color: { argb: 'FFD3D3D3' } },

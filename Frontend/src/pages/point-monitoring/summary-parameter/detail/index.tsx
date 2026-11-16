@@ -2,7 +2,7 @@ import { Col, Row, Tooltip } from 'antd';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { useRecoilValue } from 'recoil';
 
 import { IconAvatar } from '@/assets/icons';
@@ -22,6 +22,7 @@ import {
   convertDateTime,
   formatNumberWithCommas,
   renderTextNumber,
+  resolvePointMonitoringCode,
 } from '@/infrastructure/utils/helpers';
 import { _t } from '@/infrastructure/utils/translation';
 
@@ -42,7 +43,9 @@ interface DataUser {
 }
 
 const PointMonitoringDetail = () => {
-  const { id } = useParams();
+  const { id: routeId } = useParams();
+  const location = useLocation();
+  const id = resolvePointMonitoringCode(routeId, location.search);
   const [getMeasurementPointMonitoring] = useGetMeasurementPointMonitoringHook();
   // const [loading, setLoading] = useState<boolean>(false);
   const [dataUser, setDataUser] = useState<DataUser>({

@@ -11,6 +11,31 @@ import { IConfigManagementService } from '@/core/application/interfaces/methods/
 import LoggerService from '@/infrastructure/services/logger.service.ts';
 import RequestService from '@/infrastructure/services/request.service.ts';
 
+const configLogger = new LoggerService();
+
+async function dispatchConfigRequestAsync(
+  executor: () => Promise<RequestResponse>
+): Promise<RequestResponse> {
+  try {
+    const result = await executor();
+
+    if (result.status === 200) {
+      return result as SuccessResponse;
+    }
+    if (result.status === 202) {
+      return result as FailureResponse;
+    }
+    if (result.status === 400) {
+      return result as InvalidModelStateResponse;
+    }
+
+    throw new NetworkException('No http status code handler');
+  } catch (e) {
+    configLogger.error(e);
+    throw e;
+  }
+}
+
 export class ConfigManagementService implements IConfigManagementService {
   public readonly loggerService = new LoggerService();
 
@@ -251,28 +276,9 @@ export class ConfigManagementService implements IConfigManagementService {
     params: any,
     cancellationToken: CancelToken
   ): Promise<RequestResponse> {
-    try {
-      const result = await new RequestService().makeGetRequestAsync(
-        endpoint,
-        params,
-        cancellationToken
-      );
-
-      if (result.status === 200) {
-        return result as SuccessResponse;
-      }
-      if (result.status === 202) {
-        return result as FailureResponse;
-      }
-      if (result.status === 400) {
-        return result as InvalidModelStateResponse;
-      }
-
-      throw new NetworkException('No http status code handler');
-    } catch (e) {
-      this.loggerService.error(e);
-      throw e;
-    }
+    return dispatchConfigRequestAsync(() =>
+      new RequestService().makeGetRequestAsync(endpoint, params, cancellationToken)
+    );
   }
 
   public async updateIoTConfigAsync(
@@ -280,28 +286,9 @@ export class ConfigManagementService implements IConfigManagementService {
     params: any,
     cancellationToken: CancelToken
   ): Promise<RequestResponse> {
-    try {
-      const result = await new RequestService().makePostRequestAsync(
-        endpoint,
-        params,
-        cancellationToken
-      );
-
-      if (result.status === 200) {
-        return result as SuccessResponse;
-      }
-      if (result.status === 202) {
-        return result as FailureResponse;
-      }
-      if (result.status === 400) {
-        return result as InvalidModelStateResponse;
-      }
-
-      throw new NetworkException('No http status code handler');
-    } catch (e) {
-      this.loggerService.error(e);
-      throw e;
-    }
+    return dispatchConfigRequestAsync(() =>
+      new RequestService().makePostRequestAsync(endpoint, params, cancellationToken)
+    );
   }
 
   public async generateIoTKeyAsync(
@@ -309,27 +296,58 @@ export class ConfigManagementService implements IConfigManagementService {
     params: any,
     cancellationToken: CancelToken
   ): Promise<RequestResponse> {
-    try {
-      const result = await new RequestService().makePostRequestAsync(
-        endpoint,
-        params,
-        cancellationToken
-      );
+    return dispatchConfigRequestAsync(() =>
+      new RequestService().makePostRequestAsync(endpoint, params, cancellationToken)
+    );
+  }
 
-      if (result.status === 200) {
-        return result as SuccessResponse;
-      }
-      if (result.status === 202) {
-        return result as FailureResponse;
-      }
-      if (result.status === 400) {
-        return result as InvalidModelStateResponse;
-      }
+  public async getMeterProfilesAsync(
+    endpoint: string,
+    params: any,
+    cancellationToken: CancelToken
+  ): Promise<RequestResponse> {
+    return dispatchConfigRequestAsync(() =>
+      new RequestService().makeGetRequestAsync(endpoint, params, cancellationToken)
+    );
+  }
 
-      throw new NetworkException('No http status code handler');
-    } catch (e) {
-      this.loggerService.error(e);
-      throw e;
-    }
+  public async getUnmatchedSerialsAsync(
+    endpoint: string,
+    params: any,
+    cancellationToken: CancelToken
+  ): Promise<RequestResponse> {
+    return dispatchConfigRequestAsync(() =>
+      new RequestService().makeGetRequestAsync(endpoint, params, cancellationToken)
+    );
+  }
+
+  public async getPointApiKeyAsync(
+    endpoint: string,
+    params: any,
+    cancellationToken: CancelToken
+  ): Promise<RequestResponse> {
+    return dispatchConfigRequestAsync(() =>
+      new RequestService().makeGetRequestAsync(endpoint, params, cancellationToken)
+    );
+  }
+
+  public async generatePointApiKeyAsync(
+    endpoint: string,
+    params: any,
+    cancellationToken: CancelToken
+  ): Promise<RequestResponse> {
+    return dispatchConfigRequestAsync(() =>
+      new RequestService().makePostRequestAsync(endpoint, params, cancellationToken)
+    );
+  }
+
+  public async revokePointApiKeyAsync(
+    endpoint: string,
+    params: any,
+    cancellationToken: CancelToken
+  ): Promise<RequestResponse> {
+    return dispatchConfigRequestAsync(() =>
+      new RequestService().makePostRequestAsync(endpoint, params, cancellationToken)
+    );
   }
 }

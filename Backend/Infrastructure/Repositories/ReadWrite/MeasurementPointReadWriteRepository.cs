@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Application.Common;
 using Application.DataTransferObjects.Requests.Customers;
 using Application.DataTransferObjects.Requests.MeasurementPoints;
 using Application.DataTransferObjects.Responses.MeasurementPoints;
@@ -21,12 +22,14 @@ namespace Infrastructure.Repositories.ReadWrite
     {
         private readonly DbSet<MeasurementPointsEntity> _measurementPointsEntities;
         private readonly DbSet<CustomerEntity> _customerEntities;
+        private readonly DbSet<MeterProfileEntity> _meterProfileEntities;
         private readonly ISnowflakeIdService _snowflakeIdService;
 
         public MeasurementPointReadWriteRepository(AppReadWriteDbContext applicationDbContext, ISnowflakeIdService snowflakeIdService) : base(applicationDbContext, snowflakeIdService)
         {
             _measurementPointsEntities = applicationDbContext.Set<MeasurementPointsEntity>();
             _customerEntities = applicationDbContext.Set<CustomerEntity>();
+            _meterProfileEntities = applicationDbContext.Set<MeterProfileEntity>();
             _snowflakeIdService = snowflakeIdService;
             QuestPDF.Settings.License = LicenseType.Community;
         }
@@ -176,6 +179,7 @@ namespace Infrastructure.Repositories.ReadWrite
                 .AsNoTracking()
                 .Where(x => !x.Deleted)
                 .Include(x => x.Customer)
+                .Include(x => x.MeterProfile)
                 .AsQueryable();
 
             if (request != null)
@@ -217,6 +221,9 @@ namespace Infrastructure.Repositories.ReadWrite
             // Write headers
             csvWriter.WriteField("STT");
             csvWriter.WriteField("Mã điểm đo");
+            csvWriter.WriteField("Số chế tạo");
+            csvWriter.WriteField("Hồ sơ ánh xạ");
+            csvWriter.WriteField("Chế độ ánh xạ");
             csvWriter.WriteField("Loại điểm đo");
             csvWriter.WriteField("Mô tả");
             csvWriter.WriteField("Tên khách hàng");
@@ -231,8 +238,33 @@ namespace Infrastructure.Repositories.ReadWrite
                 var emails = string.Join("; ", new[] { point.Email, point.Email2, point.Email3 }
                     .Where(e => !string.IsNullOrWhiteSpace(e)));
 
+                var profileName = "Hạ áp";
+                if (point.MeterProfile != null)
+                {
+                    var pCode = point.MeterProfile.Code ?? string.Empty;
+                    var pName = (point.MeterProfile.Name ?? string.Empty).ToLower();
+                    if (pCode == "MV_KV_KW" || pName.Contains("trung thế") || pName.Contains("cao áp"))
+                    {
+                        profileName = "Cao áp";
+                    }
+                }
+
+                var mappingModeDisplay = "HYBRID - Thủ công & Mã OBIS";
+                var mode = Constants.MappingMode.NormalizeOrDefault(point.MappingMode);
+                if (mode == Constants.MappingMode.Auto)
+                {
+                    mappingModeDisplay = "AUTO - Mã OBIS";
+                }
+                else if (mode == Constants.MappingMode.Manual)
+                {
+                    mappingModeDisplay = "MANUAL - Thủ công";
+                }
+
                 csvWriter.WriteField(i + 1);
                 csvWriter.WriteField(point.Code);
+                csvWriter.WriteField(point.MeterSerial ?? string.Empty);
+                csvWriter.WriteField(profileName);
+                csvWriter.WriteField(mappingModeDisplay);
                 csvWriter.WriteField(point.Type);
                 csvWriter.WriteField(point.Description ?? string.Empty);
                 csvWriter.WriteField(point.Customer?.FullName ?? string.Empty);
@@ -357,7 +389,7 @@ namespace Infrastructure.Repositories.ReadWrite
             };
 
             using var csv = new CsvReader(reader, csvConfig);
-            int colCode = -1, colType = -1, colDesc = -1, colCustomer = -1, colEmail = -1, colEmail2 = -1, colEmail3 = -1, colAddress = -1, colStatus = -1;
+            int colCode = -1, colMeterSerial = -1, colProfile = -1, colMappingMode = -1, colType = -1, colDesc = -1, colCustomer = -1, colEmail = -1, colEmail2 = -1, colEmail3 = -1, colAddress = -1, colStatus = -1;
             bool headerFound = false;
 
             // Quét tìm dòng tiêu đề thực sự (bỏ qua các dòng banner, ngày giờ xuất báo cáo)
@@ -382,7 +414,7 @@ namespace Infrastructure.Repositories.ReadWrite
                     continue;
                 }
 
-                colCode = -1; colType = -1; colDesc = -1; colCustomer = -1; colEmail = -1; colEmail2 = -1; colEmail3 = -1; colAddress = -1; colStatus = -1;
+                colCode = -1; colMeterSerial = -1; colProfile = -1; colMappingMode = -1; colType = -1; colDesc = -1; colCustomer = -1; colEmail = -1; colEmail2 = -1; colEmail3 = -1; colAddress = -1; colStatus = -1;
                 for (int i = 0; i < csv.HeaderRecord.Length; i++)
                 {
                     var header = NormalizeHeaderText(csv.HeaderRecord[i]);
@@ -393,6 +425,19 @@ namespace Infrastructure.Repositories.ReadWrite
                         header.Equals("code"))
                     {
                         colCode = i;
+                    }
+                    else if (header.Contains("so che tao") || header.Contains("sochetao") || header.Contains("so_che_tao") ||
+                             header.Contains("serial") || header.Contains("meterserial") || header.Contains("meter_serial"))
+                    {
+                        colMeterSerial = i;
+                    }
+                    else if (header.Contains("che do") || header.Contains("chedo") || header.Contains("mapping_mode") || header.Contains("mapping mode") || header.Equals("mode"))
+                    {
+                        colMappingMode = i;
+                    }
+                    else if (header.Contains("ho so") || header.Contains("hoso") || header.Contains("profile") || (header.Contains("anh xa") && !header.Contains("che do")))
+                    {
+                        colProfile = i;
                     }
                     else if (header.Contains("loai diem do") || header.Contains("loaidiemdo") || header.Contains("point_type") || header.Equals("type") || header.Equals("loai"))
                     {
@@ -463,12 +508,22 @@ namespace Infrastructure.Repositories.ReadWrite
                 .ToListAsync(cancellationToken);
 
             var existingPoints = new Dictionary<string, MeasurementPointsEntity>(StringComparer.OrdinalIgnoreCase);
+            var activeSerialOwners = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var p in pointList)
             {
                 var key = p.Code.Trim().ToUpperInvariant();
                 if (!string.IsNullOrEmpty(key) && !existingPoints.ContainsKey(key))
                 {
                     existingPoints[key] = p;
+                }
+
+                if (p.Status == EntityStatus.Active && !string.IsNullOrWhiteSpace(p.MeterSerial))
+                {
+                    var serialKey = p.MeterSerial.Trim();
+                    if (!activeSerialOwners.ContainsKey(serialKey))
+                    {
+                        activeSerialOwners[serialKey] = p.Code.Trim();
+                    }
                 }
             }
 
@@ -493,6 +548,12 @@ namespace Infrastructure.Repositories.ReadWrite
                         customersByName[nameKey] = c;
                 }
             }
+
+            var profileList = await _meterProfileEntities
+                .Where(x => !x.Deleted)
+                .ToListAsync(cancellationToken);
+            var mvProfile = profileList.FirstOrDefault(p => p.Code == "MV_KV_KW" || p.Name.Contains("Trung thế") || p.Name.Contains("Cao áp"));
+            var lvProfile = profileList.FirstOrDefault(p => p.Code == "LV_V_KW" || p.Name.Contains("Hạ thế") || p.Name.Contains("Hạ áp")) ?? profileList.FirstOrDefault(p => p.IsDefault);
 
             int rowNumber = 1;
             var now = DateTimeOffset.UtcNow;
@@ -526,6 +587,9 @@ namespace Infrastructure.Repositories.ReadWrite
             {
                 rowNumber++;
                 var code = colCode >= 0 ? csv.GetField(colCode)?.Trim() : null;
+                var meterSerial = colMeterSerial >= 0 ? csv.GetField(colMeterSerial)?.Trim() : null;
+                var profileRaw = colProfile >= 0 ? csv.GetField(colProfile)?.Trim() : null;
+                var mappingModeRaw = colMappingMode >= 0 ? csv.GetField(colMappingMode)?.Trim() : null;
                 var type = colType >= 0 ? csv.GetField(colType)?.Trim() : null;
                 var desc = colDesc >= 0 ? csv.GetField(colDesc)?.Trim() : null;
                 var customerRaw = colCustomer >= 0 ? csv.GetField(colCustomer)?.Trim() : null;
@@ -639,9 +703,70 @@ namespace Infrastructure.Repositories.ReadWrite
                 }
 
                 var upperCode = code.ToUpperInvariant();
+                long? profileId = null;
+                if (!string.IsNullOrWhiteSpace(profileRaw))
+                {
+                    var normP = NormalizeHeaderText(profileRaw);
+                    if (normP.Contains("cao ap") || normP.Contains("trung the") || normP.Contains("mv"))
+                        profileId = mvProfile?.Id;
+                    else if (normP.Contains("ha ap") || normP.Contains("ha the") || normP.Contains("lv"))
+                        profileId = lvProfile?.Id;
+                }
+
+                string? mappingMode = null;
+                if (!string.IsNullOrWhiteSpace(mappingModeRaw))
+                {
+                    var normMode = NormalizeHeaderText(mappingModeRaw);
+                    if (normMode.Contains("auto") || normMode.Contains("tu dong") || (normMode.Contains("obis") && !normMode.Contains("thu cong") && !normMode.Contains("hybrid")))
+                    {
+                        mappingMode = Constants.MappingMode.Auto;
+                    }
+                    else if (normMode.Contains("manual") || (normMode.Contains("thu cong") && !normMode.Contains("hybrid") && !normMode.Contains("obis")))
+                    {
+                        mappingMode = Constants.MappingMode.Manual;
+                    }
+                    else if (normMode.Contains("hybrid") || normMode.Contains("ket hop") || normMode.Contains("thu cong"))
+                    {
+                        mappingMode = Constants.MappingMode.Hybrid;
+                    }
+                }
+
                 if (existingPoints.TryGetValue(upperCode, out var existingPoint))
                 {
+                    var effectiveStatus = (hasStatusSpecified && status != null) ? status : existingPoint.Status;
+                    var effectiveSerial = meterSerial != null
+                        ? (string.IsNullOrWhiteSpace(meterSerial) ? null : meterSerial.Trim())
+                        : existingPoint.MeterSerial?.Trim();
+
+                    if (effectiveStatus == EntityStatus.Active && !string.IsNullOrWhiteSpace(effectiveSerial))
+                    {
+                        if (activeSerialOwners.TryGetValue(effectiveSerial, out var ownerCode) &&
+                            !string.Equals(ownerCode, existingPoint.Code, StringComparison.OrdinalIgnoreCase))
+                        {
+                            response.Errors.Add(new ImportMeasurementPointRowError
+                            {
+                                RowNumber = rowNumber,
+                                PointCode = code,
+                                ErrorMessage = $"Số chế tạo '{effectiveSerial}' đang được sử dụng bởi điểm đo đang hoạt động '{ownerCode}'!"
+                            });
+                            response.ErrorCount++;
+                            continue;
+                        }
+                    }
+
+                    // Giải phóng serial cũ nếu điểm đo đổi sang serial khác hoặc chuyển sang Ngừng sử dụng
+                    var previousSerial = existingPoint.MeterSerial?.Trim();
+                    if (!string.IsNullOrWhiteSpace(previousSerial) &&
+                        activeSerialOwners.TryGetValue(previousSerial, out var prevOwner) &&
+                        string.Equals(prevOwner, existingPoint.Code, StringComparison.OrdinalIgnoreCase))
+                    {
+                        activeSerialOwners.Remove(previousSerial);
+                    }
+
                     // SAFE UPSERT: Cập nhật thông tin điểm đo, giữ nguyên 100% ID
+                    if (meterSerial != null) existingPoint.MeterSerial = effectiveSerial;
+                    if (profileId.HasValue) existingPoint.MeterProfileId = profileId.Value;
+                    if (!string.IsNullOrWhiteSpace(mappingMode)) existingPoint.MappingMode = mappingMode;
                     if (!string.IsNullOrWhiteSpace(type)) existingPoint.Type = type.Trim();
                     if (desc != null) existingPoint.Description = string.IsNullOrWhiteSpace(desc) ? null : desc.Trim();
                     if (address != null && !string.IsNullOrWhiteSpace(address)) existingPoint.Address = address.Trim();
@@ -659,6 +784,11 @@ namespace Infrastructure.Repositories.ReadWrite
                         existingPoint.Status = status;
                     }
 
+                    if (existingPoint.Status == EntityStatus.Active && !string.IsNullOrWhiteSpace(existingPoint.MeterSerial))
+                    {
+                        activeSerialOwners[existingPoint.MeterSerial.Trim()] = existingPoint.Code;
+                    }
+
                     existingPoint.ModifiedTime = now;
                     existingPoint.ModifiedBy = currentUserId;
                     existingPoint.ModifiedName = currentUserName;
@@ -667,6 +797,23 @@ namespace Infrastructure.Repositories.ReadWrite
                 }
                 else
                 {
+                    var effectiveNewStatus = status ?? EntityStatus.Active;
+                    var normalizedNewSerial = !string.IsNullOrWhiteSpace(meterSerial) ? meterSerial.Trim() : null;
+                    if (effectiveNewStatus == EntityStatus.Active && !string.IsNullOrWhiteSpace(normalizedNewSerial))
+                    {
+                        if (activeSerialOwners.TryGetValue(normalizedNewSerial, out var ownerCode))
+                        {
+                            response.Errors.Add(new ImportMeasurementPointRowError
+                            {
+                                RowNumber = rowNumber,
+                                PointCode = code,
+                                ErrorMessage = $"Số chế tạo '{normalizedNewSerial}' đang được sử dụng bởi điểm đo đang hoạt động '{ownerCode}'!"
+                            });
+                            response.ErrorCount++;
+                            continue;
+                        }
+                    }
+
                     // Thêm mới điểm đo: Yêu cầu phải xác định được Customer
                     if (matchedCustomer == null)
                     {
@@ -694,6 +841,9 @@ namespace Infrastructure.Repositories.ReadWrite
                     {
                         Id = newId,
                         Code = code,
+                        MeterSerial = normalizedNewSerial,
+                        MeterProfileId = profileId ?? lvProfile?.Id,
+                        MappingMode = mappingMode ?? Constants.MappingMode.Hybrid,
                         Type = !string.IsNullOrWhiteSpace(type) ? type.Trim() : "1 Pha",
                         Description = !string.IsNullOrWhiteSpace(desc) ? desc.Trim() : null,
                         Address = !string.IsNullOrWhiteSpace(address) ? address.Trim() : null,
@@ -701,7 +851,7 @@ namespace Infrastructure.Repositories.ReadWrite
                         Email = email1,
                         Email2 = email2,
                         Email3 = email3,
-                        Status = status ?? EntityStatus.Active,
+                        Status = effectiveNewStatus,
                         MultiplierFactor = 1.0m,
                         CreatedBy = currentUserId,
                         CreatedName = currentUserName,
@@ -714,6 +864,10 @@ namespace Infrastructure.Repositories.ReadWrite
 
                     await _measurementPointsEntities.AddAsync(newPoint, cancellationToken);
                     existingPoints[upperCode] = newPoint;
+                    if (effectiveNewStatus == EntityStatus.Active && !string.IsNullOrWhiteSpace(normalizedNewSerial))
+                    {
+                        activeSerialOwners[normalizedNewSerial] = code;
+                    }
                     response.InsertedCount++;
                 }
             }

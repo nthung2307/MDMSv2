@@ -15,4 +15,6 @@ public interface IMeasurementPointsReadOnlyRepository : IRepository<MeasurementP
     Task<List<MeasurementPointGcsDto>> GetListMeasurementPointGcsAsync(long gcsId, CancellationToken cancellationToken);
     Task<bool> IsExistMeasurementPointAsync(long id, CancellationToken cancellationToken);
     Task<bool> IsExistMeasurementPointNameAsync(string code, long id, CancellationToken cancellationToken);
+    Task<bool> IsExistMeterSerialAsync(string meterSerial, long excludePointId, CancellationToken cancellationToken);
+    Task<string?> GetActivePointCodeByMeterSerialAsync(string meterSerial, long excludePointId, CancellationToken cancellationToken);
 }

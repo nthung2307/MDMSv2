@@ -117,6 +117,11 @@ export class Endpoint {
     static GetIoTConfig: string = 'iot/get-config';
     static UpdateIoTConfig: string = 'iot/update-config';
     static GenerateIoTKey: string = 'iot/generate-api-key';
+    static GetMeterProfiles: string = 'iot/meter-profiles';
+    static GetUnmatchedSerials: string = 'iot/unmatched-serials';
+    static GetPointApiKey: string = 'iot/point-api-key/:id';
+    static GeneratePointApiKey: string = 'iot/point-api-key/:id/generate';
+    static RevokePointApiKey: string = 'iot/point-api-key/:id/revoke';
   };
 
   static Report = class {

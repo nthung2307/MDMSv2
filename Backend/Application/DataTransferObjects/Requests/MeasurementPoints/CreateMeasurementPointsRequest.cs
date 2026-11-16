@@ -10,4 +10,7 @@ public class CreateMeasurementPointsRequest
     public long? GcsId { get; set; }
     public decimal MultiplierFactor { get; set; } = 1.0m;
     public string Status { get; set; }
+    public string? MeterSerial { get; set; }
+    public long? MeterProfileId { get; set; }
+    public string? MappingMode { get; set; } = "HYBRID";
 }

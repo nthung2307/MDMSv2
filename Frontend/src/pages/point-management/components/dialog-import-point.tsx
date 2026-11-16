@@ -48,6 +48,9 @@ const DialogImportPoint = ({ open, handleCancel, onSuccess }: Props) => {
         [
           { header: 'STT', key: 'stt', width: 8 },
           { header: 'Mã điểm đo', key: 'maDiemDo', width: 16 },
+          { header: 'Số chế tạo', key: 'soCheTao', width: 18 },
+          { header: 'Hồ sơ ánh xạ', key: 'hoSoAnhXa', width: 16 },
+          { header: 'Chế độ ánh xạ', key: 'cheDoAnhXa', width: 26 },
           { header: 'Loại điểm đo', key: 'loaiDiemDo', width: 16 },
           { header: 'Mô tả', key: 'moTa', width: 32 },
           { header: 'Tên khách hàng', key: 'tenKh', width: 32 },
@@ -58,6 +61,9 @@ const DialogImportPoint = ({ open, handleCancel, onSuccess }: Props) => {
           {
             stt: 1,
             maDiemDo: 'ĐĐ001',
+            soCheTao: '209555163',
+            hoSoAnhXa: 'Hạ áp',
+            cheDoAnhXa: 'HYBRID - Thủ công & Mã OBIS',
             loaiDiemDo: '3 Pha',
             moTa: 'Điểm đo trạm biến áp A',
             tenKh: 'Công ty Điện lực Mẫu A',
@@ -67,6 +73,9 @@ const DialogImportPoint = ({ open, handleCancel, onSuccess }: Props) => {
           {
             stt: 2,
             maDiemDo: 'ĐĐ002',
+            soCheTao: '240812345',
+            hoSoAnhXa: 'Cao áp',
+            cheDoAnhXa: 'AUTO - Mã OBIS',
             loaiDiemDo: '1 Pha',
             moTa: 'Điểm đo phân xưởng 1',
             tenKh: 'Nhà máy Sản xuất Kyocera',

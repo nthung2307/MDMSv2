@@ -34,6 +34,9 @@ const AddPoint = () => {
       ...data,
       status: data.status ?? Constants.AccountStatus.Deactivate,
       multiplierFactor: Number(data.multiplierFactor),
+      meterSerial: data.meterSerial || null,
+      meterProfileId: data.meterProfileId ? Number(data.meterProfileId) : null,
+      mappingMode: data.mappingMode || 'HYBRID',
     });
     await createMeasurementPointRequest(
       requestBody,

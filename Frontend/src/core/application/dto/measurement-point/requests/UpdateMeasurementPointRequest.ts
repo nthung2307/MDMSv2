@@ -8,6 +8,9 @@ export class UpdateMeasurementPointRequest {
   status: string;
   gcsId: number;
   multiplierFactor: number;
+  meterSerial?: string | null;
+  meterProfileId?: number | null;
+  mappingMode?: string;
 
   constructor(args: {
     id: number;
@@ -19,6 +22,9 @@ export class UpdateMeasurementPointRequest {
     customerId: number;
     multiplierFactor: number;
     gcsId: number;
+    meterSerial?: string | null;
+    meterProfileId?: number | null;
+    mappingMode?: string;
   }) {
     this.id = args.id;
     this.code = args.code;
@@ -29,5 +35,8 @@ export class UpdateMeasurementPointRequest {
     this.customerId = args.customerId;
     this.multiplierFactor = args.multiplierFactor;
     this.gcsId = args.gcsId;
+    this.meterSerial = args.meterSerial ?? null;
+    this.meterProfileId = args.meterProfileId ?? null;
+    this.mappingMode = args.mappingMode || 'HYBRID';
   }
 }

@@ -157,15 +157,32 @@ const PointManagement = () => {
 
   const dataExport = sortedData.map((item, index) => {
     const emails = [item.email, item.email2, item.email3].filter(Boolean).join('; ');
+    let profileDisplay = 'Hạ áp';
+    const profCode = item.meterProfileCode || '';
+    const profName = (item.meterProfileName || '').toLowerCase();
+    if (profCode === 'MV_KV_KW' || profName.includes('trung thế') || profName.includes('cao áp')) {
+      profileDisplay = 'Cao áp';
+    }
+
+    let mappingModeDisplay = 'HYBRID - Thủ công & Mã OBIS';
+    const mode = (item.mappingMode || '').toUpperCase();
+    if (mode === 'AUTO') {
+      mappingModeDisplay = 'AUTO - Mã OBIS';
+    } else if (mode === 'MANUAL') {
+      mappingModeDisplay = 'MANUAL - Thủ công';
+    }
+
     return {
       index: index + 1,
-      code: item.code ?? 'N/A',
-      type: item.type ?? 'N/A',
-      address: item.address ?? 'N/A',
-      description: item.description ?? 'N/A',
-      customer: item.customer?.fullName ?? 'N/A',
+      code: item.code ?? '',
+      meterSerial: item.meterSerial ?? '',
+      meterProfile: profileDisplay,
+      mappingMode: mappingModeDisplay,
+      type: item.type ?? '',
+      description: item.description ?? '',
+      customer: item.customer?.fullName ?? '',
       emails: emails || '',
-      status: item.status ?? 'N/A',
+      status: item.status ?? '',
     };
   });
 

@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Kiem tra toan dien trang thai hoat dong (Health Check) cua MDMSv2 tren Windows Server 2019.
 #>

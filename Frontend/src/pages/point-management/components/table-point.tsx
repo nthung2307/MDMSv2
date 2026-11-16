@@ -26,8 +26,13 @@ const TablePointManagement = (props: Props) => {
       type: item.type,
       address: item.address,
       description: item.description,
-      customer: item.customer.fullName,
+      customer: item.customer?.fullName || '',
       status: item.status,
+      meterSerial: item.meterSerial,
+      meterProfileCode: item.meterProfileCode,
+      mappingMode: item.mappingMode || 'HYBRID',
+      hasDedicatedKey: Boolean(item.hasDedicatedKey),
+      keyPrefix: item.keyPrefix,
       key: item.id,
     };
   });
@@ -38,7 +43,18 @@ const TablePointManagement = (props: Props) => {
       dataIndex: 'code',
       fixed: true,
       className: 'antd-action-table',
-      width: 150,
+      width: 140,
+    },
+    {
+      title: 'Số chế tạo',
+      dataIndex: 'meterSerial',
+      width: 160,
+      render: (val) =>
+        val ? (
+          <span className='font-mono font-semibold text-blue-700'>{val}</span>
+        ) : (
+          <span className='text-gray-400 italic text-12'>Chưa gán</span>
+        ),
     },
     {
       title: 'Loại điểm đo',

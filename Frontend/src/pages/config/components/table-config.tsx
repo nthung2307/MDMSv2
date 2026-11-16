@@ -20,6 +20,9 @@ const TableConfigManagement = (props: Props) => {
     return {
       index: index + 1,
       code: item.code,
+      meterSerial: item.meterSerial,
+      meterProfileCode: item.meterProfileCode,
+      mappingMode: item.mappingMode,
       type: item.type,
       address: item.address,
       description: item.description,
@@ -32,14 +35,34 @@ const TableConfigManagement = (props: Props) => {
     {
       title: 'Mã điểm đo',
       dataIndex: 'code',
-      width: 170,
+      width: 150,
       className: 'whitespace-nowrap',
       render: (text) => {
         const val = text || 'N/A';
         return (
           <Tooltip title={val}>
-            <div className='max-w-[170px] truncate whitespace-nowrap font-medium'>{val}</div>
+            <div className='max-w-[150px] truncate whitespace-nowrap font-medium'>{val}</div>
           </Tooltip>
+        );
+      },
+    },
+    {
+      title: 'Số chế tạo / Hồ sơ ánh xạ',
+      key: 'meterSerialProfile',
+      width: 230,
+      className: 'whitespace-nowrap',
+      render: (_, record) => {
+        const profileDisplay =
+          record.meterProfileCode === 'MV_KV_KW' ? 'Cao áp' : 'Hạ áp';
+        return (
+          <div className='flex items-center gap-1.5'>
+            <span className='font-mono text-blue-700 font-semibold'>
+              {record.meterSerial || 'Chưa gán'}
+            </span>
+            <span className='text-xs px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-700 border border-cyan-200'>
+              {profileDisplay} ({record.mappingMode || 'HYBRID'})
+            </span>
+          </div>
         );
       },
     },

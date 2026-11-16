@@ -9,4 +9,5 @@ namespace Application.Commands.IoT;
 public class MeasurementPointEventCommand : CommandBase, IRequest<RequestResult<MeasurementPointMonitoringResponse>>
 {
     public IoTDataRequest Request { get; set; }
+    public string? MeterSerial { get; set; }
 }

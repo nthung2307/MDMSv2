@@ -9,10 +9,11 @@ import InputSelectCommon from '@/infrastructure/common/components/input/input-se
 import InputTextAreaCommon from '@/infrastructure/common/components/input/input-text-area-common';
 import InputTextCommon from '@/infrastructure/common/components/input/input-text-common';
 import SwitchTextValue from '@/infrastructure/common/components/switch/switch-text-value';
+import useIoTConfigHook, {
+  MeterProfileItem,
+} from '@/infrastructure/repository/config/hooks/useIoTConfigHook';
 import useGetListGCSHook from '@/infrastructure/repository/gcs/hooks/useGetGCSList.hook';
 import { _t } from '@/infrastructure/utils/translation';
-
-// import MultiLevelInput from '@/pages/point-management/components/multiple-level-input';
 
 interface IPointForm {
   data: any;
@@ -27,6 +28,12 @@ interface IPointForm {
   editMode?: boolean;
 }
 
+const MAPPING_MODE_OPTIONS = [
+  { label: 'HYBRID - Thủ công & Mã OBIS', value: 'HYBRID' },
+  { label: 'AUTO - Mã OBIS', value: 'AUTO' },
+  { label: 'MANUAL - Thủ công', value: 'MANUAL' },
+];
+
 const PointForm = (props: IPointForm) => {
   const {
     data,
@@ -39,8 +46,12 @@ const PointForm = (props: IPointForm) => {
     title = 'Thêm điểm đo',
     editMode = false,
   } = props;
+
   const [GCSCode, setGCSCode] = useState<any>();
+  const [profileOptions, setProfileOptions] = useState<{ label: string; value: number }[]>([]);
+
   const [getListGCS] = useGetListGCSHook();
+  const { getMeterProfiles } = useIoTConfigHook();
 
   const getListGCSAsync = async () => {
     const params: GetListGCSRequest = {
@@ -59,26 +70,46 @@ const PointForm = (props: IPointForm) => {
           {
             label: <span>Đang mở</span>,
             title: 'Đang mở',
-            options: listActive.map((item: any) => {
-              return {
-                value: item.id,
-                label: `${item.code} - ${item.name}`,
-              };
-            }),
+            options: listActive.map((item: any) => ({
+              value: item.id,
+              label: `${item.code} - ${item.name}`,
+            })),
           },
           {
             label: <span>Đã đóng</span>,
             title: 'Đã đóng',
-            options: listDeactive.map((item: any) => {
-              return {
-                value: item.id,
-                label: `${item.code} - ${item.name}`,
-              };
-            }),
+            options: listDeactive.map((item: any) => ({
+              value: item.id,
+              label: `${item.code} - ${item.name}`,
+            })),
           },
         ]);
       },
       () => {},
+      () => {}
+    );
+  };
+
+  const loadProfilesAsync = async () => {
+    await getMeterProfiles(
+      (res: DataResponse) => {
+        const profiles: MeterProfileItem[] = res?.data || [];
+        setProfileOptions(
+          profiles.map((p) => {
+            let displayName = p.name;
+            const lowerName = (p.name || '').toLowerCase();
+            if (p.code === 'MV_KV_KW' || lowerName.includes('trung thế') || lowerName.includes('cao áp')) {
+              displayName = 'Cao áp';
+            } else if (p.code === 'LV_V_KW' || lowerName.includes('hạ thế') || lowerName.includes('hạ áp')) {
+              displayName = 'Hạ áp';
+            }
+            return {
+              value: p.id,
+              label: `${displayName}${p.isDefault ? ' - Mặc định' : ''}`,
+            };
+          })
+        );
+      },
       () => {}
     );
   };
@@ -90,44 +121,34 @@ const PointForm = (props: IPointForm) => {
         value: '3 pha, 3 giá, 1 giao',
       },
     ],
-
-    unit: [
-      {
-        label: 'W',
-        value: 'W',
-      },
-      {
-        label: 'kW',
-        value: 'kW',
-      },
-    ],
   };
 
   useEffect(() => {
     getListGCSAsync();
+    loadProfilesAsync();
   }, []);
+
   return (
     <div>
       <div className={'flex items-center justify-between'}>
         <h1 className='font-bold text-20-20'>{title}</h1>
         <div>
-          <div>
-            <SwitchTextValue
-              data={statusUser == Constants.userStatus.Add ? { status: 'DEACTIVATE' } : data}
-              expectedData={[
-                { key: true, value: Constants.AccountStatus.Active },
-                { key: false, value: Constants.AccountStatus.Deactivate },
-              ]}
-              setData={setData}
-              attribute={'status'}
-              label={_t('Kích hoạt')}
-              isRequired={false}
-              reverseLabel={true}
-              disabled={disabled}
-            />
-          </div>
+          <SwitchTextValue
+            data={statusUser == Constants.userStatus.Add ? { status: 'DEACTIVATE' } : data}
+            expectedData={[
+              { key: true, value: Constants.AccountStatus.Active },
+              { key: false, value: Constants.AccountStatus.Deactivate },
+            ]}
+            setData={setData}
+            attribute={'status'}
+            label={_t('Kích hoạt')}
+            isRequired={false}
+            reverseLabel={true}
+            disabled={disabled}
+          />
         </div>
       </div>
+
       <div className='mt-5 flex flex-col gap-5'>
         <div className='flex gap-2'>
           <div className='basis-1/2'>
@@ -161,7 +182,55 @@ const PointForm = (props: IPointForm) => {
             />
           </div>
         </div>
+
         <div className='flex gap-2'>
+          <div className='basis-1/2'>
+            <InputTextCommon
+              dataAttribute={data?.meterSerial}
+              label={'Số chế tạo (Serial number)'}
+              attribute={'meterSerial'}
+              validate={validate}
+              setValidate={setValidate}
+              submittedTime={submittedTime}
+              setData={setData}
+              isRequired={false}
+              placeholder={'Ví dụ: 209555163 (định danh REST Client)'}
+              disabled={disabled}
+            />
+          </div>
+          <div className='basis-1/2'>
+            <InputSelectCommon
+              label={'Hồ sơ ánh xạ (Profile)'}
+              attribute={'meterProfileId'}
+              setData={setData}
+              dataAttribute={data?.meterProfileId}
+              isRequired={false}
+              validate={validate}
+              setValidate={setValidate}
+              listDataItem={profileOptions}
+              disabled={disabled}
+              placeholder={'Mặc định: Hạ áp'}
+              allowClear={true}
+            />
+          </div>
+        </div>
+
+        <div className='flex gap-2'>
+          <div className='basis-1/2'>
+            <InputSelectCommon
+              label={'Chế độ ánh xạ (Mapping mode)'}
+              attribute={'mappingMode'}
+              setData={setData}
+              dataAttribute={data?.mappingMode || 'HYBRID'}
+              isRequired={false}
+              validate={validate}
+              setValidate={setValidate}
+              listDataItem={MAPPING_MODE_OPTIONS}
+              disabled={disabled}
+              placeholder={'HYBRID'}
+              allowClear={false}
+            />
+          </div>
           <div className='basis-1/2'>
             <InputNumberCalculateCommon
               label={_t('Hệ số nhân')}
@@ -183,6 +252,9 @@ const PointForm = (props: IPointForm) => {
               ]}
             />
           </div>
+        </div>
+
+        <div className='flex gap-2 items-start'>
           <div className='basis-1/2'>
             <InputSelectCommon
               label={'Sổ ghi chỉ số'}
@@ -198,8 +270,6 @@ const PointForm = (props: IPointForm) => {
               allowClear={true}
             />
           </div>
-        </div>
-        <div className='flex gap-2 items-start'>
           <div className='basis-1/2'>
             <CustomerSelector
               label={'Mã khách hàng'}
@@ -214,21 +284,20 @@ const PointForm = (props: IPointForm) => {
               disabled={disabled}
             />
           </div>
-          <div className='basis-1/2'>
-            <InputTextCommon
-              label={_t('Địa chỉ')}
-              attribute={'address'}
-              validate={validate}
-              setValidate={setValidate}
-              submittedTime={submittedTime}
-              setData={setData}
-              dataAttribute={data?.address}
-              isRequired={false}
-              placeholder={'Nhập địa chỉ'}
-              disabled={disabled}
-            />
-          </div>
         </div>
+
+        <InputTextCommon
+          label={_t('Địa chỉ')}
+          attribute={'address'}
+          validate={validate}
+          setValidate={setValidate}
+          submittedTime={submittedTime}
+          setData={setData}
+          dataAttribute={data?.address}
+          isRequired={false}
+          placeholder={'Nhập địa chỉ'}
+          disabled={disabled}
+        />
 
         <InputTextAreaCommon
           label={_t('Mô tả')}

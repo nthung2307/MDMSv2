@@ -7,6 +7,9 @@ export class CreateMeasurementPointRequest {
   gcsId: number;
   multiplierFactor: number;
   status: string;
+  meterSerial?: string | null;
+  meterProfileId?: number | null;
+  mappingMode?: string;
 
   constructor(args: {
     code: string;
@@ -17,6 +20,9 @@ export class CreateMeasurementPointRequest {
     multiplierFactor: number;
     gcsId: number;
     status: string;
+    meterSerial?: string | null;
+    meterProfileId?: number | null;
+    mappingMode?: string;
   }) {
     this.code = args.code;
     this.type = args.type;
@@ -26,5 +32,8 @@ export class CreateMeasurementPointRequest {
     this.multiplierFactor = args.multiplierFactor;
     this.gcsId = args.gcsId;
     this.status = args.status;
+    this.meterSerial = args.meterSerial ?? null;
+    this.meterProfileId = args.meterProfileId ?? null;
+    this.mappingMode = args.mappingMode || 'HYBRID';
   }
 }

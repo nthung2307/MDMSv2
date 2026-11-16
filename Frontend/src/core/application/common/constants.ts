@@ -1100,11 +1100,17 @@ export default class Constants {
       value: 4,
     };
 
+    static authKeyParams = {
+      label: 'Mã xác thực',
+      value: 5,
+    };
+
     static typeArray: Array<any> = [
       this.operatingParams,
       this.powerParams,
       this.warningParams,
       this.dateTimeParams,
+      this.authKeyParams,
     ];
   };
 
@@ -1721,16 +1727,20 @@ export default class Constants {
     ];
 
     static PointManagement: Array<any> = [
-      { label: 'STT', attr: 'index', width: 5 },
-      { label: 'Mã điểm đo', attr: 'code', width: 11 },
-      { label: 'Loại điểm đo', attr: 'type', width: 7 },
-      { label: 'Mô tả', attr: 'description', width: 25 },
-      { label: 'Tên khách hàng', attr: 'customer', width: 25 },
-      { label: 'Email nhận phiếu báo (tối đa 3 email)', attr: 'emails', width: 25 },
+      { label: 'STT', attr: 'index', width: 6, align: 'center' },
+      { label: 'Mã điểm đo', attr: 'code', width: 16, align: 'left' },
+      { label: 'Số chế tạo', attr: 'meterSerial', width: 18, align: 'center', numFmt: '@' },
+      { label: 'Hồ sơ ánh xạ', attr: 'meterProfile', width: 16, align: 'center' },
+      { label: 'Chế độ ánh xạ', attr: 'mappingMode', width: 28, align: 'left' },
+      { label: 'Loại điểm đo', attr: 'type', width: 16, align: 'left' },
+      { label: 'Mô tả', attr: 'description', width: 25, align: 'left' },
+      { label: 'Tên khách hàng', attr: 'customer', width: 30, align: 'left' },
+      { label: 'Email nhận phiếu báo (tối đa 3 email)', attr: 'emails', width: 30, align: 'left' },
       {
         label: 'Trạng thái',
         attr: 'status',
-        width: 13,
+        width: 14,
+        align: 'center',
         activeMsg: 'Đang sử dụng',
         inactiveMsg: 'Ngừng sử dụng',
       },

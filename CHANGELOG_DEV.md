@@ -1,3 +1,53 @@
+# [DEV UPDATE] PHASE 2 — ĐỊNH DANH SỐ CHẾ TẠO CÔNG TƠ, HỒ SƠ ÁNH XẠ MÃ OBIS, BẢO MẬT 2 TẦNG & TINH CHỈNH UI/UX GIÁM SÁT
+
+> **Tài liệu cập nhật phát triển (Developer Changelog)**  
+> **Phiên bản:** v3.3.0-PHASE2-METER-SERIAL-OBIS-AND-TWO-TIER-AUTH  
+> **Người thực hiện:** Chuỗi Multi-Agent MDMSv2 (MDMS-Planner, MDMS-Coder, MDMS-Tester, MDMS-Reviewer)  
+> **Thời gian:** 16/11/2026  
+
+---
+
+### Tóm tắt các nội dung hoàn thành trong Phase 2:
+
+1. **Định danh Điểm đo theo Số chế tạo Công tơ (Meter Serial Identification) & Ràng buộc Tính duy nhất**:
+   - Thêm cột `MeterSerial VARCHAR(100)` vào bảng `measurementpoints`, hỗ trợ định danh điểm đo trực tiếp bằng số chế tạo thiết bị đo.
+   - Thêm ràng buộc toàn vẹn cơ sở dữ liệu `UNIQUE INDEX (MeterSerial)` đối với các điểm đo đang kích hoạt (`Status = 1`), ngăn chặn trùng lặp số chế tạo trên toàn hệ thống.
+   - Đồng bộ hóa xử lý tại các Command Handlers: `AddMeasurementPointsCommandHandler`, `UpdateMeasurementPointsCommandHandler`, `ChangeStatusMeasurementPointCommandHandler` và import Excel/CSV.
+   - Khi phát hiện trùng lặp Số chế tạo, hệ thống chủ động ném ngoại lệ nghiệp vụ thông báo rõ ràng cho người dùng.
+
+2. **Hồ sơ Ánh xạ Mã OBIS Chuẩn hóa (Meter Profiles & OBIS Mappings)**:
+   - Xây dựng 2 thực thể CSDL mới: `MeterProfileEntity` (`meterprofiles`) và `MeterProfileTagMappingEntity` (`meterprofiletagmappings`).
+   - Cung cấp danh mục hồ sơ mẫu (Profile Categories): Công tơ 3 pha gián tiếp (Cao áp, Trung áp, Hạ áp) và 3 pha trực tiếp.
+   - Xây dựng thư viện chuẩn hóa mã OBIS `ObisTelemetryCatalog.cs` (Backend) và `obisCatalog.ts` (Frontend) hỗ trợ giải mã hơn 40 mã OBIS điện năng, công suất, dòng điện, điện áp, góc pha, tần số và hệ số công suất theo tiêu chuẩn quốc tế IEC 62056 / DLMS / COSEM.
+   - Cơ chế tự động giải mã linh hoạt: Hỗ trợ cả 2 định dạng Wide Format và Narrow Format, cho phép nhận telemetry theo tên Tag hoặc theo Mã OBIS.
+
+3. **Cơ chế Xác thực Bảo mật 2 Tầng cho IoT Gateway & Kepware REST Clients**:
+   - Tầng 1 (Dedicated Private-Key): Mỗi điểm đo được cấp một cặp khóa riêng duy nhất (`Private-key`) gắn với `Serial` công tơ.
+   - Tầng 2 (Global Key): Khóa toàn cục dùng chung cho toàn hệ thống đặt tại Cài đặt REST Server.
+   - Triển khai xác thực nghiêm ngặt tại `IoTSecurityManager.cs` & `IoTController.cs`:
+     - Khi điểm đo đã kích hoạt Private-key: Bắt buộc Client phải gửi đúng cặp Header `Serial` và `Private-key`. Nếu sai khóa hoặc sai số chế tạo, hệ thống lập tức từ chối (`HTTP 401 Unauthorized`).
+     - Tự động Invalidate cache định tuyến ngay khi cấp phát lại hoặc thay đổi khóa xác thực.
+
+4. **Bộ đệm Trạng thái Cảnh báo Trong bộ nhớ (In-Memory Alarm State Cache) & Xử lý Quá độ**:
+   - Xây dựng cơ chế `In-Memory Alarm State Cache` giúp kiểm soát chính xác trạng thái cảnh báo của từng điểm đo theo chu kỳ ngắn mà không gây nghẽn I/O cơ sở dữ liệu.
+   - Khắc phục triệt để lỗi nhảy trạng thái và suy diễn nhầm khi mạng chập chờn hoặc rớt gói tin.
+   - Tối ưu hóa hiệu năng RAM và CPU cho MySQL & WebApi khi tiếp nhận đồng thời từ hàng trăm REST Client gửi định kỳ.
+
+5. **Tinh chỉnh Trải nghiệm Giao diện & Sửa lỗi Điều hướng (UI/UX Refinements)**:
+   - **Mở tab mới (Open link in new tab)**: Khắc phục lỗi 404 IIS khi mở điểm đo có ký tự đặc biệt (như dấu `+` trong `"REGINA 3+"`) bằng cách chuẩn hóa routing URL trong React Router, tích hợp URL Decode an toàn và cấu hình IIS URL Rewrite rules tại `Frontend/public/web.config`.
+   - **Giao diện Giám sát Điểm đo**: Trạng thái cảnh báo và sự kiện chuyển sang hiển thị màu đơn sắc (monochrome) thanh lịch, gọn gàng theo yêu cầu người dùng.
+   - **Giao diện Liên kết Dữ liệu Điểm đo**:
+     - Sửa lỗi nút "Sao chép HTTP Header" và tự động hiển thị đúng Badge Private-key khi chuyển tab.
+     - Khắc phục lỗi `CANCEL_TOKEN` race-condition trong `useIoTConfigHook.tsx` bằng cách cấp phát `CancelToken` độc lập cho từng hàm gọi API thay vì dùng chung 1 token hủy toàn cục.
+     - Loại bỏ các câu mô tả hướng dẫn dài dòng không cần thiết trên tab "Mã xác thực", giúp giao diện tập trung và chuyên nghiệp.
+
+6. **Tự động hóa Đóng gói & Kịch bản Triển khai VM**:
+   - Cập nhật script `Update_Hotfix.ps1` tự động phát hiện và thực thi các script migration CSDL mới (`20261112_phase2_meter_serial_and_obis_profiles.sql`).
+   - Cập nhật script `4_Verify_System.ps1` kiểm tra tính toàn vẹn của bảng hồ sơ OBIS và cột `MeterSerial`.
+   - Cung cấp script dọn dẹp dữ liệu kiểm thử `reset_events_and_alerts.sql`.
+
+---
+
 # [DEV UPDATE] PHASE 1 HOTFIX — KHẮC PHỤC XỬ LÝ TÍN HIỆU REST CLIENT 'Status' (CẢNH BÁO, SỰ KIỆN & KẾT NỐI)
 
 > **Tài liệu cập nhật phát triển (Developer Changelog)**  

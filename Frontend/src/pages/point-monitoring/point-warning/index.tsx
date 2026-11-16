@@ -214,8 +214,8 @@ const PointMonitoringWarning = () => {
     measurementPointCode: item.measurementPointCode ?? 'N/A',
     customerName: item.customerName ?? 'N/A',
     eventName: item.eventName ? item.eventName : 'N/A',
-    status: `${item.status.charAt(0)}${item.status.slice(1).toLowerCase()}`,
-    value: item.value === true || item.value === 'True' || item.value === 1 || item.value === '1' ? 1 : 0,
+    status: 'Alarm',
+    value: 1,
   }));
 
   // Effect for fetching data

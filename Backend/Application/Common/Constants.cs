@@ -79,6 +79,30 @@ namespace Application.Common
             public const string NotificationTemplates = "NotificationTemplates";
             public const string StatementPdfTemplates = "StatementPdfTemplates";
             public const string MeterReplacements = "MeterReplacements";
+            public const string MeterProfiles = "MeterProfiles";
+            public const string MeterProfileTagMappings = "MeterProfileTagMappings";
+        }
+
+        public static class MappingMode
+        {
+            public const string Auto = "AUTO";
+            public const string Manual = "MANUAL";
+            public const string Hybrid = "HYBRID";
+
+            public static readonly string[] All = { Hybrid, Auto, Manual };
+
+            public static string NormalizeOrDefault(string? mode)
+            {
+                if (string.IsNullOrWhiteSpace(mode)) return Hybrid;
+                var upper = mode.Trim().ToUpperInvariant();
+                return All.Contains(upper) ? upper : Hybrid;
+            }
+        }
+
+        public static class MeterProfileCode
+        {
+            public const string MediumVoltageKvKw = "MV_KV_KW";
+            public const string LowVoltageVKw = "LV_V_KW";
         }
 
         public static class EmailProvider
@@ -127,6 +151,7 @@ namespace Application.Common
             public const string IoT_ApiKey = "IOT_API_KEY";
             public const string IoT_AllowedIps = "IOT_ALLOWED_IPS";
             public const string IoT_RequireApiKey = "IOT_REQUIRE_API_KEY";
+            public const string IoT_AllowLegacyTagRouting = "IOT_ALLOW_LEGACY_TAG_ROUTING";
         }
     }
 }

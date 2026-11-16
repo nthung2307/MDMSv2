@@ -23,7 +23,8 @@ public static class Program
             typeof(MeteringCalculationTests),
             typeof(EmailSecurityAndConfigurationTests),
             typeof(StatementPdfGeneratorTests),
-            typeof(Phase1TelemetryAndPartitionTests)
+            typeof(Phase1TelemetryAndPartitionTests),
+            typeof(Phase2ObisAndAuthTests)
         };
 
         int totalTests = 0;

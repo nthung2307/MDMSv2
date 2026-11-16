@@ -12,8 +12,14 @@ public class MeasurementPointsProfile : Profile
     {
         CreateMap<CreateMeasurementPointsRequest, CreateMeasurementPointsCommands>();
         CreateMap<UpdateMeasurementPointsRequest, UpdateMeasurementPointsCommand>();
-        CreateMap<MeasurementPointsEntity, ListMeasurementPointDto>();
+        CreateMap<MeasurementPointsEntity, ListMeasurementPointDto>()
+            .ForMember(dest => dest.MeterProfileCode, opt => opt.MapFrom(src => src.MeterProfile != null ? src.MeterProfile.Code : null))
+            .ForMember(dest => dest.MeterProfileName, opt => opt.MapFrom(src => src.MeterProfile != null ? src.MeterProfile.Name : null))
+            .ForMember(dest => dest.HasDedicatedKey, opt => opt.MapFrom(src => !string.IsNullOrWhiteSpace(src.ApiKeyHash)));
         CreateMap<MeasurementPointsEntity, MeasurementPointDto>()
+            .ForMember(dest => dest.MeterProfileCode, opt => opt.MapFrom(src => src.MeterProfile != null ? src.MeterProfile.Code : null))
+            .ForMember(dest => dest.MeterProfileName, opt => opt.MapFrom(src => src.MeterProfile != null ? src.MeterProfile.Name : null))
+            .ForMember(dest => dest.HasDedicatedKey, opt => opt.MapFrom(src => !string.IsNullOrWhiteSpace(src.ApiKeyHash)))
             .ForMember(dest => dest.Gcs, opt =>
                 opt.MapFrom(src => src.Gcs != null ? new GcsEntity()
                 {

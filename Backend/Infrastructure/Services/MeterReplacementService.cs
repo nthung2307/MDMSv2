@@ -105,13 +105,10 @@ public class MeterReplacementService : IMeterReplacementService
         await _readWriteRepo.AddAsync(entity, cancellationToken);
         await _readWriteRepo.SaveChangesAsync(cancellationToken);
 
-        // Nếu trạng thái là APPROVED -> Tự động cập nhật hệ số nhân mới cho điểm đo
+        // Nếu trạng thái là APPROVED -> Tự động cập nhật hệ số nhân & MeterSerial mới (giữ nguyên ApiKey)
         if (status == "APPROVED")
         {
-            point.MultiplierFactor = entity.NewMeterMultiplier;
-            point.IsNewChange = true;
-            await _pointsRepo.UpdateAsync(point, cancellationToken);
-            await _pointsRepo.SaveChangesAsync(cancellationToken);
+            await ApplyApprovedReplacementToPointAsync(point, entity, cancellationToken);
         }
 
         entity.MeasurementPoint = point;
@@ -157,11 +154,7 @@ public class MeterReplacementService : IMeterReplacementService
             var point = await _pointsRepo.GetMeasurementPointByIdAsync(entity.MeasurementPointId, cancellationToken);
             if (point != null)
             {
-                point.MultiplierFactor = entity.NewMeterMultiplier;
-                point.IsNewChange = true;
-                await _pointsRepo.UpdateAsync(point, cancellationToken);
-                await _pointsRepo.SaveChangesAsync(cancellationToken);
-                _tagRoutingCacheService?.Invalidate();
+                await ApplyApprovedReplacementToPointAsync(point, entity, cancellationToken);
             }
         }
 
@@ -201,15 +194,29 @@ public class MeterReplacementService : IMeterReplacementService
         var point = await _pointsRepo.GetMeasurementPointByIdAsync(entity.MeasurementPointId, cancellationToken);
         if (point != null)
         {
-            point.MultiplierFactor = entity.NewMeterMultiplier;
-            point.IsNewChange = true;
-            await _pointsRepo.UpdateAsync(point, cancellationToken);
-            await _pointsRepo.SaveChangesAsync(cancellationToken);
-            _tagRoutingCacheService?.Invalidate();
+            await ApplyApprovedReplacementToPointAsync(point, entity, cancellationToken);
         }
 
         var refreshed = await _readOnlyRepo.GetByIdWithPointAsync(id, cancellationToken);
         return MapToDto(refreshed ?? entity);
+    }
+
+    private async Task ApplyApprovedReplacementToPointAsync(
+        MeasurementPointsEntity point,
+        MeterReplacementEntity entity,
+        CancellationToken cancellationToken)
+    {
+        point.MultiplierFactor = entity.NewMeterMultiplier;
+        point.IsNewChange = true;
+        if (!string.IsNullOrWhiteSpace(entity.NewMeterSerial))
+        {
+            // Swap hardware meter serial while intentionally preserving ApiKeyHash / ApiKeyEncrypted / KeyPrefix
+            point.MeterSerial = entity.NewMeterSerial.Trim();
+        }
+
+        await _pointsRepo.UpdateAsync(point, cancellationToken);
+        await _pointsRepo.SaveChangesAsync(cancellationToken);
+        _tagRoutingCacheService?.Invalidate();
     }
 
     public async Task<MeterReplacementDto> CancelAsync(long id, CancellationToken cancellationToken = default)

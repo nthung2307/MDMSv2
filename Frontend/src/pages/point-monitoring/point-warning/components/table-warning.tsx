@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
 import Constants from '@/core/application/common/constants.ts';
 import TableCommon from '@/infrastructure/common/components/table/table-common';
-import { convertDateTime } from '@/infrastructure/utils/helpers';
+import { buildPointMonitoringDetailUrl, convertDateTime } from '@/infrastructure/utils/helpers';
 
 interface Props {
   dataSource: any;
@@ -82,11 +82,8 @@ const TableWarning = (props: Props) => {
       dataIndex: 'status',
       width: 120,
       className: 'whitespace-nowrap',
-      render: (record) => {
-        if (!record) return <span>N/A</span>;
-        return (
-          <span className='whitespace-nowrap'>{`${record.charAt(0)}${record.slice(1).toLowerCase()}`}</span>
-        );
+      render: () => {
+        return <span className='whitespace-nowrap font-medium'>Alarm</span>;
       },
     },
     {
@@ -95,8 +92,8 @@ const TableWarning = (props: Props) => {
       align: 'center',
       width: 80,
       className: 'whitespace-nowrap',
-      render: (record) => {
-        return <span className='whitespace-nowrap'>{record ? 1 : 0}</span>;
+      render: () => {
+        return <span className='whitespace-nowrap font-medium'>1</span>;
       },
     },
   ];
@@ -115,7 +112,8 @@ const TableWarning = (props: Props) => {
             const code = record.measurementPointCode;
             if (code) {
               navigate(
-                ROUTE_PATH.POINT_MONITORING_DETAIL.replace(
+                buildPointMonitoringDetailUrl(
+                  ROUTE_PATH.POINT_MONITORING_DETAIL,
                   Constants.ReplaceRouterConfig.id,
                   code
                 )
