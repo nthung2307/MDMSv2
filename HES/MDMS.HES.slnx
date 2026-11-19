@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MDMS.HES.Application/MDMS.HES.Application.csproj" />
+    <Project Path="src/MDMS.HES.Core/MDMS.HES.Core.csproj" />
+    <Project Path="src/MDMS.HES.Host/MDMS.HES.Host.csproj" />
+    <Project Path="src/MDMS.HES.Infrastructure.OpcDa/MDMS.HES.Infrastructure.OpcDa.csproj" />
+    <Project Path="src/MDMS.HES.Infrastructure.Simulation/MDMS.HES.Infrastructure.Simulation.csproj" />
+    <Project Path="src/MDMS.HES.Infrastructure.Uplink/MDMS.HES.Infrastructure.Uplink.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MDMS.HES.UnitTests/MDMS.HES.UnitTests.csproj" />
+  </Folder>
+</Solution>

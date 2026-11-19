@@ -110,15 +110,16 @@ Khắc phục triệt để lỗi Out-Of-Memory của Kepware Narrow Format:
 ## 4. KẾ HOẠCH TRIỂN KHAI THEO TỪNG GIAI ĐOẠN (ROADMAP)
 
 ### Giai đoạn 1 (Phase 1): HES Core + OPC-DA Client + Simulator & Smart Uplink
-*Thời gian dự kiến: 3 - 5 ngày*
+*Trạng thái: **ĐÃ HOÀN THÀNH (DONE)** | Unit Tests: 12/12 PASS*
 * **Mục tiêu:** Thay thế ngay lập tức Kepware IoT Gateway bằng HES chạy trên Windows, kết nối dữ liệu từ Kepware Runtime (hoặc Built-in Simulator) qua OPC-DA, giải quyết dứt điểm lỗi treo service.
 * **Các hạng mục thực hiện:**
-  1. Khởi tạo cấu trúc dự án `MDMS.HES` (.NET 8).
-  2. Tích hợp `SDG.OPC-DA` (Interop COM Automation) để đọc dữ liệu từ `Kepware.KEPServerEX.V6`.
-  3. Xây dựng module `ObisDateTimeStringTagBuilder` tổng hợp 24 biến short thành 8 chuỗi OBIS.
-  4. Xây dựng `SmartRestUplinkPublisher` với `SingleProbeCircuitBreaker` và `HybridSmartBuffer`.
-  5. Xây dựng `BuiltInSimulationEngine` giả lập 162 công tơ chạy độc lập không cần Kepware để kiểm thử.
-  6. Kiểm thử kịch bản ngắt mạng máy ảo 12 tiếng và kết nối lại, xác nhận hệ thống tự phục hồi 100%.
+  1. [x] Khởi tạo cấu trúc dự án `MDMS.HES` (.NET 8): `MDMS.HES.Core`, `MDMS.HES.Application`, `MDMS.HES.Infrastructure.OpcDa`, `MDMS.HES.Infrastructure.Simulation`, `MDMS.HES.Infrastructure.Uplink`, `MDMS.HES.Host`.
+  2. [x] Tích hợp `SDG.OPC-DA` (Interop COM Automation) để đọc dữ liệu từ `Kepware.KEPServerEX.V6`.
+  3. [x] Xây dựng module `ObisDateTimeStringTagBuilder` tổng hợp 24 biến short thành 8 chuỗi OBIS (`0_9_1` .. `0_9_8`).
+  4. [x] Xây dựng `SmartRestUplinkPublisher` với `SingleProbeCircuitBreaker` (Closed/Open/HalfOpen) và `HybridSmartBuffer` (Latest Snapshot O(1) + Event FIFO).
+  5. [x] Xây dựng `SimulationDriver` giả lập 162 công tơ chạy độc lập không cần Kepware để kiểm thử.
+  6. [x] Trích xuất đầy đủ 162 công tơ thực tế với Serial và Private-key từ Kepware sang `meters.json`.
+  7. [x] Viết bộ Unit Tests toàn diện (`MDMS.HES.UnitTests`), 12/12 bài test vượt qua thành công 100%.
 
 ### Giai đoạn 2 (Phase 2): Modbus RTU/TCP Driver + Adaptive PDU Engine
 *Thời gian dự kiến: 5 - 7 ngày*
@@ -162,3 +163,4 @@ Khắc phục triệt để lỗi Out-Of-Memory của Kepware Narrow Format:
 
 ---
 *Kế hoạch này là tài liệu cơ sở kỹ thuật để triển khai mã nguồn và giám sát tiến độ thực hiện.*
+

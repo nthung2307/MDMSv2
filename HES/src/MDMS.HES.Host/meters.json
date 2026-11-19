@@ -1,0 +1,1298 @@
+﻿[
+    {
+        "MeterId":  "M001",
+        "Serial":  "209555163",
+        "ApiKey":  "MDMS_PT_4RJl4Nk44vglfun7mQCp-_KSwl1xK7xr",
+        "Name":  "Meter M001",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M002",
+        "Serial":  "209555165",
+        "ApiKey":  "MDMS_PT_Fl7I_oyiuJNisUCWgynXUC9Kf01j-QBP",
+        "Name":  "Meter M002",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M003",
+        "Serial":  "209555167",
+        "ApiKey":  "MDMS_PT_JFJihvtnMcV7QRSOK42Dbg4vDcIE3TKx",
+        "Name":  "Meter M003",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M004",
+        "Serial":  "211655433",
+        "ApiKey":  "MDMS_PT_Yv8MnBCmsgJQpKNFd_855kSUvOMZRWCi",
+        "Name":  "Meter M004",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M005",
+        "Serial":  "211655434",
+        "ApiKey":  "MDMS_PT_xt0avz5epZTupsypM-SeM8G5xjr1C0HO",
+        "Name":  "Meter M005",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M006",
+        "Serial":  "211655435",
+        "ApiKey":  "MDMS_PT_EUKPxW1JnGaUSxerx21na4Soc9aJQE0p",
+        "Name":  "Meter M006",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M007",
+        "Serial":  "211655437",
+        "ApiKey":  "MDMS_PT_GaMQ0Z7Gz5Moy2rreERNT2VxCga0dFuY",
+        "Name":  "Meter M007",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M008",
+        "Serial":  "212340402",
+        "ApiKey":  "MDMS_PT_bxwVoYKr7S_cFwChjjBxGJGu5UwV2QV2",
+        "Name":  "Meter M008",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M009",
+        "Serial":  "212340404",
+        "ApiKey":  "MDMS_PT_CsmNz45Io7VHLwdHPNWwXIrYI-3cBAZY",
+        "Name":  "Meter M009",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M010",
+        "Serial":  "212478418",
+        "ApiKey":  "MDMS_PT_r7Ev5HuUJBdl0_4deQ8YlIc7fKhq2PHs",
+        "Name":  "Meter M010",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M011",
+        "Serial":  "212478420",
+        "ApiKey":  "MDMS_PT_11sxxdt5GXZfS3NX0AVrhHApBTXwiRKq",
+        "Name":  "Meter M011",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M012",
+        "Serial":  "213322340",
+        "ApiKey":  "MDMS_PT_4m_ARqJ2dfRPlKxEQvYTqymR_1NUQXGc",
+        "Name":  "Meter M012",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M013",
+        "Serial":  "213322341",
+        "ApiKey":  "MDMS_PT_UBLafU7Xo9x-ihlhUUONAV-gOs-_R3Dz",
+        "Name":  "Meter M013",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M014",
+        "Serial":  "213322343",
+        "ApiKey":  "MDMS_PT_6lNNCAjaEhmw9elPfsSglr3eWLaO7TY0",
+        "Name":  "Meter M014",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M015",
+        "Serial":  "213355941",
+        "ApiKey":  "MDMS_PT_aACr54qTdWAMkwpfn5mIKqJTEjOoptkx",
+        "Name":  "Meter M015",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M016",
+        "Serial":  "213355942",
+        "ApiKey":  "MDMS_PT_NW16TU53J_FlqaeBRqQrLvtgfRykRJck",
+        "Name":  "Meter M016",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M017",
+        "Serial":  "213397504",
+        "ApiKey":  "MDMS_PT_d53lZ-Gagq8d_233V0Qg4ilJ7Z81HBbW",
+        "Name":  "Meter M017",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M018",
+        "Serial":  "213592260",
+        "ApiKey":  "MDMS_PT_8_87xqXKPP_CfWBCZJLBjvF1MI-C1q0T",
+        "Name":  "Meter M018",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M019",
+        "Serial":  "213592261",
+        "ApiKey":  "MDMS_PT_iq9F6n3Pu_yjLSo7mTDOiwUm5A83q23K",
+        "Name":  "Meter M019",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M020",
+        "Serial":  "213592262",
+        "ApiKey":  "MDMS_PT_knmHKtbvDycvy4bH24VRO1NSeSkXccl4",
+        "Name":  "Meter M020",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M021",
+        "Serial":  "213592263",
+        "ApiKey":  "MDMS_PT_7zgEE2jtfr-LM3jL85X8HfqWR60man-F",
+        "Name":  "Meter M021",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M022",
+        "Serial":  "214433646",
+        "ApiKey":  "MDMS_PT_OCq2AGbw8g2zFUooy6mWsUnAm0zTf07M",
+        "Name":  "Meter M022",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M023",
+        "Serial":  "214433647",
+        "ApiKey":  "MDMS_PT_E5U4pRJQaAIjxush_0Cs-_IWxvGbjrtp",
+        "Name":  "Meter M023",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M024",
+        "Serial":  "214433649",
+        "ApiKey":  "MDMS_PT_a2x8ooeZLdHUNoGxO97K1w--R8gpjFYx",
+        "Name":  "Meter M024",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M025",
+        "Serial":  "214433653",
+        "ApiKey":  "MDMS_PT_Vc0yzfYF7Fk648Cq0ejcIT9PzerchBvb",
+        "Name":  "Meter M025",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M026",
+        "Serial":  "214433654",
+        "ApiKey":  "MDMS_PT_mk_mPe4wVjvEG8009u0RqpnvRZ9j2uVM",
+        "Name":  "Meter M026",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M027",
+        "Serial":  "214613612",
+        "ApiKey":  "MDMS_PT_K81nW6_AHQvbn2w3GquDQtJwH9hgkup4",
+        "Name":  "Meter M027",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M028",
+        "Serial":  "215134503",
+        "ApiKey":  "MDMS_PT_QBoT7oVJonGk16AHsPVMmgq-ZZvNvNsh",
+        "Name":  "Meter M028",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M029",
+        "Serial":  "215534512",
+        "ApiKey":  "MDMS_PT_hh7967Sb31W9H3ocxUPWQ5TBtvBaN4p6",
+        "Name":  "Meter M029",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M030",
+        "Serial":  "215134514",
+        "ApiKey":  "MDMS_PT_spPnlBTLjHNMDwbCBWbCBAy72YaWK3xi",
+        "Name":  "Meter M030",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M031",
+        "Serial":  "215134567",
+        "ApiKey":  "MDMS_PT_GdH0tPhyw6Tf78PyknQleegl7GqEDrCA",
+        "Name":  "Meter M031",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M032",
+        "Serial":  "215134568",
+        "ApiKey":  "MDMS_PT_5v1EdZr2JdBGl7l6kMcsQMdmcr1DeyfU",
+        "Name":  "Meter M032",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M033",
+        "Serial":  "215134575",
+        "ApiKey":  "MDMS_PT_wZyHheCgb8b4Exd_CIh3-Y5TPc298GT1",
+        "Name":  "Meter M033",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M034",
+        "Serial":  "215134576",
+        "ApiKey":  "MDMS_PT_QR757IcTzfxZw9PpCDs0mSnMxxfv5Ull",
+        "Name":  "Meter M034",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M035",
+        "Serial":  "215296189",
+        "ApiKey":  "MDMS_PT_08K33b8DMzI0zLJQW5TkT_EHaCa6pHow",
+        "Name":  "Meter M035",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M036",
+        "Serial":  "215296190",
+        "ApiKey":  "MDMS_PT_msOBUm1O8lsYa0g7QXd8a6TZuArRjLU5",
+        "Name":  "Meter M036",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M037",
+        "Serial":  "215296192",
+        "ApiKey":  "MDMS_PT_Skh_d407hOCzXKXqFMYWZ6eQlWYncZWH",
+        "Name":  "Meter M037",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M038",
+        "Serial":  "215329519",
+        "ApiKey":  "MDMS_PT_5U4MvcCparDRJ3kO-6QCEEKYJXXch9qn",
+        "Name":  "Meter M038",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M039",
+        "Serial":  "215329520",
+        "ApiKey":  "MDMS_PT_1VZB9lmvpCLEho02MYxA5l51pZ4q--EP",
+        "Name":  "Meter M039",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M040",
+        "Serial":  "215329521",
+        "ApiKey":  "MDMS_PT_uUk9NrjNPKNlhunbd3alVgpj6Ja258n0",
+        "Name":  "Meter M040",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M041",
+        "Serial":  "215329522",
+        "ApiKey":  "MDMS_PT_egNg3BBhpPsgTW1-cmFbNw8L5kNBQPHq",
+        "Name":  "Meter M041",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M042",
+        "Serial":  "215329525",
+        "ApiKey":  "MDMS_PT_fe5PsI9gZNUc_YZS06ZLN2Gx73pQaVRb",
+        "Name":  "Meter M042",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M043",
+        "Serial":  "215329528",
+        "ApiKey":  "MDMS_PT_fYsKxPmByz5MQxF_ZqqhMiMzF7BGx-f6",
+        "Name":  "Meter M043",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M044",
+        "Serial":  "215576235",
+        "ApiKey":  "MDMS_PT_zaGKZ9n2FrCauDsniT6bqLEQMZT_MiLm",
+        "Name":  "Meter M044",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M045",
+        "Serial":  "216893354",
+        "ApiKey":  "MDMS_PT_bhyaxkKxh-WFIH8EXBsAX_EOAINxey5g",
+        "Name":  "Meter M045",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M046",
+        "Serial":  "217105381",
+        "ApiKey":  "MDMS_PT_eqK076GNNU0u4kKYin-Oqi0kjOhi3Xg_",
+        "Name":  "Meter M046",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M047",
+        "Serial":  "217105383",
+        "ApiKey":  "MDMS_PT_QB1TyyMKr5iYrUqYsoRxpsdjhu6gIlYy",
+        "Name":  "Meter M047",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M048",
+        "Serial":  "217105384",
+        "ApiKey":  "MDMS_PT_yAMqnHT5UHIujbCz8jB8y5KxeUgjPCYW",
+        "Name":  "Meter M048",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M049",
+        "Serial":  "217105385",
+        "ApiKey":  "MDMS_PT_1-m-7uTgqvClszT9_Iq9Ixf4j1z5nGQP",
+        "Name":  "Meter M049",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M050",
+        "Serial":  "217105386",
+        "ApiKey":  "MDMS_PT_ZyklswnqhGXFmxoM3F-2Pn4MNPjhj_sD",
+        "Name":  "Meter M050",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M051",
+        "Serial":  "217105387",
+        "ApiKey":  "MDMS_PT_ihF8Cbv0mx8iie-Ak7p9SbLhR3ucuVZG",
+        "Name":  "Meter M051",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M052",
+        "Serial":  "217105388",
+        "ApiKey":  "MDMS_PT_xwQupB7kSoLV0wveUGKL7hYs3OKSc4e6",
+        "Name":  "Meter M052",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M053",
+        "Serial":  "217105389",
+        "ApiKey":  "MDMS_PT_bkYEaidJErtf6KhBgxshdghZKM3ioWDX",
+        "Name":  "Meter M053",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M054",
+        "Serial":  "217181914",
+        "ApiKey":  "MDMS_PT_DLXmS34-C_WRpWu-9E9V8rW7Ik-bPmHI",
+        "Name":  "Meter M054",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M055",
+        "Serial":  "217229462",
+        "ApiKey":  "MDMS_PT_hDNlhKZUVN6pwOWLZ4xY_mAU142W9qKZ",
+        "Name":  "Meter M055",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M056",
+        "Serial":  "217322397",
+        "ApiKey":  "MDMS_PT_hkOfcqe9pQp_pP4EA6mRb495keoFcj-W",
+        "Name":  "Meter M056",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M057",
+        "Serial":  "217322402",
+        "ApiKey":  "MDMS_PT_-AEb-X0YGAwGUK1xDpRBkwGtVpaUrvAX",
+        "Name":  "Meter M057",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M058",
+        "Serial":  "217322403",
+        "ApiKey":  "MDMS_PT_VgNpUYa6NLGiCiSoXKGtQHaRoqRKvEEQ",
+        "Name":  "Meter M058",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M059",
+        "Serial":  "217322405",
+        "ApiKey":  "MDMS_PT_i4YIHk7qY_BqECm8ykocEt61AcHvf803",
+        "Name":  "Meter M059",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M060",
+        "Serial":  "217322406",
+        "ApiKey":  "MDMS_PT_zvbso6kv0YHkfGhWqO7F3HtX3qYGhYbx",
+        "Name":  "Meter M060",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M061",
+        "Serial":  "217322409",
+        "ApiKey":  "MDMS_PT_0KHcMgTlXvN0FHGzde3V-0zqMK2UHF1A",
+        "Name":  "Meter M061",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M062",
+        "Serial":  "217322410",
+        "ApiKey":  "MDMS_PT_baDoVnWuZvM11VU_FTNQYZS3aqenxAjB",
+        "Name":  "Meter M062",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M063",
+        "Serial":  "217322411",
+        "ApiKey":  "MDMS_PT_iLNNK12yhL_N9u-VkzxzGFVGK6x4dYgQ",
+        "Name":  "Meter M063",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M064",
+        "Serial":  "217322412",
+        "ApiKey":  "MDMS_PT_8NN2vBnm10ZbwCnRdQyQSZtoA5FqOoMB",
+        "Name":  "Meter M064",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M065",
+        "Serial":  "217322495",
+        "ApiKey":  "MDMS_PT_sLXuPe5IMWiMRaZOKNf1Pl2lE23U2Ipq",
+        "Name":  "Meter M065",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M066",
+        "Serial":  "217322496",
+        "ApiKey":  "MDMS_PT_Jy-ESIg1lJc6WPkT4XS9WqB_IPlQb8Mk",
+        "Name":  "Meter M066",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M067",
+        "Serial":  "217322497",
+        "ApiKey":  "MDMS_PT_AbBUldXn0v0qnrwoOQwHqZvFwIcoQ293",
+        "Name":  "Meter M067",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M068",
+        "Serial":  "217322498",
+        "ApiKey":  "MDMS_PT_QdO9RjpJanE7yvLGp_urwVafWqg6dwse",
+        "Name":  "Meter M068",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M069",
+        "Serial":  "217322500",
+        "ApiKey":  "MDMS_PT_nE0BYOL_gb_HVrGXlgJhYQbC6fzrA-Tf",
+        "Name":  "Meter M069",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M070",
+        "Serial":  "219514411",
+        "ApiKey":  "MDMS_PT_9eB-ZG6_FQb8eiRdQRzW4d_XxFjRJcMi",
+        "Name":  "Meter M070",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M071",
+        "Serial":  "219514413",
+        "ApiKey":  "MDMS_PT_qYc_FcnfdLyhpf-LTcR1bkysjB5uIffI",
+        "Name":  "Meter M071",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M072",
+        "Serial":  "219514419",
+        "ApiKey":  "MDMS_PT_2Or999OiccLjL_z8LBohmFjZHrGahtz2",
+        "Name":  "Meter M072",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M073",
+        "Serial":  "219514420",
+        "ApiKey":  "MDMS_PT_uUhz1b6OZWQcJmQBwc5ki67EFn02R70k",
+        "Name":  "Meter M073",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M074",
+        "Serial":  "219514427",
+        "ApiKey":  "MDMS_PT_pAyBDn2vniYoLdH0LiIf6xn8rc-IGnLz",
+        "Name":  "Meter M074",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M075",
+        "Serial":  "219514430",
+        "ApiKey":  "MDMS_PT_HpwRDH82EhEuteHMaG2ZzBuo2pFab-zI",
+        "Name":  "Meter M075",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M076",
+        "Serial":  "219514431",
+        "ApiKey":  "MDMS_PT_VlfVPr_pcamOE--oiYxIgjlASaRGDQeB",
+        "Name":  "Meter M076",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M077",
+        "Serial":  "219514434",
+        "ApiKey":  "MDMS_PT_-zhRxjMLLLQX9mGxICMKHu3o3hZllwjo",
+        "Name":  "Meter M077",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M078",
+        "Serial":  "219514435",
+        "ApiKey":  "MDMS_PT_co4bNc4cOyojqCAgG0N-l7eB26XtuJx-",
+        "Name":  "Meter M078",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M079",
+        "Serial":  "219514438",
+        "ApiKey":  "MDMS_PT_sbEmA-HZdQOkthOzWZaY8khHSW3Qd6OB",
+        "Name":  "Meter M079",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M080",
+        "Serial":  "219514439",
+        "ApiKey":  "MDMS_PT_UR7N7zaIqnpfUSTEr2PLeO6dM9wvjqcK",
+        "Name":  "Meter M080",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M081",
+        "Serial":  "219514677",
+        "ApiKey":  "MDMS_PT_6ZfSDrnAYVLtjot1hDkGfup_cOW5EKOh",
+        "Name":  "Meter M081",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M082",
+        "Serial":  "219514689",
+        "ApiKey":  "MDMS_PT_5BccG-zWBzORI-zZclN8jP4B8jDKIw7l",
+        "Name":  "Meter M082",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M083",
+        "Serial":  "219515074",
+        "ApiKey":  "MDMS_PT_jfielzPf-IyVSgGQo_1dbYwAx_AmdYh2",
+        "Name":  "Meter M083",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M084",
+        "Serial":  "219515075",
+        "ApiKey":  "MDMS_PT_jbZUDopdFjTfGXi6LX2Yz70bIK8Xs5-G",
+        "Name":  "Meter M084",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M085",
+        "Serial":  "219515076",
+        "ApiKey":  "MDMS_PT_QR8om1AUhPxo4XFELOJvwMOEHSXg0U2j",
+        "Name":  "Meter M085",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M086",
+        "Serial":  "219515077",
+        "ApiKey":  "MDMS_PT_M3gjt4pNqZqtd9U7duB26XHWCMgj0vM_",
+        "Name":  "Meter M086",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M087",
+        "Serial":  "219515078",
+        "ApiKey":  "MDMS_PT_sKKJUUwbZYyc5QMUQIjWna-P7TmjdmV1",
+        "Name":  "Meter M087",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M088",
+        "Serial":  "219515079",
+        "ApiKey":  "MDMS_PT_SXNLrkwcx70cBWmrKDdBueEFIpj9RATG",
+        "Name":  "Meter M088",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M089",
+        "Serial":  "219515080",
+        "ApiKey":  "MDMS_PT_sbrXeyyJsHL-y9pmDYFdiNA0nBt3H_7G",
+        "Name":  "Meter M089",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M090",
+        "Serial":  "219515081",
+        "ApiKey":  "MDMS_PT_7MD8m3s9S0BzHwQOLOsP7ESzY4N38mWt",
+        "Name":  "Meter M090",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M091",
+        "Serial":  "219515082",
+        "ApiKey":  "MDMS_PT_XHBB5cAvnwVzAnf7jyj3u7VQ2ir86MH-",
+        "Name":  "Meter M091",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M092",
+        "Serial":  "219515083",
+        "ApiKey":  "MDMS_PT_Eb53BpZSKs1SPFzR2me44sS-7eyh9A0I",
+        "Name":  "Meter M092",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M093",
+        "Serial":  "219515084",
+        "ApiKey":  "MDMS_PT_Wo2JsWgLg4VqjopR3Yfh1ZTAYf1Qr4Rn",
+        "Name":  "Meter M093",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M094",
+        "Serial":  "219515085",
+        "ApiKey":  "MDMS_PT_05UQFRYkQqtxMdMHrCyBH3FQ-7q56L8h",
+        "Name":  "Meter M094",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M095",
+        "Serial":  "219515086",
+        "ApiKey":  "MDMS_PT_z2z2iXa8kteOZlcp9LujmvJOMYsDY-cg",
+        "Name":  "Meter M095",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M096",
+        "Serial":  "219515087",
+        "ApiKey":  "MDMS_PT_8LXFhWWxk3NYuyIDCbtlJ-KoHa8PrLFy",
+        "Name":  "Meter M096",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M097",
+        "Serial":  "219515088",
+        "ApiKey":  "MDMS_PT_FcmJ1RuaV8B8fSNf0CBN3cQZ31QyB9En",
+        "Name":  "Meter M097",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M098",
+        "Serial":  "219515089",
+        "ApiKey":  "MDMS_PT_4XtNdqrP5sFB54Euux13Yb7EtZ0MQr-1",
+        "Name":  "Meter M098",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M099",
+        "Serial":  "219515090",
+        "ApiKey":  "MDMS_PT_7JRbk-D8foA34ts15V1NKwaC7sPr9cCW",
+        "Name":  "Meter M099",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M100",
+        "Serial":  "219515091",
+        "ApiKey":  "MDMS_PT_Q5UkLEOCRV2mPWwM0KSPfBGsoNUrZJhR",
+        "Name":  "Meter M100",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M101",
+        "Serial":  "219515093",
+        "ApiKey":  "MDMS_PT_OeokiX5dCNf9Ag5bVX8ESIroRskzrD4t",
+        "Name":  "Meter M101",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M102",
+        "Serial":  "219515094",
+        "ApiKey":  "MDMS_PT__VMo35H3t9yNuXZI_0s_mguihMKCa2N0",
+        "Name":  "Meter M102",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M103",
+        "Serial":  "219515095",
+        "ApiKey":  "MDMS_PT_gfJVawoy2nZlgg_fcQZVIAv5wjoS7ZNZ",
+        "Name":  "Meter M103",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M104",
+        "Serial":  "219515096",
+        "ApiKey":  "MDMS_PT_ykAdmQ08fmNetH5jzWbEjBOvCp8mTPBz",
+        "Name":  "Meter M104",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M105",
+        "Serial":  "219515097",
+        "ApiKey":  "MDMS_PT_1NX56xgjjVXlu51A1-uiMYif9PIi5PsA",
+        "Name":  "Meter M105",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M106",
+        "Serial":  "219515098",
+        "ApiKey":  "MDMS_PT_7LlnSabP_Hfia9c2rIKh15R-FqEgRNaa",
+        "Name":  "Meter M106",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M107",
+        "Serial":  "219515343",
+        "ApiKey":  "MDMS_PT_5A7HeIybhuR1Spx22LbS0pW0OwdGYXPz",
+        "Name":  "Meter M107",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M108",
+        "Serial":  "219515344",
+        "ApiKey":  "MDMS_PT_45rcvhnoJhmLPlL1K0XHyCbeZPYVZ0wu",
+        "Name":  "Meter M108",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M109",
+        "Serial":  "219515345",
+        "ApiKey":  "MDMS_PT_u2YnrJZsz_7DmFrDIYXeksrHlQh9mbhm",
+        "Name":  "Meter M109",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M110",
+        "Serial":  "219515346",
+        "ApiKey":  "MDMS_PT_yKPJCcmwALoBMQTqzt_CAC4uMiGdFYNJ",
+        "Name":  "Meter M110",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M111",
+        "Serial":  "219515347",
+        "ApiKey":  "MDMS_PT_IqAg00KXvslUd1AWtq2HEcF8KeX2T9Eq",
+        "Name":  "Meter M111",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M112",
+        "Serial":  "219515348",
+        "ApiKey":  "MDMS_PT_srrbjc-FO9FoDIoec3iRzvmLu55n7J9I",
+        "Name":  "Meter M112",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M113",
+        "Serial":  "219515350",
+        "ApiKey":  "MDMS_PT_QaG--6m9sSrkcREv6u0zQ17jAQQPn3A-",
+        "Name":  "Meter M113",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M114",
+        "Serial":  "219515352",
+        "ApiKey":  "MDMS_PT_CtABxg0mT1jMiYzR_dbxziUvvbSxjBra",
+        "Name":  "Meter M114",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M115",
+        "Serial":  "219515353",
+        "ApiKey":  "MDMS_PT_BQWooVJ0758boUFtJvLWf04ct8AZSb7R",
+        "Name":  "Meter M115",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M116",
+        "Serial":  "219515354",
+        "ApiKey":  "MDMS_PT_Qdbhw1Ai9vsVCeR_F6d_QySciizDzjN5",
+        "Name":  "Meter M116",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M117",
+        "Serial":  "219315355",
+        "ApiKey":  "MDMS_PT_r0uGzNlWf93LfXltUwSe4vDwCcoJIOfS",
+        "Name":  "Meter M117",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M118",
+        "Serial":  "219515356",
+        "ApiKey":  "MDMS_PT_wkNd5rduMZewTn0e8t_K95m2PpgR4wQk",
+        "Name":  "Meter M118",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M119",
+        "Serial":  "219315357",
+        "ApiKey":  "MDMS_PT_7DahgGrEjQvFSgiXaT6CgcFFcLscGKue",
+        "Name":  "Meter M119",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M120",
+        "Serial":  "219515358",
+        "ApiKey":  "MDMS_PT_6Q2dJEz3Tixc1-8goyPOK-2lm9XHcsTB",
+        "Name":  "Meter M120",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M121",
+        "Serial":  "219515359",
+        "ApiKey":  "MDMS_PT_zcvpbXs9BsFVFOBRxbNenj7p6WRE2W32",
+        "Name":  "Meter M121",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M122",
+        "Serial":  "219515361",
+        "ApiKey":  "MDMS_PT_UQ69QHRHTttJIpdwdvFGdJR_pAg5yOxo",
+        "Name":  "Meter M122",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M123",
+        "Serial":  "219515362",
+        "ApiKey":  "MDMS_PT_MxRpMGmqf365YcIKQ93T1KnDRo2qQsDs",
+        "Name":  "Meter M123",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M124",
+        "Serial":  "219515363",
+        "ApiKey":  "MDMS_PT_T-rUK7xfHf2Pk3w305XHPFM_DA7YZjj4",
+        "Name":  "Meter M124",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M125",
+        "Serial":  "219515364",
+        "ApiKey":  "MDMS_PT_qPOe9FFeUgOdSfH5JVI1a0UYmhtTI1yk",
+        "Name":  "Meter M125",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M126",
+        "Serial":  "219515365",
+        "ApiKey":  "MDMS_PT_hOi9xccZIPbcgrP5P3vacMUTFTzWSG8_",
+        "Name":  "Meter M126",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M127",
+        "Serial":  "219515366",
+        "ApiKey":  "MDMS_PT_qZ_MeG55L0v26x-UG5AQTY5nrNG6m9Zy",
+        "Name":  "Meter M127",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M128",
+        "Serial":  "219515367",
+        "ApiKey":  "MDMS_PT_2Lq1WsV-6TyOG8Xt3ooMzg0Ct7goo9ZE",
+        "Name":  "Meter M128",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M129",
+        "Serial":  "219515368",
+        "ApiKey":  "MDMS_PT_qsPQq_3LyInzrwNuA6_or01xMcn5Wuna",
+        "Name":  "Meter M129",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M130",
+        "Serial":  "219515369",
+        "ApiKey":  "MDMS_PT__j_zU5CyOukPlGuTISsXV5h1e6cwKFlp",
+        "Name":  "Meter M130",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M131",
+        "Serial":  "219515370",
+        "ApiKey":  "MDMS_PT_CBQQIrkCTBb9qR026xj6ER1AsdzbKCEt",
+        "Name":  "Meter M131",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M132",
+        "Serial":  "252396945",
+        "ApiKey":  "MDMS_PT_jRytnh1P6FWDPhy17mHtySips-FyBy2h",
+        "Name":  "Meter M132",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M133",
+        "Serial":  "252396946",
+        "ApiKey":  "MDMS_PT_MQ_ueYG-AxtI2vnet8oGIjGnOACkqs6z",
+        "Name":  "Meter M133",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M134",
+        "Serial":  "252396947",
+        "ApiKey":  "MDMS_PT_72p86m9i7AdWUjZcjGDSY5a9SvIgEUiN",
+        "Name":  "Meter M134",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M135",
+        "Serial":  "252396948",
+        "ApiKey":  "MDMS_PT_KlqPw2CLo-8qedoEas_OX9gifm8LgSO8",
+        "Name":  "Meter M135",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M136",
+        "Serial":  "252396949",
+        "ApiKey":  "MDMS_PT_c-yjV6oYkziGezHKTSoE1tbKy_FK2k-Y",
+        "Name":  "Meter M136",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M137",
+        "Serial":  "252396950",
+        "ApiKey":  "MDMS_PT_18xx9ToChVkxKqtXNZGgjSQvjkaMAsyX",
+        "Name":  "Meter M137",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M138",
+        "Serial":  "252396951",
+        "ApiKey":  "MDMS_PT_j3CtwmcA7kqGyWLsGSfo9pp5n72ORTB6",
+        "Name":  "Meter M138",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M139",
+        "Serial":  "252396952",
+        "ApiKey":  "MDMS_PT_70oPMykrHo5vHqXAnKmy-0yLA0Q02CHJ",
+        "Name":  "Meter M139",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M140",
+        "Serial":  "252396953",
+        "ApiKey":  "MDMS_PT_HrypiRP0nFyVWY-W2ALU1E5obv4BQ2wD",
+        "Name":  "Meter M140",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M141",
+        "Serial":  "253389536",
+        "ApiKey":  "MDMS_PT_AtClgPVA_aH2GKnuqhSLtrD38ZRZCSkx",
+        "Name":  "Meter M141",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M142",
+        "Serial":  "253389538",
+        "ApiKey":  "MDMS_PT_jhqXkF5HuMly-7kqXq-RemI4TucX6cV-",
+        "Name":  "Meter M142",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M143",
+        "Serial":  "253389539",
+        "ApiKey":  "MDMS_PT_aomtbLpRfuuUpZx-wj6vfUkm9httC_s1",
+        "Name":  "Meter M143",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M144",
+        "Serial":  "253389541",
+        "ApiKey":  "MDMS_PT_bxZeh_1Xcc9r09z2GVVlQdSWwEDN-VkX",
+        "Name":  "Meter M144",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M145",
+        "Serial":  "253389543",
+        "ApiKey":  "MDMS_PT_5PsvbqnVisvdNVi4fDULmiXAfHFRxjzo",
+        "Name":  "Meter M145",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M146",
+        "Serial":  "253389544",
+        "ApiKey":  "MDMS_PT_yN4c8NoCoEz2wkZzss-iavn81P2t0ndm",
+        "Name":  "Meter M146",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M147",
+        "Serial":  "253389546",
+        "ApiKey":  "MDMS_PT_DQKcdYWWYKKkAlNUCSWr7xHWiKJGWcw9",
+        "Name":  "Meter M147",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M148",
+        "Serial":  "253389547",
+        "ApiKey":  "MDMS_PT_hHmeE8VPqjasF5ovn5iOw6_3UkmybWoY",
+        "Name":  "Meter M148",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M149",
+        "Serial":  "253389548",
+        "ApiKey":  "MDMS_PT_Hcp5O9AksQXiAmi_i7_-4QlXi3GTM782",
+        "Name":  "Meter M149",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M150",
+        "Serial":  "253389549",
+        "ApiKey":  "MDMS_PT_qhtbJwDXNkC_ZRCwqoo7rESvs-tGXXmj",
+        "Name":  "Meter M150",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M151",
+        "Serial":  "253389550",
+        "ApiKey":  "MDMS_PT_SIYo9l9dbayMfYrgKQsF3668PqSLvH5Z",
+        "Name":  "Meter M151",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M152",
+        "Serial":  "253389551",
+        "ApiKey":  "MDMS_PT_wEYvFJSTTmRkh-pbe9tR8C2PWYvaPekS",
+        "Name":  "Meter M152",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M153",
+        "Serial":  "253389552",
+        "ApiKey":  "MDMS_PT_Bc2MH5X5XwNhySEx41g3ceFE9exRwFzl",
+        "Name":  "Meter M153",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M154",
+        "Serial":  "253389553",
+        "ApiKey":  "MDMS_PT_GIgT6OdFNJZBTVZie_loHBdDBKDV3wbB",
+        "Name":  "Meter M154",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M155",
+        "Serial":  "253389554",
+        "ApiKey":  "MDMS_PT_d1P-oeBhf_cy5JoVx2rPbqkFlrR2a1mN",
+        "Name":  "Meter M155",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M156",
+        "Serial":  "253389555",
+        "ApiKey":  "MDMS_PT_dJDb2mnbVrjbt_gQEB1Ie2B3Vsl9efJe",
+        "Name":  "Meter M156",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M157",
+        "Serial":  "253389556",
+        "ApiKey":  "MDMS_PT_BbF-o-CQYUNIFYvq5uwobypoIU8w7SxU",
+        "Name":  "Meter M157",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M158",
+        "Serial":  "253389557",
+        "ApiKey":  "MDMS_PT_yJVHAtTEAa6qvZBv2MBNXgmYuB8Ap11b",
+        "Name":  "Meter M158",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M159",
+        "Serial":  "253389558",
+        "ApiKey":  "MDMS_PT_NncTbGiFl0Q6-qiAdnft7noyBScY4CnV",
+        "Name":  "Meter M159",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M160",
+        "Serial":  "253389559",
+        "ApiKey":  "MDMS_PT_sALaI1do55fUliGoqem8SxtopKCLcJzn",
+        "Name":  "Meter M160",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M161",
+        "Serial":  "253389560",
+        "ApiKey":  "MDMS_PT_UjaaTdcvtEF3nxJVz-kCLeseEQwz7hvr",
+        "Name":  "Meter M161",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    },
+    {
+        "MeterId":  "M162",
+        "Serial":  "253389561",
+        "ApiKey":  "MDMS_PT_UwlyQsPlzthV2q7YEGrgbTAW7N76KMzS",
+        "Name":  "Meter M162",
+        "Enabled":  true,
+        "ScanRateMs":  60000
+    }
+]
