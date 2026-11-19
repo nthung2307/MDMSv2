@@ -164,6 +164,7 @@ public static class Url
         public static class MeasurementPointMonitoring
         {
             public const string List = "Measurement-Point-Monitoring/Get-List-Measurement-Point-Monitoring";
+            public const string HealthSummary = "Measurement-Point-Monitoring/Health-Summary";
             public const string ExportPdfMeasurementPointMonitoring = "Measurement-Point-Monitoring/Export-Pdf-Measurement-Point-Monitoring";
             public const string ExportCsvMeasurementPointMonitoring = "Measurement-Point-Monitoring/Export-Csv-Measurement-Point-Monitoring";
             public const string ListEvent = "Measurement-Point-Monitoring/Get-List-Measurement-Point-Event";

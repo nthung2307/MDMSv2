@@ -265,4 +265,11 @@ public class MeasurementPointMonitoringDto
     public string? PmaxPreviousPeriodSecond { get; set; }
     public bool? PmaxPreviousPeriodSecondQuanlity { get; set; }
     public long GroupId { get; set; }
+
+    // Phase 3: REST & Modbus connection health monitoring
+    public string? MeterSerial { get; set; }
+    public string? RestStatus { get; set; }
+    public DateTimeOffset? LastRestReceivedAt { get; set; }
+    public string? RestStatusReason { get; set; }
+    public bool HasBadQuality { get; set; }
 }

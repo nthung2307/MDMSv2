@@ -16,4 +16,10 @@ export interface IMeasurementPointMonitoringService {
     params: GetMeasurementPointMonitoringRequest,
     cancellationToken: CancelToken
   ): Promise<RequestResponse>;
+
+  getMonitoringHealthSummary(
+    endpoint: string,
+    params: { timeoutMinutes?: number },
+    cancellationToken: CancelToken
+  ): Promise<RequestResponse>;
 }

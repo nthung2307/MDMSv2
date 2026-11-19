@@ -21,6 +21,7 @@ public class MeasurementPointHalfHourOperatingReportProfile : Profile
             .ForMember(d => d.DongDienPhaCUnit, o => o.Ignore())
             .ForMember(d => d.CongSuatTacDungTong3PhaUnit, o => o.Ignore())
             .ForMember(d => d.CongSuatPhanKhangTong3PhaUnit, o => o.Ignore())
-            .ForMember(d => d.TanSoHeThongUnit, o => o.Ignore());
+            .ForMember(d => d.TanSoHeThongUnit, o => o.Ignore())
+            .ForMember(d => d.HasBadQuality, o => o.Ignore());
     }
 }

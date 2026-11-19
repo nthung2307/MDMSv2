@@ -40,4 +40,5 @@ export interface OperatingParameterItem {
   heSoCongSuatPF?: number;
   tanSoHeThong?: number;
   tanSoHeThongUnit?: string;
+  hasBadQuality?: boolean;
 }

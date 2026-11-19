@@ -45,9 +45,21 @@ export const OperatingParameterTable: React.FC<OperatingParameterTableProps> = (
       key: 'createdTime',
       width: '14%',
       align: 'center',
-      render: (val: string) => {
+      render: (val: string, record: OperatingParameterItem) => {
         if (!val) return '-';
-        return dayjs(val).format('DD/MM/YYYY HH:mm');
+        return (
+          <span className='inline-flex items-center justify-center gap-1'>
+            <span>{dayjs(val).format('DD/MM/YYYY HH:mm')}</span>
+            {record.hasBadQuality && (
+              <span
+                className='text-red-500 font-bold cursor-help'
+                title='Số liệu nghi ngờ (Bad quality)'
+              >
+                *
+              </span>
+            )}
+          </span>
+        );
       },
     },
     {
@@ -175,6 +187,14 @@ export const OperatingParameterTable: React.FC<OperatingParameterTableProps> = (
         }}
         scroll={{ x: '100%' }}
       />
+      {data.some((d) => d.hasBadQuality) && (
+        <div className='p-2.5 text-xs text-amber-800 bg-amber-50/80 border-t border-amber-200 flex items-center gap-1.5'>
+          <span className='font-bold text-red-500 text-sm'>*</span>
+          <span>
+            Số liệu nghi ngờ (Bad quality) do gián đoạn truyền thông Modbus tại thời điểm đo đạc.
+          </span>
+        </div>
+      )}
     </div>
   );
 };

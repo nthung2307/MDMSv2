@@ -188,7 +188,9 @@ const PointMonitoringDetail = () => {
                             >
                               {dataUser[info.attribute] ? 'Mất kết nối' : 'Kết nối'}
                               {!dataUser['matKetNoiQuanlity'] && (
-                                <span className='ml-1 disconnect-msg'>!</span>
+                                <Tooltip title='Số liệu nghi ngờ (Bad quality)'>
+                                  <span className='ml-1 disconnect-msg cursor-help'>!</span>
+                                </Tooltip>
                               )}
                             </p>
                           ) : (
@@ -212,7 +214,14 @@ const PointMonitoringDetail = () => {
                               <span className='disconnect-msg'>????</span>
                             )
                           ) : (
-                            dataUser[info.attribute]
+                            <>
+                              <span>{dataUser[info.attribute]}</span>
+                              {info.attribute === 'measurementPointCode' && dataUser.meterSerial && (
+                                <span className='text-xs text-gray-400 font-normal block'>
+                                  SN: {dataUser.meterSerial}
+                                </span>
+                              )}
+                            </>
                           )}
                         </p>
                       )}
@@ -431,11 +440,12 @@ const PointMonitoringDetail = () => {
                                         </p>
                                         <span className='w-10'>
                                           {dataUser[item.attribute] ? dataUser[item.unit] : ''}
-                                          {dataUser[item.quanlity] == null ||
-                                          dataUser[item.quanlity] ? (
-                                            ''
-                                          ) : (
-                                            <span className='text-[#FF0000] font-bold'>{' !'}</span>
+                                          {dataUser[item.quanlity] === false && (
+                                            <Tooltip title='Số liệu nghi ngờ (Bad quality)'>
+                                              <span className='text-[#FF0000] font-bold cursor-help ml-1'>
+                                                !
+                                              </span>
+                                            </Tooltip>
                                           )}
                                         </span>
                                       </div>
@@ -503,11 +513,12 @@ const PointMonitoringDetail = () => {
                                       </p>
                                       <span className='w-10'>
                                         {dataUser[item.attribute] ? dataUser[item.unit] : ''}
-                                        {dataUser[item.quanlity] == null ||
-                                        dataUser[item.quanlity] ? (
-                                          ''
-                                        ) : (
-                                          <span className='text-[#FF0000] font-bold'>{' !'}</span>
+                                        {dataUser[item.quanlity] === false && (
+                                          <Tooltip title='Số liệu nghi ngờ (Bad quality)'>
+                                            <span className='text-[#FF0000] font-bold cursor-help ml-1'>
+                                              !
+                                            </span>
+                                          </Tooltip>
                                         )}
                                       </span>
                                     </div>

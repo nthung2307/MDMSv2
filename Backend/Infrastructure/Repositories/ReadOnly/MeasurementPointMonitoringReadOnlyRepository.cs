@@ -107,7 +107,54 @@ public class MeasurementPointMonitoringReadOnlyRepository :
             query = query.Where(x => x.Point.Code != null && x.Point.Code.Contains(request.MeasurementPointCode));
         }
 
-        if (request.Status.HasValue)
+        var timeoutMinutes = request.RestTimeoutMinutes.GetValueOrDefault(5);
+        if (timeoutMinutes <= 0) timeoutMinutes = 5;
+        var cutoffUtc = DateTimeOffset.UtcNow.AddMinutes(-timeoutMinutes);
+
+        if (!string.IsNullOrWhiteSpace(request.FilterMode))
+        {
+            var mode = request.FilterMode.Trim().ToLowerInvariant();
+            if (mode == "good")
+            {
+                query = query.Where(x => x.Snapshot != null &&
+                                         (x.Snapshot.MatKetNoi == false || x.Snapshot.MatKetNoi == null) &&
+                                         ((x.Snapshot.LastTelemetryAt != null && x.Snapshot.LastTelemetryAt >= cutoffUtc) ||
+                                          (x.Snapshot.LastStatusAt != null && x.Snapshot.LastStatusAt >= cutoffUtc) ||
+                                          (x.Snapshot.UpdatedAt >= cutoffUtc)));
+            }
+            else if (mode == "modbus_lost")
+            {
+                query = query.Where(x => x.Snapshot != null && x.Snapshot.MatKetNoi == true);
+            }
+            else if (mode == "rest_stale" || mode == "iot_lost")
+            {
+                query = query.Where(x => x.Snapshot == null ||
+                                         (x.Snapshot.LastTelemetryAt == null && x.Snapshot.LastStatusAt == null && x.Snapshot.LastDateTimeAt == null && x.Snapshot.UpdatedAt < cutoffUtc) ||
+                                         (x.Snapshot.LastTelemetryAt != null && x.Snapshot.LastTelemetryAt < cutoffUtc &&
+                                          (x.Snapshot.LastStatusAt == null || x.Snapshot.LastStatusAt < cutoffUtc)));
+            }
+            else if (mode == "bad_quality" || mode == "suspect")
+            {
+                query = query.Where(x => x.Snapshot != null && (
+                    x.Snapshot.DienApPhaAQuality == false ||
+                    x.Snapshot.DienApPhaBQuality == false ||
+                    x.Snapshot.DienApPhaCQuality == false ||
+                    x.Snapshot.DongDienPhaAQuality == false ||
+                    x.Snapshot.DongDienPhaBQuality == false ||
+                    x.Snapshot.DongDienPhaCQuality == false ||
+                    x.Snapshot.CongSuatTacDungTong3PhaQuality == false ||
+                    x.Snapshot.CongSuatPhanKhangTong3PhaQuality == false ||
+                    x.Snapshot.HeSoCongSuatPFTrungBinh3PhaQuality == false ||
+                    x.Snapshot.TanSoHeThongQuality == false ||
+                    x.Snapshot.ChiSoTichLuyDienNangTacDungAPTongQuality == false ||
+                    x.Snapshot.ChiSoTichLuyDienNangTacDungAPBieuGioBTQuality == false ||
+                    x.Snapshot.ChiSoTichLuyDienNangTacDungAPBieuGioCDQuality == false ||
+                    x.Snapshot.ChiSoTichLuyDienNangTacDungAPBieuGioTDQuality == false ||
+                    x.Snapshot.ChiSoTichLuyDienNangPhanKhangAQTongQuality == false
+                ));
+            }
+        }
+        else if (request.Status.HasValue)
         {
             var isLost = request.Status.Value;
             query = isLost
@@ -173,7 +220,7 @@ public class MeasurementPointMonitoringReadOnlyRepository :
         foreach (var (point, snap) in pageRows)
         {
             pointMap.TryGetValue(point.Id, out var routing);
-            resultList.Add(SnapshotDtoMapper.ToListDto(point, snap, routing));
+            resultList.Add(SnapshotDtoMapper.ToListDto(point, snap, routing, timeoutMinutes));
         }
 
         return new CursorPaginationResponse<ListMeasurementPointMonitoringDto>
@@ -676,5 +723,66 @@ public class MeasurementPointMonitoringReadOnlyRepository :
         var roundedMinute = minute < 15 ? 0 : (minute < 45 ? 30 : 0);
         var baseTime = minute >= 45 ? time.AddHours(1) : time;
         return new DateTimeOffset(baseTime.Year, baseTime.Month, baseTime.Day, baseTime.Hour, roundedMinute, 0, baseTime.Offset);
+    }
+
+    public async Task<MeasurementPointMonitoringHealthSummaryDto> GetMonitoringHealthSummaryAsync(
+        int timeoutMinutes,
+        CancellationToken cancellationToken)
+    {
+        if (timeoutMinutes <= 0) timeoutMinutes = 5;
+        var cutoffUtc = DateTimeOffset.UtcNow.AddMinutes(-timeoutMinutes);
+
+        var query = from p in _measurementPointsEntities.AsNoTracking()
+                    join s in _snapshotEntities.AsNoTracking() on p.Id equals s.MeasurementPointId into snapGroup
+                    from snap in snapGroup.DefaultIfEmpty()
+                    where p.Status == EntityStatus.Active && !p.Deleted
+                    select new
+                    {
+                        PointId = p.Id,
+                        CustomerId = p.CustomerId,
+                        MatKetNoi = snap != null && snap.MatKetNoi == true,
+                        LastAt = snap != null ? (snap.LastTelemetryAt ?? snap.LastStatusAt ?? snap.LastDateTimeAt ?? (snap.UpdatedAt != default ? snap.UpdatedAt : (DateTimeOffset?)null)) : null,
+                        HasBadQuality = snap != null && (
+                            snap.DienApPhaAQuality == false ||
+                            snap.DienApPhaBQuality == false ||
+                            snap.DienApPhaCQuality == false ||
+                            snap.DongDienPhaAQuality == false ||
+                            snap.DongDienPhaBQuality == false ||
+                            snap.DongDienPhaCQuality == false ||
+                            snap.CongSuatTacDungTong3PhaQuality == false ||
+                            snap.CongSuatPhanKhangTong3PhaQuality == false ||
+                            snap.HeSoCongSuatPFTrungBinh3PhaQuality == false ||
+                            snap.TanSoHeThongQuality == false ||
+                            snap.ChiSoTichLuyDienNangTacDungAPTongQuality == false ||
+                            snap.ChiSoTichLuyDienNangTacDungAPBieuGioBTQuality == false ||
+                            snap.ChiSoTichLuyDienNangTacDungAPBieuGioCDQuality == false ||
+                            snap.ChiSoTichLuyDienNangTacDungAPBieuGioTDQuality == false ||
+                            snap.ChiSoTichLuyDienNangPhanKhangAQTongQuality == false
+                        )
+                    };
+
+        var (isCustomer, linkedCustomerIds) = await GetCustomerAccessFilterAsync(cancellationToken);
+        if (isCustomer)
+        {
+            query = query.Where(x => linkedCustomerIds.Contains(x.CustomerId));
+        }
+
+        var rows = await query.ToListAsync(cancellationToken);
+        var total = rows.Count;
+        var modbusLost = rows.Count(r => r.MatKetNoi);
+        var restStale = rows.Count(r => !r.LastAt.HasValue || r.LastAt.Value < cutoffUtc);
+        var good = rows.Count(r => !r.MatKetNoi && r.LastAt.HasValue && r.LastAt.Value >= cutoffUtc);
+        var badQuality = rows.Count(r => r.HasBadQuality);
+
+        return new MeasurementPointMonitoringHealthSummaryDto
+        {
+            TotalPoints = total,
+            GoodPoints = good,
+            ModbusLostPoints = modbusLost,
+            RestStalePoints = restStale,
+            BadQualityPoints = badQuality,
+            RestInactivityTimeoutMinutes = timeoutMinutes,
+            EvaluatedAt = DateTimeOffset.UtcNow
+        };
     }
 }

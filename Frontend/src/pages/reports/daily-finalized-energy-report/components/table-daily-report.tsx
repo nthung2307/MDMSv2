@@ -52,6 +52,7 @@ const TableDailyReport = (props: Props) => {
       chiSoTichLuyDienNangPhanKhangAQTongKenhNhan: item.chiSoTichLuyDienNangPhanKhangAQTongKenhNhan,
       chiSoTichLuyDienNangPhanKhangAQTongKenhNhanUnit:
         item.chiSoTichLuyDienNangPhanKhangAQTongKenhNhanUnit,
+      hasBadQuality: item.hasBadQuality,
       key: item.createdTime,
     };
   });
@@ -63,8 +64,17 @@ const TableDailyReport = (props: Props) => {
       fixed: 'left',
       width: 150,
       align: 'center',
-      render: (record) => {
-        return record ? dayjs(record).format('DD/MM/YYYY HH:mm') : 'N/A';
+      render: (record, row: any) => {
+        return (
+          <span>
+            {record ? dayjs(record).format('DD/MM/YYYY HH:mm') : 'N/A'}
+            {row.hasBadQuality && (
+              <span className='text-red-500 font-bold ml-1' title='Số liệu nghi ngờ (Bad quality)'>
+                *
+              </span>
+            )}
+          </span>
+        );
       },
     },
     {
@@ -152,14 +162,24 @@ const TableDailyReport = (props: Props) => {
   ];
 
   return (
-    <TableCommon
-      columns={columns}
-      dataSource={dataTable}
-      pagination={false}
-      loading={loading}
-      scroll={{ x: 1350 }}
-      bordered
-    />
+    <div>
+      <TableCommon
+        columns={columns}
+        dataSource={dataTable}
+        pagination={false}
+        loading={loading}
+        scroll={{ x: 1350 }}
+        bordered
+      />
+      {dataSource.some((d: any) => d.hasBadQuality) && (
+        <div className='p-2.5 text-xs text-amber-800 bg-amber-50/80 border-t border-amber-200 flex items-center gap-1.5'>
+          <span className='font-bold text-red-500 text-sm'>*</span>
+          <span>
+            Số liệu nghi ngờ (Bad quality) do gián đoạn truyền thông Modbus tại thời điểm đo đạc.
+          </span>
+        </div>
+      )}
+    </div>
   );
 };
 

@@ -63,6 +63,25 @@ public class MeasurementPointMonitoringController : ControllerBase
         }
     }
 
+    [HttpGet]
+    [Route(Common.Url.Default.MeasurementPointMonitoring.HealthSummary)]
+    [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]
+    public async Task<RequestResult<MeasurementPointMonitoringHealthSummaryDto>> GetMonitoringHealthSummaryAsync(
+        [FromQuery] int timeoutMinutes = 5,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var summary = await _measurementPointMonitoringReadOnlyRepository.GetMonitoringHealthSummaryAsync(timeoutMinutes, cancellationToken);
+            return RequestResult<MeasurementPointMonitoringHealthSummaryDto>.Succeed(summary);
+        }
+        catch (Exception e)
+        {
+            _loggerService.LogError(e, nameof(GetMonitoringHealthSummaryAsync));
+            throw;
+        }
+    }
+
     [HttpPost]
     [Route(Common.Url.Default.MeasurementPointMonitoring.ListAlert)]
     [Permissions(Roles = [DefaultRoles.SuperAdmin, DefaultRoles.Admin, DefaultRoles.Staff, DefaultRoles.Customer])]

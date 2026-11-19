@@ -10,19 +10,23 @@ export class GetListMeasurementPointMonitoringRequest {
   measurementPointCode?: string;
   startDate?: string;
   endDate?: string;
+  filterMode?: string;
+  restTimeoutMinutes?: number;
 
   constructor(args: {
     pageSize?: number;
     after?: number;
     before?: number;
     pageNumber?: number;
-    searchByFields: Array<{ searchFieldName: string; searchValue: string }> | [];
-    sortByFields: Array<{ colName: string; sortDirection: string }> | [];
+    searchByFields?: Array<{ searchFieldName: string; searchValue: string }> | [];
+    sortByFields?: Array<{ colName: string; sortDirection: string }> | [];
     customerName?: string;
     measurementpointCode?: string;
     measurementPointCode?: string;
     startDate?: string;
     endDate?: string;
+    filterMode?: string;
+    restTimeoutMinutes?: number;
   }) {
     this.pageSize = args.pageSize;
     if (args.after) {
@@ -54,6 +58,12 @@ export class GetListMeasurementPointMonitoringRequest {
     }
     if (args.endDate) {
       this.endDate = args.endDate;
+    }
+    if (args.filterMode) {
+      this.filterMode = args.filterMode;
+    }
+    if (args.restTimeoutMinutes !== undefined) {
+      this.restTimeoutMinutes = args.restTimeoutMinutes;
     }
   }
 }

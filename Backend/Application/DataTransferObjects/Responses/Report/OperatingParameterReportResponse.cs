@@ -29,4 +29,9 @@ public class OperatingParameterReportResponse
 
     public double? TanSoHeThong { get; set; }
     public string? TanSoHeThongUnit { get; set; }
+
+    /// <summary>
+    /// Phase 3: True if any sample during this interval had Modbus Quality = Bad (chất lượng xấu)
+    /// </summary>
+    public bool HasBadQuality { get; set; }
 }

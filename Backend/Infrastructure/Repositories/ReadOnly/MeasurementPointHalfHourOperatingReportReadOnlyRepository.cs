@@ -53,14 +53,13 @@ public class MeasurementPointHalfHourOperatingReportReadOnlyRepository :
         }
 
         // Fallback từ partitioned wide-table MeasurementPointTimeSeries (cửa sổ 12 tháng)
-        var fallbackEntities = await OperatingReportFallbackHelper.GetFallbackFromTimeSeriesAsync(
+        var fallbackResponses = await OperatingReportFallbackHelper.GetFallbackResponsesFromTimeSeriesAsync(
             _dbContext,
             request.MeasurementPointId,
             request.StartTime,
             request.EndTime,
             cancellationToken);
 
-        var fallbackResponses = _mapper.Map<List<OperatingParameterReportResponse>>(fallbackEntities);
         OperatingReportFallbackHelper.ApplyConfiguredUnits(fallbackResponses, configuredUnits);
         return PaginateInMemory(fallbackResponses, request);
     }
@@ -86,14 +85,13 @@ public class MeasurementPointHalfHourOperatingReportReadOnlyRepository :
             return list;
         }
 
-        var fallbackEntities = await OperatingReportFallbackHelper.GetFallbackFromTimeSeriesAsync(
+        var fallbackResponses = await OperatingReportFallbackHelper.GetFallbackResponsesFromTimeSeriesAsync(
             _dbContext,
             request.MeasurementPointId,
             request.StartTime,
             request.EndTime,
             cancellationToken);
 
-        var fallbackResponses = _mapper.Map<List<OperatingParameterReportResponse>>(fallbackEntities);
         OperatingReportFallbackHelper.ApplyConfiguredUnits(fallbackResponses, configuredUnits);
         return fallbackResponses;
     }

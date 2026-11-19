@@ -16,4 +16,5 @@ public interface IMeasurementPointMonitoringReadOnlyRepository : IRepository<Mea
     Task<List<MeasurementPointEnergyReportDto>> GetListMeasurementEnergyReportAsync(CancellationToken cancellationToken);
     Task<List<MeasurementPointEnergyReportDto>> GetListMeasurementEnergyReportWithLookbackAsync(int lookbackMinutes, CancellationToken cancellationToken, DateTimeOffset? targetTime = null);
     Task<List<MeasurementPointOperatingReportDto>> GetListMeasurementOperatingReportWithLookbackAsync(int lookbackMinutes, CancellationToken cancellationToken, DateTimeOffset? targetTime = null);
+    Task<MeasurementPointMonitoringHealthSummaryDto> GetMonitoringHealthSummaryAsync(int timeoutMinutes, CancellationToken cancellationToken);
 }

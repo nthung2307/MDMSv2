@@ -208,4 +208,93 @@ internal static class OperatingReportFallbackHelper
 
         return result;
     }
+
+    public static async Task<List<OperatingParameterReportResponse>> GetFallbackResponsesFromTimeSeriesAsync(
+        DbContext context,
+        long measurementPointId,
+        DateTimeOffset startTime,
+        DateTimeOffset endTime,
+        CancellationToken cancellationToken)
+    {
+        var startYm = MeteringValueHelper.ComputePartitionYm(startTime);
+        var endYm = MeteringValueHelper.ComputePartitionYm(endTime);
+
+        var rawRows = await context.Set<MeasurementPointTimeSeriesEntity>()
+            .AsNoTracking()
+            .Where(x => x.MeasurementPointId == measurementPointId &&
+                        x.PartitionYm >= startYm &&
+                        x.PartitionYm <= endYm &&
+                        x.RecordedAt >= startTime &&
+                        x.RecordedAt <= endTime)
+            .OrderBy(x => x.RecordedAt)
+            .Select(x => new
+            {
+                x.Id,
+                x.RecordedAt,
+                x.QualityFlag,
+                x.DienApPhaA,
+                x.DienApPhaB,
+                x.DienApPhaC,
+                x.DongDienPhaA,
+                x.DongDienPhaB,
+                x.DongDienPhaC,
+                x.CongSuatTacDungTong3Pha,
+                x.CongSuatPhanKhangTong3Pha,
+                x.HeSoCongSuatPFTrungBinh3Pha,
+                x.TanSoHeThong
+            })
+            .ToListAsync(cancellationToken);
+
+        if (rawRows.Count == 0)
+        {
+            return new List<OperatingParameterReportResponse>();
+        }
+
+        var grouped = rawRows
+            .GroupBy(x =>
+            {
+                var t = x.RecordedAt;
+                var min = t.Minute >= 30 ? 30 : 0;
+                return new DateTimeOffset(t.Year, t.Month, t.Day, t.Hour, min, 0, t.Offset);
+            })
+            .OrderBy(g => g.Key);
+
+        var result = new List<OperatingParameterReportResponse>();
+        foreach (var g in grouped)
+        {
+            static double? Avg(IEnumerable<decimal?> vals, int decimals = 2)
+            {
+                var valid = vals.Where(v => v.HasValue).Select(v => (double)v!.Value).ToList();
+                return valid.Count > 0 ? Math.Round(valid.Average(), decimals) : null;
+            }
+
+            var p = Avg(g.Select(x => x.CongSuatTacDungTong3Pha));
+            var q = Avg(g.Select(x => x.CongSuatPhanKhangTong3Pha));
+            var pf = Avg(g.Select(x => x.HeSoCongSuatPFTrungBinh3Pha), 3);
+            if (!pf.HasValue && p.HasValue && q.HasValue)
+            {
+                var s = Math.Sqrt(p.Value * p.Value + q.Value * q.Value);
+                if (s > 0) pf = Math.Round(Math.Abs(p.Value) / s, 3);
+            }
+
+            result.Add(new OperatingParameterReportResponse
+            {
+                Id = g.First().Id,
+                CreatedTime = g.Key,
+                DienApPhaA = Avg(g.Select(x => x.DienApPhaA)),
+                DienApPhaB = Avg(g.Select(x => x.DienApPhaB)),
+                DienApPhaC = Avg(g.Select(x => x.DienApPhaC)),
+                DongDienPhaA = Avg(g.Select(x => x.DongDienPhaA)),
+                DongDienPhaB = Avg(g.Select(x => x.DongDienPhaB)),
+                DongDienPhaC = Avg(g.Select(x => x.DongDienPhaC)),
+                CongSuatTacDungTong3Pha = p,
+                CongSuatPhanKhangTong3Pha = q,
+                HeSoCongSuatPF = pf,
+                TanSoHeThong = Avg(g.Select(x => x.TanSoHeThong)) ?? 50.0,
+                HasBadQuality = g.Any(x => x.QualityFlag == false)
+            });
+        }
+
+        return result;
+    }
 }

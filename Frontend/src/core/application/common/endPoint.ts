@@ -78,6 +78,8 @@ export class Endpoint {
       'measurement-point-monitoring/get-list-measurement-point-alert';
     static GetMeasurementPointMonitoring: string =
       'measurement-point-monitoring/get-measurement-point-monitoring';
+    static GetHealthSummary: string =
+      'measurement-point-monitoring/health-summary';
   };
 
   static Config = class {

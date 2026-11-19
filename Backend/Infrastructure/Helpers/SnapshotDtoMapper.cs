@@ -12,11 +12,67 @@ namespace Infrastructure.Helpers;
 /// </summary>
 internal static class SnapshotDtoMapper
 {
+    public static (string Status, DateTimeOffset? LastReceived, string? Reason, bool HasBadQuality) EvaluateHealth(
+        MeasurementPointsEntity point,
+        MeasurementPointCurrentSnapshotEntity? snap,
+        int timeoutMinutes = 5)
+    {
+        var lastReceived = snap?.LastTelemetryAt ?? snap?.LastStatusAt ?? snap?.LastDateTimeAt;
+        if (!lastReceived.HasValue && snap?.UpdatedAt != null && snap.UpdatedAt != default)
+        {
+            lastReceived = snap.UpdatedAt;
+        }
+
+        var nowUtc = DateTimeOffset.UtcNow;
+        string status;
+        string? reason = null;
+
+        if (snap == null || !lastReceived.HasValue)
+        {
+            status = "NEVER_RECEIVED";
+            reason = "Chưa có dữ liệu truyền thông";
+        }
+        else if ((nowUtc - lastReceived.Value).TotalMinutes > timeoutMinutes)
+        {
+            status = "STALE_STOPPED";
+            var minutesAgo = Math.Max(1, (int)Math.Round((nowUtc - lastReceived.Value).TotalMinutes));
+            reason = minutesAgo < 60
+                ? $"Ngừng cập nhật ({minutesAgo} phút trước)"
+                : $"Ngừng cập nhật ({minutesAgo / 60} giờ trước)";
+        }
+        else
+        {
+            status = "ONLINE";
+            reason = "Đang cập nhật bình thường";
+        }
+
+        bool hasBad = snap != null && (
+            snap.DienApPhaAQuality == false ||
+            snap.DienApPhaBQuality == false ||
+            snap.DienApPhaCQuality == false ||
+            snap.DongDienPhaAQuality == false ||
+            snap.DongDienPhaBQuality == false ||
+            snap.DongDienPhaCQuality == false ||
+            snap.CongSuatTacDungTong3PhaQuality == false ||
+            snap.CongSuatPhanKhangTong3PhaQuality == false ||
+            snap.HeSoCongSuatPFTrungBinh3PhaQuality == false ||
+            snap.TanSoHeThongQuality == false ||
+            snap.ChiSoTichLuyDienNangTacDungAPTongQuality == false ||
+            snap.ChiSoTichLuyDienNangPhanKhangAQTongQuality == false ||
+            snap.MatKetNoiQuality == false
+        );
+
+        return (status, lastReceived, reason, hasBad);
+    }
+
     public static ListMeasurementPointMonitoringDto ToListDto(
         MeasurementPointsEntity point,
         MeasurementPointCurrentSnapshotEntity? snap,
-        PointRoutingInfo? routingInfo = null)
+        PointRoutingInfo? routingInfo = null,
+        int timeoutMinutes = 5)
     {
+        var (restStatus, lastReceived, reason, hasBad) = EvaluateHealth(point, snap, timeoutMinutes);
+
         return new ListMeasurementPointMonitoringDto
         {
             Id = point.Id,
@@ -25,6 +81,11 @@ internal static class SnapshotDtoMapper
             MeasurementPointDescription = point.Description,
             CustomerCode = point.Customer?.CustomerCode,
             CustomerName = point.Customer?.FullName,
+            MeterSerial = point.MeterSerial,
+            RestStatus = restStatus,
+            LastRestReceivedAt = lastReceived,
+            RestStatusReason = reason,
+            HasBadQuality = hasBad,
 
             DongDienPhaA = ToDouble(snap?.DongDienPhaA),
             DongDienPhaAUnit = snap?.DongDienPhaAUnit ?? GetTagUnit(routingInfo, ListDataMeasurementPoint.DongDienPhaA),
@@ -58,8 +119,11 @@ internal static class SnapshotDtoMapper
     public static MeasurementPointMonitoringDto ToDetailDto(
         MeasurementPointsEntity point,
         MeasurementPointCurrentSnapshotEntity? snap,
-        PointRoutingInfo? routingInfo = null)
+        PointRoutingInfo? routingInfo = null,
+        int timeoutMinutes = 5)
     {
+        var restHealth = EvaluateHealth(point, snap, timeoutMinutes);
+
         return new MeasurementPointMonitoringDto
         {
             Id = snap?.Id ?? point.Id,
@@ -378,7 +442,14 @@ internal static class SnapshotDtoMapper
             PmaxPreviousPeriodSecond = ToIntStr(snap?.PmaxPrevSecond),
             PmaxPreviousPeriodSecondQuanlity = snap?.PmaxPrevSecondQuality,
 
-            GroupId = snap?.Id ?? point.Id
+            GroupId = snap?.Id ?? point.Id,
+
+            // Phase 3: REST & Modbus connection health monitoring
+            MeterSerial = point.MeterSerial,
+            RestStatus = restHealth.Status,
+            LastRestReceivedAt = restHealth.LastReceived,
+            RestStatusReason = restHealth.Reason,
+            HasBadQuality = restHealth.HasBadQuality
         };
     }
 

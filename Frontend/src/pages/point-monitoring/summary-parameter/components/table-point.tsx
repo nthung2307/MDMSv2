@@ -1,4 +1,4 @@
-import { TableProps, Tooltip } from 'antd';
+import { TableProps, Tooltip, Tag } from 'antd';
 
 import { ROUTE_PATH } from '@/core/application/common/appRouters.ts';
 import Constants from '@/core/application/common/constants.ts';
@@ -14,15 +14,25 @@ interface Props {
 const TableSummary = (props: Props) => {
   const { dataSource, loading } = props;
 
-  const renderValue = (val: number, quanlity: boolean, unit?: any) => {
-    if (!val && !quanlity) return `-`;
+  const renderValue = (val: number | null | undefined, quanlity: boolean, unit?: any) => {
+    if (val === null || val === undefined) return `-`;
 
-    return (
-      <>
-        {`${val} ${unit ? unit : ''} `}
-        <span className='text-[#FF0000] font-bold'>{quanlity ? '' : '!'}</span>
-      </>
-    );
+    const isBad = quanlity === false;
+
+    if (isBad) {
+      return (
+        <Tooltip title="Số liệu nghi ngờ (Bad quality)">
+          <span className='inline-flex items-center gap-1 text-amber-700 font-medium cursor-help'>
+            <span>{`${val} ${unit ? unit : ''}`.trim()}</span>
+            <span className='inline-flex items-center justify-center w-3.5 h-3.5 text-[10px] font-bold text-white bg-red-500 rounded-full'>
+              !
+            </span>
+          </span>
+        </Tooltip>
+      );
+    }
+
+    return <span>{`${val} ${unit ? unit : ''}`.trim()}</span>;
   };
 
   const columns: TableProps['columns'] = [
@@ -30,10 +40,19 @@ const TableSummary = (props: Props) => {
       title: 'Mã điểm đo',
       dataIndex: 'measurementPointCode',
       fixed: true,
-      width: '150px',
+      width: '160px',
       className: 'antd-action-table',
-      render: (record) => {
-        return record ? <span>{record}</span> : <span>N/A</span>;
+      render: (val, record) => {
+        return (
+          <div>
+            <span className='font-semibold'>{val || 'N/A'}</span>
+            {record.meterSerial && (
+              <div className='text-xs text-gray-400 truncate' title={`Serial: ${record.meterSerial}`}>
+                SN: {record.meterSerial}
+              </div>
+            )}
+          </div>
+        );
       },
     },
     // {
@@ -59,18 +78,54 @@ const TableSummary = (props: Props) => {
       },
     },
     {
-      title: 'Trạng thái kết nối',
-      width: 140,
+      title: 'Kết nối đo đếm',
+      width: 130,
       dataIndex: 'matKetNoi',
+      align: 'center',
       render: (val) => {
         if (val === null || val === undefined) {
           return <span>-</span>;
         }
-        return (
-          <span className={val ? 'text-[#FF0000] font-bold' : ''}>
-            {val ? 'Mất kết nối' : 'Kết nối'}
-          </span>
+        return val ? (
+          <Tooltip title='Mất tín hiệu thu thập từ công tơ đo đếm'>
+            <Tag color='error' className='cursor-help'>Mất kết nối</Tag>
+          </Tooltip>
+        ) : (
+          <Tooltip title='Kênh thu thập công tơ hoạt động bình thường'>
+            <Tag color='success' className='cursor-help'>Bình thường</Tag>
+          </Tooltip>
         );
+      },
+    },
+    {
+      title: 'Kết nối IoT',
+      width: 130,
+      dataIndex: 'restStatus',
+      align: 'center',
+      render: (val, record) => {
+        const reason = record.restStatusReason || '';
+        if (val === 'ONLINE') {
+          return (
+            <Tooltip title={reason || 'Kênh truyền IoT hoạt động bình thường'}>
+              <Tag color='cyan' className='cursor-help'>Online</Tag>
+            </Tooltip>
+          );
+        }
+        if (val === 'STALE_STOPPED') {
+          return (
+            <Tooltip title={reason || 'Kênh truyền IoT bị gián đoạn / ngừng cập nhật'}>
+              <Tag color='warning' className='cursor-help font-medium'>Ngừng nhận</Tag>
+            </Tooltip>
+          );
+        }
+        if (val === 'NEVER_RECEIVED') {
+          return (
+            <Tooltip title={reason || 'Chưa từng nhận dữ liệu qua kênh truyền IoT (Kiểm tra Gateway / Key)'}>
+              <Tag color='error' className='cursor-help font-medium'>Chưa nhận</Tag>
+            </Tooltip>
+          );
+        }
+        return <span>-</span>;
       },
     },
     {
@@ -169,11 +224,23 @@ const TableSummary = (props: Props) => {
 
   return (
     <TableCommon
+      rowKey={(record: any) =>
+        record.measurementPointsId || record.measurementPointCode || record.id || record.meterSerial
+      }
       columns={columns}
       dataSource={dataSource}
       pagination={false}
       rowClassName={(record) => {
-        return record.matKetNoi === true ? 'error-row cursor-pointer' : 'cursor-pointer';
+        if (record.matKetNoi === true) {
+          return 'error-row cursor-pointer';
+        }
+        if (record.restStatus === 'NEVER_RECEIVED') {
+          return 'bg-rose-50/50 cursor-pointer';
+        }
+        if (record.restStatus === 'STALE_STOPPED') {
+          return 'bg-amber-50/50 cursor-pointer';
+        }
+        return 'cursor-pointer';
       }}
       loading={loading}
       scroll={{ x: 'max-content', y: window.innerHeight * 0.66 }}

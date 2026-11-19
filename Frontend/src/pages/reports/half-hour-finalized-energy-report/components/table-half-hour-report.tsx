@@ -49,7 +49,7 @@ const renderEnergyCell = (val: any) => {
 
   if (isNotTopical) {
     return (
-      <Tooltip title='Số liệu bị nghi ngờ'>
+      <Tooltip title='Số liệu nghi ngờ (Bad quality)'>
         <div
           style={{ textAlign: 'right', paddingRight: '8px' }}
           className='text-amber-600 font-medium inline-flex items-center justify-end w-full gap-1 cursor-help'
@@ -180,6 +180,20 @@ const TableHalfHourReport: React.FC<Props> = ({ dataSource, loading }) => {
         bordered
         size='small'
       />
+      {dataSource.some(
+        (d: any) =>
+          d.hasBadQuality ||
+          Object.values(d).some(
+            (v) => typeof v === 'string' && (v.includes('*') || v.includes('Not Topical'))
+          )
+      ) && (
+        <div className='p-2.5 text-xs text-amber-800 bg-amber-50/80 border-t border-amber-200 flex items-center gap-1.5'>
+          <span className='font-bold text-red-500 text-sm'>*</span>
+          <span>
+            Số liệu nghi ngờ (Bad quality) do gián đoạn truyền thông Modbus tại thời điểm đo đạc.
+          </span>
+        </div>
+      )}
     </div>
   );
 };

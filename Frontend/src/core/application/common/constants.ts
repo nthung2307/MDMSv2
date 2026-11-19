@@ -54,7 +54,7 @@ export default class Constants {
     static Connection = class {
       static Status = class {
         static Normal = {
-          label: 'Kết nối',
+          label: 'Bình thường',
           value: 'normal',
         };
         static LostConnection = {
