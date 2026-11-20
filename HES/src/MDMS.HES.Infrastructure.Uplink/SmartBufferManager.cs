@@ -97,7 +97,8 @@ public class SmartBufferManager : ISmartBufferManager
             drainedAlarms++;
         }
 
-        // 2. Add latest snapshots
+        // 2. Add latest snapshots (stamped with current scan timestamp so periodic scans advance LastTelemetryAt and snapshot UpdatedAt)
+        long scanTimestampMs = payload.Timestamp;
         foreach (var kvp in buffer.LatestSnapshot)
         {
             if (payload.Values.Count >= maxEvents)
@@ -108,7 +109,7 @@ public class SmartBufferManager : ISmartBufferManager
                 tag.Id,
                 tag.Value,
                 tag.QualityString,
-                tag.TimestampEpochMs
+                scanTimestampMs
             ));
         }
 
@@ -155,3 +156,4 @@ public class SmartBufferManager : ISmartBufferManager
         return str is "1" or "true" or "alarm";
     }
 }
+

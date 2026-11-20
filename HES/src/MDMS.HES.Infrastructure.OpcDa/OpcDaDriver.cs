@@ -17,7 +17,8 @@ public class OpcDaDriver : IProtocolDriver, IDisposable
     private OPCGroups? _opcGroups;
     private OPCGroup? _opcGroup;
 
-    private readonly ConcurrentDictionary<int, (string MeterId, string TagId)> _clientHandleMap = new();
+    // Maps OPC clientHandle -> TagPath (shared template tag or meter-specific tag)
+    private readonly ConcurrentDictionary<int, string> _clientHandleToTagMap = new();
     private int _handleCounter = 0;
 
     private Thread? _workerThread;
@@ -110,12 +111,23 @@ public class OpcDaDriver : IProtocolDriver, IDisposable
                     _lastDataReceivedAt = DateTime.UtcNow;
                     _logger?.LogInformation("[OPC-DA] Connected successfully to {ProgId}.", ProgId);
 
-                    // Add items for meters
-                    RegisterMeterItems();
+                    // Add items and trigger initial AsyncRead
+                    var serverHandles = RegisterTemplateItems();
 
-                    // Hook events
+                    _opcGroup.AsyncReadComplete += OnOpcGroupAsyncReadComplete;
                     _opcGroup.DataChange += OnOpcGroupDataChange;
                     _opcServer.ServerShutDown += OnOpcServerShutdown;
+
+                    if (serverHandles.Count > 0)
+                    {
+                        int numItems = serverHandles.Count;
+                        int[] sHandles = new int[numItems + 1];
+                        sHandles[0] = 0;
+                        for (int i = 0; i < numItems; i++) sHandles[i + 1] = serverHandles[i];
+
+                        Array sHandlesArray = sHandles;
+                        _opcGroup.AsyncRead(numItems, ref sHandlesArray, out _, 0, out _);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -148,79 +160,89 @@ public class OpcDaDriver : IProtocolDriver, IDisposable
         CleanupComObjects();
     }
 
-    private void RegisterMeterItems()
+    private List<int> RegisterTemplateItems()
     {
-        if (_opcGroup == null) return;
+        var serverHandles = new List<int>();
+        if (_opcGroup == null) return serverHandles;
         var opcItems = _opcGroup.OPCItems;
-        if (opcItems == null) return;
+        if (opcItems == null) return serverHandles;
 
-        _clientHandleMap.Clear();
+        _clientHandleToTagMap.Clear();
         _handleCounter = 0;
 
-        foreach (var meter in _meters)
+        var templateTags = GetCanonicalTemplateTags();
+        foreach (var tagPath in templateTags)
         {
-            if (!meter.Enabled) continue;
+            int handle = Interlocked.Increment(ref _handleCounter);
+            _clientHandleToTagMap[handle] = tagPath;
 
-            // List of tags to subscribe for each meter
-            var tagsToRegister = GetTagNamesForMeter(meter.MeterId);
-            foreach (var tagPath in tagsToRegister)
+            try
             {
-                int handle = Interlocked.Increment(ref _handleCounter);
-                _clientHandleMap[handle] = (meter.MeterId, tagPath);
-
-                try
+                var item = opcItems.AddItem(tagPath, handle);
+                if (item != null)
                 {
-                    opcItems.AddItem(tagPath, handle);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogTrace("[OPC-DA] AddItem failed for {Tag}: {Msg}", tagPath, ex.Message);
+                    serverHandles.Add(item.ServerHandle);
                 }
             }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning("[OPC-DA] AddItem failed for {Tag}: {Msg}", tagPath, ex.Message);
+            }
         }
-        _logger?.LogInformation("[OPC-DA] Registered {Count} items across {MeterCount} meters.", _clientHandleMap.Count, _meters.Count);
+
+        _logger?.LogInformation("[OPC-DA] Subscribed to {Subscribed}/{Total} template tags for {MeterCount} meters.",
+            serverHandles.Count, templateTags.Count, _meters.Count);
+        return serverHandles;
     }
 
-    private static List<string> GetTagNamesForMeter(string meterId)
+    private static List<string> GetCanonicalTemplateTags()
     {
-        var list = new List<string>();
-        // Electrical parameters
-        list.Add($"{meterId}._AdvancedTags.Template.Meas.13_7_0");
-        list.Add($"{meterId}._AdvancedTags.Template.Meas.14_7_0");
-        list.Add($"{meterId}._AdvancedTags.Template.Meas.21_7_0");
-        list.Add($"{meterId}._AdvancedTags.Template.Meas.1_7_0");
-        list.Add($"{meterId}._AdvancedTags.Template.Meas.3_7_0");
-        list.Add($"{meterId}._AdvancedTags.Template.Meas.32_7_0");
-        list.Add($"{meterId}._AdvancedTags.Template.Meas.41_7_0");
-        list.Add($"{meterId}._AdvancedTags.Template.Meas.43_7_0");
-        list.Add($"{meterId}._AdvancedTags.Template.Meas.51_7_0");
-        list.Add($"{meterId}._AdvancedTags.Template.Meas.52_7_0");
-        list.Add($"{meterId}._AdvancedTags.Template.Meas.61_7_0");
-        list.Add($"{meterId}._AdvancedTags.Template.Meas.63_7_0");
-        list.Add($"{meterId}._AdvancedTags.Template.Meas.71_7_0");
-        list.Add($"{meterId}._AdvancedTags.Template.Meas.72_7_0");
+        var list = new List<string>
+        {
+            // Electrical parameters (16 tags)
+            "_AdvancedTags.Template.Meas.1_7_0",
+            "_AdvancedTags.Template.Meas.13_7_0",
+            "_AdvancedTags.Template.Meas.14_7_0",
+            "_AdvancedTags.Template.Meas.21_7_0",
+            "_AdvancedTags.Template.Meas.23_7_0",
+            "_AdvancedTags.Template.Meas.3_7_0",
+            "_AdvancedTags.Template.Meas.31_7_0",
+            "_AdvancedTags.Template.Meas.32_7_0",
+            "_AdvancedTags.Template.Meas.41_7_0",
+            "_AdvancedTags.Template.Meas.43_7_0",
+            "_AdvancedTags.Template.Meas.51_7_0",
+            "_AdvancedTags.Template.Meas.52_7_0",
+            "_AdvancedTags.Template.Meas.61_7_0",
+            "_AdvancedTags.Template.Meas.63_7_0",
+            "_AdvancedTags.Template.Meas.71_7_0",
+            "_AdvancedTags.Template.Meas.72_7_0",
 
-        // Energy cumulative
-        list.Add($"{meterId}._AdvancedTags.Template.Energy.1_8_0");
-        list.Add($"{meterId}._AdvancedTags.Template.Energy.1_8_0_1");
-        list.Add($"{meterId}._AdvancedTags.Template.Energy.1_8_1");
-        list.Add($"{meterId}._AdvancedTags.Template.Energy.1_8_1_1");
-        list.Add($"{meterId}._AdvancedTags.Template.Energy.1_8_2");
-        list.Add($"{meterId}._AdvancedTags.Template.Energy.1_8_2_1");
-        list.Add($"{meterId}._AdvancedTags.Template.Energy.1_8_3");
-        list.Add($"{meterId}._AdvancedTags.Template.Energy.1_8_3_1");
-        list.Add($"{meterId}._AdvancedTags.Template.Energy.3_8_0");
-        list.Add($"{meterId}._AdvancedTags.Template.Energy.3_8_0_1");
+            // Energy cumulative & billing reset (10 tags)
+            "_AdvancedTags.Template.Energy.1_8_0",
+            "_AdvancedTags.Template.Energy.1_8_0_1",
+            "_AdvancedTags.Template.Energy.1_8_1",
+            "_AdvancedTags.Template.Energy.1_8_1_1",
+            "_AdvancedTags.Template.Energy.1_8_2",
+            "_AdvancedTags.Template.Energy.1_8_2_1",
+            "_AdvancedTags.Template.Energy.1_8_3",
+            "_AdvancedTags.Template.Energy.1_8_3_1",
+            "_AdvancedTags.Template.Energy.3_8_0",
+            "_AdvancedTags.Template.Energy.3_8_0_1",
 
-        // Alarms
-        list.Add($"{meterId}._AdvancedTags.Template.Status.96_5_0");
-        list.Add($"{meterId}._AdvancedTags.Template.Status.97_97_1");
-        list.Add($"{meterId}._AdvancedTags.Template.Status.97_97_2");
-        list.Add($"{meterId}._AdvancedTags.Template.Status.97_97_3");
-        list.Add($"{meterId}._AdvancedTags.Template.Status.97_97_4");
-        list.Add($"{meterId}._AdvancedTags.Template.Status.97_97_5");
-        list.Add($"{meterId}._AdvancedTags.Template.Status.97_97_6");
-        list.Add($"{meterId}._AdvancedTags.Template.Status.97_97_7");
+            // Max Demand (2 tags)
+            "_AdvancedTags.Template.MD.1_6_0",
+            "_AdvancedTags.Template.MD.1_6_0_1",
+
+            // Alarms / Status (8 tags)
+            "_AdvancedTags.Template.Status.96_5_0",
+            "_AdvancedTags.Template.Status.97_97_1",
+            "_AdvancedTags.Template.Status.97_97_2",
+            "_AdvancedTags.Template.Status.97_97_3",
+            "_AdvancedTags.Template.Status.97_97_4",
+            "_AdvancedTags.Template.Status.97_97_5",
+            "_AdvancedTags.Template.Status.97_97_6",
+            "_AdvancedTags.Template.Status.97_97_7"
+        };
 
         // 24 Short DateTime parts
         string[] groups = { "Current", "MDC", "MDP", "Reset" };
@@ -229,41 +251,96 @@ public class OpcDaDriver : IProtocolDriver, IDisposable
         {
             foreach (var p in parts)
             {
-                list.Add($"{meterId}._AdvancedTags.Template.DT.{g}.{p}");
+                list.Add($"_AdvancedTags.Template.DT.{g}.{p}");
             }
         }
 
         return list;
     }
 
-    private void OnOpcGroupDataChange(int transactionId, int numItems, ref Array clientHandles, ref Array itemValues, ref Array qualities, ref Array timeStamps)
+    private void OnOpcGroupAsyncReadComplete(
+        int transactionId,
+        int numItems,
+        ref Array clientHandles,
+        ref Array itemValues,
+        ref Array qualities,
+        ref Array timeStamps,
+        ref Array errors)
+    {
+        ProcessOpcValues(numItems, ref clientHandles, ref itemValues, ref qualities, ref timeStamps);
+    }
+
+    private void OnOpcGroupDataChange(
+        int transactionId,
+        int numItems,
+        ref Array clientHandles,
+        ref Array itemValues,
+        ref Array qualities,
+        ref Array timeStamps)
+    {
+        ProcessOpcValues(numItems, ref clientHandles, ref itemValues, ref qualities, ref timeStamps);
+    }
+
+    private volatile bool _loggedInitialSample;
+
+    private void ProcessOpcValues(
+        int numItems,
+        ref Array clientHandles,
+        ref Array itemValues,
+        ref Array qualities,
+        ref Array timeStamps)
     {
         _lastDataReceivedAt = DateTime.UtcNow;
+        int goodCount = 0;
+        int badCount = 0;
+        string? sampleInfo = null;
 
         for (int i = 1; i <= numItems; i++)
         {
             try
             {
-                int handle = (int)clientHandles.GetValue(i)!;
-                if (_clientHandleMap.TryGetValue(handle, out var tuple))
+                int handle = Convert.ToInt32(clientHandles.GetValue(i));
+                if (_clientHandleToTagMap.TryGetValue(handle, out var tagId))
                 {
                     object? val = itemValues.GetValue(i);
-                    int qInt = (int)qualities.GetValue(i)!;
-                    DateTime dt = (DateTime)timeStamps.GetValue(i)!;
+                    int qInt = Convert.ToInt32(qualities.GetValue(i));
+                    DateTime rawDt = Convert.ToDateTime(timeStamps.GetValue(i));
+
+                    // OPC-DA timestamps per OPC DA 2.05a specification are UTC FILETIMEs marshaled as Unspecified
+                    DateTime utcDt = rawDt.Kind == DateTimeKind.Local
+                        ? rawDt.ToUniversalTime()
+                        : DateTime.SpecifyKind(rawDt, DateTimeKind.Utc);
 
                     var quality = (qInt & 0xC0) == 0xC0 ? TagQuality.Good : TagQuality.Bad;
-                    var tag = new TagValue(tuple.TagId, val, quality, dt);
+                    if (quality == TagQuality.Good) goodCount++; else badCount++;
 
-                    var dict = _latestTags.GetOrAdd(tuple.MeterId, _ => new ConcurrentDictionary<string, TagValue>(StringComparer.OrdinalIgnoreCase));
-                    dict[tuple.TagId] = tag;
+                    sampleInfo ??= $"{tagId}={val} (rawQ={qInt}, q={quality}, utcDt={utcDt:yyyy-MM-dd HH:mm:ss})";
 
-                    OnTagChanged?.Invoke(tuple.MeterId, tag);
+                    var tag = new TagValue(tagId, val, quality, utcDt);
+
+                    // Fan out shared template tag update to all enabled meters
+                    foreach (var meter in _meters)
+                    {
+                        if (!meter.Enabled) continue;
+
+                        var dict = _latestTags.GetOrAdd(meter.MeterId, _ => new ConcurrentDictionary<string, TagValue>(StringComparer.OrdinalIgnoreCase));
+                        dict[tagId] = tag;
+
+                        OnTagChanged?.Invoke(meter.MeterId, tag);
+                    }
                 }
             }
             catch (Exception ex)
             {
                 _logger?.LogTrace(ex, "[OPC-DA] Error parsing DataChange item.");
             }
+        }
+
+        if (!_loggedInitialSample && (goodCount > 0 || badCount > 0))
+        {
+            _loggedInitialSample = true;
+            _logger?.LogInformation("[OPC-DA] First batch received ({NumItems} items): Good={Good}, Bad={Bad}. Sample: {Sample}",
+                numItems, goodCount, badCount, sampleInfo);
         }
     }
 
@@ -280,6 +357,7 @@ public class OpcDaDriver : IProtocolDriver, IDisposable
         {
             if (_opcGroup != null)
             {
+                try { _opcGroup.AsyncReadComplete -= OnOpcGroupAsyncReadComplete; } catch { }
                 try { _opcGroup.DataChange -= OnOpcGroupDataChange; } catch { }
                 _opcGroup = null;
             }

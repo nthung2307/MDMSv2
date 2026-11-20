@@ -14,9 +14,21 @@ public class TagValue
     public TagQuality Quality { get; set; } = TagQuality.Good;
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 
-    public long TimestampEpochMs => new DateTimeOffset(Timestamp).ToUnixTimeMilliseconds();
+    public long TimestampEpochMs
+    {
+        get
+        {
+            var utc = Timestamp.Kind switch
+            {
+                DateTimeKind.Utc => Timestamp,
+                DateTimeKind.Local => Timestamp.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(Timestamp, DateTimeKind.Utc)
+            };
+            return new DateTimeOffset(utc, TimeSpan.Zero).ToUnixTimeMilliseconds();
+        }
+    }
 
-    public string QualityString => Quality == TagQuality.Good ? "Good" : "Bad";
+    public string QualityString => Quality == TagQuality.Good ? "true" : "false";
 
     public TagValue() { }
 

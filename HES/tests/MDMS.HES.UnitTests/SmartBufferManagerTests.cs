@@ -16,14 +16,14 @@ public class SmartBufferManagerTests
         // Record 1000 successive voltage updates
         for (int i = 0; i < 1000; i++)
         {
-            manager.RecordTag(meterId, new TagValue(ObisConstants.VoltageL1, 220.0 + i, TagQuality.Good, DateTime.UtcNow));
+            manager.RecordTag(meterId, new TagValue(ObisConstants.VoltagePhaseA, 220.0 + i, TagQuality.Good, DateTime.UtcNow));
         }
 
         var payload = manager.DrainPendingPayload(meterId, "209555163");
         Assert.NotNull(payload);
 
         // Only 1 voltage item should exist with the latest value (220 + 999 = 1219)
-        var voltageItems = payload.Values.Where(x => x.Id == ObisConstants.VoltageL1).ToList();
+        var voltageItems = payload.Values.Where(x => x.Id == ObisConstants.VoltagePhaseA).ToList();
         Assert.Single(voltageItems);
         Assert.Equal(1219.0, voltageItems[0].V);
     }
@@ -61,3 +61,4 @@ public class SmartBufferManagerTests
         Assert.Null(payload);
     }
 }
+

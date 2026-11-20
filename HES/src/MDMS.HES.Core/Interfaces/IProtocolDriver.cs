@@ -15,3 +15,4 @@ public interface IProtocolDriver
 
     IReadOnlyDictionary<string, TagValue> GetLatestTags(string meterId);
 }
+

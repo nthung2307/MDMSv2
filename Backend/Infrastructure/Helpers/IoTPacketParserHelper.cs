@@ -39,16 +39,20 @@ internal static class IoTPacketParserHelper
             if (element.ValueKind == JsonValueKind.Number && element.TryGetInt32(out var intVal)) return intVal != 0;
             if (element.ValueKind == JsonValueKind.String)
             {
-                var str = element.GetString();
+                var str = element.GetString()?.Trim();
                 if (bool.TryParse(str, out var parsedBool)) return parsedBool;
                 if (int.TryParse(str, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedInt)) return parsedInt != 0;
+                if (string.Equals(str, "Good", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(str, "OK", StringComparison.OrdinalIgnoreCase)) return true;
             }
             return false;
         }
 
-        var raw = qObj.ToString();
+        var raw = qObj.ToString()?.Trim();
         if (bool.TryParse(raw, out var res)) return res;
         if (int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i)) return i != 0;
+        if (string.Equals(raw, "Good", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(raw, "OK", StringComparison.OrdinalIgnoreCase)) return true;
         return false;
     }
 

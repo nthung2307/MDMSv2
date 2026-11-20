@@ -131,6 +131,11 @@ public class CircuitBreaker : ICircuitBreaker
             {
                 Trip(reason ?? "Probe failed during Half-Open evaluation");
             }
+            else if (_state == CircuitState.Open)
+            {
+                _logger?.LogWarning("[CircuitBreaker] Probe failed while OPEN (Failure #{Count}): {Reason}",
+                    _consecutiveFailures, reason ?? "Unreachable");
+            }
         }
     }
 

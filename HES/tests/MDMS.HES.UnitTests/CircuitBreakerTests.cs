@@ -72,3 +72,4 @@ public class CircuitBreakerTests
         Assert.False(cb.CanPublish());
     }
 }
+

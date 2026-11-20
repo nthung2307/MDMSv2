@@ -19,3 +19,4 @@ public class MeterConfig
     public bool Enabled { get; set; } = true;
     public int ScanRateMs { get; set; } = 60000;
 }
+

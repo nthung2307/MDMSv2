@@ -21,3 +21,4 @@ public interface ICircuitBreaker
     void Trip(string? reason = null);
     void Reset();
 }
+

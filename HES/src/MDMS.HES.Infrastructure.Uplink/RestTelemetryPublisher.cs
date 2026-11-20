@@ -19,7 +19,7 @@ public class RestTelemetryPublisher : IDisposable
         WriteIndented = false
     };
 
-    public string TargetUrl { get; set; } = "http://127.0.0.1:19009/IoT/telemetry";
+    public string TargetUrl { get; set; } = "http://192.168.28.130:19089/IoT/telemetry";
     public string? GlobalApiKey { get; set; }
 
     public RestTelemetryPublisher(
@@ -88,6 +88,15 @@ public class RestTelemetryPublisher : IDisposable
             if (response.IsSuccessStatusCode)
             {
                 _circuitBreaker.RecordSuccess();
+
+                string respBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                if (!string.IsNullOrWhiteSpace(respBody) &&
+                    respBody.Contains("\"success\":false", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger?.LogWarning("[Publisher] Server rejected payload for serial {Serial}: {Response}", serial, respBody);
+                    return false;
+                }
+
                 return true;
             }
 
@@ -121,15 +130,28 @@ public class RestTelemetryPublisher : IDisposable
         }
     }
 
-    public async Task<bool> ProbeServerAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> ProbeServerAsync(
+        string? probeSerial = null,
+        string? probeApiKey = null,
+        CancellationToken cancellationToken = default)
     {
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, TargetUrl);
             request.Headers.TryAddWithoutValidation("X-Probe", "true");
-            if (!string.IsNullOrWhiteSpace(GlobalApiKey))
+
+            if (!string.IsNullOrWhiteSpace(probeSerial))
             {
-                request.Headers.TryAddWithoutValidation("X-IoT-Api-Key", GlobalApiKey);
+                request.Headers.TryAddWithoutValidation("X-Meter-Serial", probeSerial);
+                request.Headers.TryAddWithoutValidation("Serial", probeSerial);
+            }
+
+            var effectiveKey = !string.IsNullOrWhiteSpace(probeApiKey) ? probeApiKey : GlobalApiKey;
+            if (!string.IsNullOrWhiteSpace(effectiveKey))
+            {
+                request.Headers.TryAddWithoutValidation("X-IoT-Api-Key", effectiveKey);
+                request.Headers.TryAddWithoutValidation("Private-key", effectiveKey);
+                request.Headers.TryAddWithoutValidation("Global-key", effectiveKey);
             }
 
             // Minimal probe payload
@@ -147,8 +169,8 @@ public class RestTelemetryPublisher : IDisposable
             cts.CancelAfter(TimeSpan.FromSeconds(2));
 
             using var response = await _httpClient.SendAsync(request, cts.Token);
-            
-            // Any HTTP response (including 400/401/404) means the server and network socket are reachable!
+
+            // Any HTTP response < 500 means the server and network socket are reachable!
             if ((int)response.StatusCode < 500)
             {
                 _circuitBreaker.RecordSuccess();

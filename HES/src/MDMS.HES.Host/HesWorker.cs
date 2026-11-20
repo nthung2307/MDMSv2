@@ -1,6 +1,6 @@
+using System.Diagnostics;
 using System.Text.Json;
 using MDMS.HES.Application.Services;
-using MDMS.HES.Core.Common;
 using MDMS.HES.Core.Interfaces;
 using MDMS.HES.Core.Models;
 using MDMS.HES.Infrastructure.OpcDa;
@@ -28,7 +28,7 @@ public class HesWorker : BackgroundService
     private RestTelemetryPublisher? _publisher;
 
     private string _driverType = "Simulation";
-    private string _targetUrl = "http://192.168.28.130:19009/IoT/telemetry";
+    private string _targetUrl = "http://192.168.28.130:19089/IoT/telemetry";
     private string? _globalApiKey;
     private int _defaultScanRateMs = 60000;
     private int _maxEventsPerPublish = 150;
@@ -52,7 +52,7 @@ public class HesWorker : BackgroundService
         // 1. Initialize Core Services
         _obisDateTimeBuilder = new ObisDateTimeStringTagBuilder(_loggerFactory.CreateLogger<ObisDateTimeStringTagBuilder>());
         _bufferManager = new SmartBufferManager(_loggerFactory.CreateLogger<SmartBufferManager>());
-        
+
         var cb = new CircuitBreaker(_loggerFactory.CreateLogger<CircuitBreaker>())
         {
             FailureThreshold = 1,
@@ -104,13 +104,14 @@ public class HesWorker : BackgroundService
     {
         if (_bufferManager == null || _obisDateTimeBuilder == null) return;
 
-        // Process datetime parts (Year, Month, Day, Hour, Minute, Second)
-        if (_obisDateTimeBuilder.TryProcessTag(meterId, tag, out var synthesizedTags))
+        // Process 24 short datetime parts (Year, Month, Day, Hour, Minute, Second) -> synthesizes 0_9_1..0_9_8
+        if (_obisDateTimeBuilder.TryProcessTag(meterId, tag, out _))
         {
-            // Already recorded in OnObisTagSynthesized
+            // Synthesized OBIS string tags are recorded via OnObisTagSynthesized
+            return;
         }
 
-        // Record the original tag into SmartBuffer
+        // Record the measurement / energy / status tag into SmartBuffer
         _bufferManager.RecordTag(meterId, tag);
     }
 
@@ -126,6 +127,7 @@ public class HesWorker : BackgroundService
         _logger.LogInformation("[HES Host] MDMS.HES Engine is RUNNING. Target URL: {Url}", _targetUrl);
 
         var nextStatsLogTime = DateTime.UtcNow.AddSeconds(30);
+        var probeMeter = _meters.FirstOrDefault(m => m.Enabled && !string.IsNullOrWhiteSpace(m.Serial));
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -147,7 +149,7 @@ public class HesWorker : BackgroundService
                     if (_circuitBreaker.CanProbe() && _publisher != null)
                     {
                         _logger.LogInformation("[HES Heartbeat] Circuit is {State}. Probing server {Url}...", _circuitBreaker.State, _targetUrl);
-                        await _publisher.ProbeServerAsync(stoppingToken);
+                        await _publisher.ProbeServerAsync(probeMeter?.Serial, probeMeter?.ApiKey, stoppingToken);
                     }
 
                     // While circuit is open/half-open, do NOT publish normal meters!
@@ -158,6 +160,10 @@ public class HesWorker : BackgroundService
                 // 3. Normal Publish Loop (Circuit is CLOSED)
                 if (_publisher != null && _bufferManager != null && _circuitBreaker?.CanPublish() == true)
                 {
+                    int publishedMetersInBatch = 0;
+                    int totalTagsInBatch = 0;
+                    var sw = Stopwatch.StartNew();
+
                     foreach (var meter in _meters)
                     {
                         if (stoppingToken.IsCancellationRequested) break;
@@ -179,23 +185,28 @@ public class HesWorker : BackgroundService
                                 if (success)
                                 {
                                     _lastPublishedTimes[meter.MeterId] = now;
+                                    publishedMetersInBatch++;
+                                    totalTagsInBatch += payload.Values.Count;
                                 }
                                 else
                                 {
-                                    // If publish failed and tripped circuit breaker, break immediately!
+                                    // If publish failed due to network error and tripped circuit breaker, break immediately!
                                     if (!_circuitBreaker.CanPublish())
                                     {
-                                        _logger.LogWarning("[HES Host] Publish failed for {MeterId} ({Serial}). Circuit breaker TRIPPED! Suspending other meters.",
+                                        _logger.LogWarning("[HES Host] Publish failed for {MeterId} ({Serial}). Circuit breaker TRIPPED! Suspending remaining meters.",
                                             meter.MeterId, meter.Serial);
                                         break;
                                     }
                                 }
                             }
-                            else
-                            {
-                                _lastPublishedTimes[meter.MeterId] = now;
-                            }
                         }
+                    }
+
+                    sw.Stop();
+                    if (publishedMetersInBatch > 0)
+                    {
+                        _logger.LogInformation("[HES Uplink] Published {PublishedCount}/{TotalMeters} meters ({TagCount} tags) to {Url} in {ElapsedMs}ms.",
+                            publishedMetersInBatch, _meters.Count, totalTagsInBatch, _targetUrl, sw.ElapsedMilliseconds);
                     }
                 }
 

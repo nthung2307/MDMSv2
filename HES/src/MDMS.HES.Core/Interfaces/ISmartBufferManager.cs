@@ -10,3 +10,4 @@ public interface ISmartBufferManager
     int GetCachedMeterCount();
     void Clear();
 }
+
